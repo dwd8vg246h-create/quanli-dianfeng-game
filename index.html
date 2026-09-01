@@ -172,6 +172,122 @@ const MODES = {
     start:"乡镇科员", rules:"强化民生/群众类事件；取消墩苗与回流机制；道德与群众口碑越高，破格提拔越快。"},
 };
 
+/* ==================== 六大中央部委（选调生回流部委后选择）====================
+   每部委含：定位 / 施政流派 / 两项专属技能（带冷却）/ 一项专属危机           */
+const DEPARTMENTS = {
+  ndrc:{
+    short:"发改委", name:"国家发展和改革委员会",
+    tagline:"宏观经济的「总参谋部」",
+    school:"顶层规划", core:"宏观政策视野",
+    desc:"综合研究拟订经济和社会发展政策，指导总体经济体制改革的宏观调控部门。拥有全游戏最高的宏观政策视野加成，擅长通过五年规划和重大项目审批引导全国资源。",
+    role:"运筹帷幄的「操盘手」",
+    skills:[
+      {id:"ndrc_project", name:"项目立项", cd:6,
+       desc:"直接批准国家级重大基建或科技项目，瞬间拉动地方GDP和政绩。",
+       effect:"GDP+18 政绩+22 财政-12 生态-5",
+       fn:s=>{s.GDP+=18;s.政绩+=22;s.财政-=12;s.生态-=5;}},
+      {id:"ndrc_macro", name:"宏观调控", cd:8,
+       desc:"通过降息、降准或财政刺激政策，稳定全国经济大盘。",
+       effect:"GDP+12 财政+10 营商+12 民生+6",
+       fn:s=>{s.GDP+=12;s.财政+=10;s.营商+=12;s.民生+=6;}},
+    ],
+    crisis:"产能过剩", crisisDesc:"若前期过度批准工业项目，后期可能面临严重的经济结构失衡，需要消耗大量政治资本进行「去产能」改革。"
+  },
+  mof:{
+    short:"财政部", name:"中华人民共和国财政部",
+    tagline:"国家治理的「钱袋子」",
+    school:"资源调配", core:"财政资金",
+    desc:"主管国家财政收支、财税政策、政府预算和国有资本金基础工作。掌握全游戏最核心的财政资金指标，擅长通过转移支付和税收杠杆调节地方发展。",
+    role:"运筹帷幄的「操盘手」",
+    skills:[
+      {id:"mof_transfer", name:"专项转移支付", cd:6,
+       desc:"向特定地区或领域定向拨款，迅速提升该地区的民生福祉或营商环境。",
+       effect:"民生+20 营商+14 财政-16",
+       fn:s=>{s.民生+=20;s.营商+=14;s.财政-=16;}},
+      {id:"mof_tax", name:"税制改革", cd:8,
+       desc:"调整增值税或企业所得税率，影响全国企业活力和政府长期财政收入。",
+       effect:"财政+16 营商+12 GDP+8 民生-6",
+       fn:s=>{s.财政+=16;s.营商+=12;s.GDP+=8;s.民生-=6;}},
+    ],
+    crisis:"地方债务危机", crisisDesc:"若对地方盲目举债监管不力，可能引发系统性金融风险，导致中央财政被迫兜底，严重削弱上司好感度。"
+  },
+  mfa:{
+    short:"外交部", name:"中华人民共和国外交部",
+    tagline:"大国博弈的「执剑人」",
+    school:"国际博弈", core:"国际声望",
+    desc:"贯彻执行国家外交战略，维护国家主权、安全和发展利益。拥有独特的国际声望指标，擅长通过外交斡旋和国际贸易协定获取外部资源。",
+    role:"冲锋陷阵的「破局者」",
+    skills:[
+      {id:"mfa_summit", name:"多边峰会", cd:6,
+       desc:"主办或参与G20、APEC等国际会议，大幅提升国际声望和国内支持率。",
+       effect:"国际声望+22 政绩+16 改革派+14",
+       fn:s=>{s.国际声望=(s.国际声望||50)+22;s.政绩+=16;s.reformRep+=14;}},
+      {id:"mfa_fta", name:"贸易协定", cd:8,
+       desc:"签署自由贸易协定(FTA)，为国内企业打开海外市场，拉动出口和GDP。",
+       effect:"GDP+16 营商+16 国际声望+10",
+       fn:s=>{s.GDP+=16;s.营商+=16;s.国际声望=(s.国际声望||50)+10;}},
+    ],
+    crisis:"外交摩擦", crisisDesc:"处理领土争端或贸易壁垒时，态度过于强硬可能引发制裁影响经济；过于软弱则遭国内民族主义情绪反噬，支持率暴跌。"
+  },
+  zzb:{
+    short:"中组部", name:"中共中央组织部",
+    tagline:"干部队伍的「总枢纽」",
+    school:"人事布局", core:"干部档案",
+    desc:"主管党的组织工作、干部队伍建设和人才工作。不直接管理经济或民生，但掌握干部档案和晋升推荐权，是游戏内最顶级的「造王者」路线。",
+    role:"深藏不露的「执棋者」",
+    skills:[
+      {id:"zzb_inspect", name:"干部考察", cd:5,
+       desc:"提前洞察下属或地方官员的忠诚度与潜在腐败风险，避免用人失误。",
+       effect:"能力+16 廉政积分+12 道德+8 法治+8",
+       fn:s=>{s.能力+=16;s.廉政积分=(s.廉政积分||0)+12;s.道德+=8;s.法治=(s.法治||60)+8;}},
+      {id:"zzb_select", name:"定向选调", cd:8,
+       desc:"优先提拔自己培养的嫡系干部到关键岗位，构建稳固的执政基本盘。",
+       effect:"人脉+22 务实派+16 改革派+10 上司好感+12",
+       fn:s=>{s.人脉+=22;s.partyRep+=16;s.reformRep+=10;s.上司好感+=12;}},
+    ],
+    crisis:"买官卖官", crisisDesc:"若在人事任命中过度偏向个人利益，可能触发「巡视组进驻」事件，一旦查实，直接面临身陷囹圄的结局。"
+  },
+  miit:{
+    short:"工信部", name:"工业和信息化部",
+    tagline:"实体经济的「压舱石」",
+    school:"产业升级", core:"科技创新",
+    desc:"拟订并组织实施工业行业规划、产业政策和标准，推动信息化和工业化融合。专注于科技创新和制造业竞争力，推动国家从制造大国向制造强国转型。",
+    role:"冲锋陷阵的「破局者」",
+    skills:[
+      {id:"miit_giant", name:"专精特新", cd:6,
+       desc:"扶持「小巨人」企业，突破「卡脖子」技术，提升国家核心竞争力。",
+       effect:"科创+22 政绩+18 GDP+10 财政-10",
+       fn:s=>{s.科创=(s.科创||50)+22;s.政绩+=18;s.GDP+=10;s.财政-=10;}},
+      {id:"miit_infra", name:"新基建", cd:8,
+       desc:"推动5G、人工智能、工业互联网等新型基础设施建设，奠定未来十年增长基础。",
+       effect:"GDP+16 科创+12 营商+12 财政-14",
+       fn:s=>{s.GDP+=16;s.科创=(s.科创||50)+12;s.营商+=12;s.财政-=14;}},
+    ],
+    crisis:"技术封锁", crisisDesc:"在国际博弈中可能遭遇核心技术断供，导致产业链瘫痪，需要消耗巨额资金和极长时间进行「国产替代」。"
+  },
+  mee:{
+    short:"生态环境部", name:"中华人民共和国生态环境部",
+    tagline:"绿色发展的「守门员」",
+    school:"长期主义", core:"生态指数",
+    desc:"建立健全生态环境基本制度，统一负责生态环境监测和执法工作。短期可能因关停污染企业拖累GDP，但长期显著提升生态指数和民生福祉，是高质量发展的关键。",
+    role:"高瞻远瞩的「布道者」",
+    skills:[
+      {id:"mee_inspect", name:"环保督察", cd:6,
+       desc:"对地方进行突击检查，强制关停违规企业，迅速提升生态指标，但会得罪地方利益集团。",
+       effect:"生态+26 道德+12 GDP-12 民生-6 人脉-8",
+       fn:s=>{s.生态+=26;s.道德+=12;s.GDP-=12;s.民生-=6;s.人脉-=8;}},
+      {id:"mee_carbon", name:"碳交易市场", cd:8,
+       desc:"建立全国碳排放权交易市场，用市场化手段推动节能减排，同时创造新经济增长点。",
+       effect:"生态+16 GDP+10 营商+10 财政+8",
+       fn:s=>{s.生态+=16;s.GDP+=10;s.营商+=10;s.财政+=8;}},
+    ],
+    crisis:"一刀切", crisisDesc:"若执行环保政策过于激进，导致大量企业倒闭和工人失业，会引发严重的社会不稳定事件。"
+  },
+};
+
+/* 籍贯省份（角色创建用） */
+const HOMETOWNS = ["北京","天津","河北","山西","内蒙古","辽宁","吉林","黑龙江","上海","江苏","浙江","安徽","福建","江西","山东","河南","湖北","湖南","广东","广西","海南","重庆","四川","贵州","云南","西藏","陕西","甘肃","青海","宁夏","新疆","香港","澳门","台湾"];
+
 /* ---------- 2. 玩家状态 ---------- */
 let S = null;
 
@@ -191,6 +307,9 @@ function newGame(opts){
   }
   S = {
     name: opts.name || "玩家",
+    gender: opts.gender || "男",     // 性别
+    age: opts.age || 22,             // 年龄
+    hometown: opts.hometown || "山东", // 籍贯
     mode:mode,               // 开局模式：selective / normal / grassroots
     edu: opts.edu || "本科",  // 学历
     partyMember: !!opts.partyMember, // 中共党员
@@ -211,17 +330,23 @@ function newGame(opts){
     dunmiaoMonths:0,        // 已墩苗月数（满24则触发回流）
     returned:false,         // 是否已回流部委
     archive:false,          // 专项培养档案（选调生）
+    dept:null,              // 所属中央部委（回流后选定）：ndrc/mof/mfa/zzb/miit/mee
+    deptCd:{},              // 部委专属技能冷却：{技能id:剩余月数}
+    // 部委专属指标
+    国际声望:50,            // 外交部核心指标
+    科创:50,                // 工信部核心指标
     eventsLog:[],
     achievements:[],
     gameOver:false, ending:null,
   };
+  const who = `${S.name}（${S.gender}，${S.age}岁，${S.hometown}人）`;
   if(mode==="selective"){
     S.archive = true;
-    pushLog(`中央选调生入职：你被分配到${S.edu==='本科'?'部委':'中央国家机关部委'}，人事关系保留在部，即将下沉基层墩苗。`);
+    pushLog(`中央选调生入职：${who}，${S.school}${S.edu}毕业，被分配到中央国家机关部委，人事关系保留在部，即将下沉基层墩苗。`);
   } else if(mode==="grassroots"){
-    pushLog("入职第一天：你作为本地干部，回到家乡白云乡党政综合办，乡亲们都看着你。");
+    pushLog(`入职第一天：${who}，作为本地干部回到${S.hometown}白云乡党政综合办，乡亲们都看着你。`);
   } else {
-    pushLog("入职第一天：你被分配到白云乡党政综合办。");
+    pushLog(`入职第一天：${who}，被分配到白云乡党政综合办。`);
   }
   save();
 }
@@ -270,6 +395,23 @@ const $=id=>document.getElementById(id);
 function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
 function pushLog(t){ if(!S)return; S.eventsLog.push(t); if(S.eventsLog.length>40)S.eventsLog.shift(); }
 
+/* 统一收敛所有数值指标到合理区间（部委技能等大额增减后调用） */
+function clampAll(){
+  if(!S) return;
+  const range = {
+    能力:[0,999], 政绩:[0,99999], 政绩点:[0,9999],
+    道德:[0,100], 健康:[0,100], 人脉:[0,100], 上司好感:[0,100],
+    财政:[0,100], GDP:[0,100], 民生:[0,100], 生态:[0,100],
+    营商:[0,100], 治安:[0,100], 廉政积分:[0,999], 法治:[0,100],
+    国际声望:[0,100], 科创:[0,100],
+    partyRep:[0,100], neutralRep:[0,100], reformRep:[0,100],
+  };
+  Object.keys(range).forEach(k=>{
+    if(typeof S[k]==='number'){ S[k]=clamp(Math.round(S[k]), range[k][0], range[k][1]); }
+  });
+  if(S.cash<0) S.cash=0;
+}
+
 function addToast(msg){
   const box=$("toast"); box.style.display="block";
   const el=document.createElement("div"); el.className="toast-item"; el.textContent=msg;
@@ -287,6 +429,8 @@ function monthlySettlement(){
   const drift=(cur,target)=> cur + (target-cur)*0.03;
   S.生态=clamp(drift(S.生态,65),0,100);
   S.治安=clamp(drift(S.治安,60),0,100);
+  // 部委专属技能冷却递减
+  if(S.deptCd){ Object.keys(S.deptCd).forEach(k=>{ if(S.deptCd[k]>0) S.deptCd[k]--; }); }
   S.month++;
   if(S.month>12){S.month=1;S.year++;S.政绩点+= Math.floor(S.政绩/100);}
   // ==== 选调生墩苗计时 ====
@@ -299,6 +443,8 @@ function monthlySettlement(){
       S.政绩 += 50; S.上司好感 += 30; S.人脉 += 20;
       pushLog("🎖️ 墩苗2年考核优秀，100%调回中央部委定岗，进入『火箭式』轮岗培养（职级跃升）。");
       addToast("🔥 回流部委 · 火箭晋升");
+      // 回流后分配具体部委
+      setTimeout(()=>{ openDeptChoice(); }, 400);
     }
   }
   // 健康检查
@@ -493,7 +639,7 @@ const EVENTS = [
       {t:"争取关键岗位",d:"锁定实权职位。政绩+25，GDP+10，政绩点+4",
         fn:s=>{s.政绩+=25;s.GDP+=10;s.政绩点+=4;promoteBy(1);pushLog("你出任关键岗位，把长期积累的人脉转化为治理合力。");}},
     ]
-  },,
+  },
   {
     id:"flood", title:"突发洪涝灾害",
     text:"连日暴雨，白云乡下游三个村被淹，群众紧急转移。气象台预报雨势还将持续48小时。上级要求立即处置。",
@@ -820,6 +966,81 @@ const EVENTS = [
         fn:s=>{s.财政+=10;s.政绩-=10;s.道德-=5;pushLog("预算平衡了，但错失了技术窗口期。");}},
     ]
   },
+
+  /* ==================== 第八类：中央部委专属危机（选调生回流后按所属部委触发）==================== */
+  {
+    id:"overcapacity", title:"产能过剩危机", dept:"ndrc",
+    text:"前期你批准的大量工业项目集中投产，钢铁、水泥等行业出现严重产能过剩，产品价格暴跌，企业大面积亏损。国务院要求拿出『去产能』方案。",
+    opts:[
+      {t:"果断去产能",d:"关停落后产能。政绩+15，道德+15，GDP-15，民生-10，人脉-12",
+        fn:s=>{s.政绩+=15;s.道德+=15;s.GDP-=15;s.民生-=10;s.人脉-=12;pushLog("你顶住压力推动去产能，虽短期阵痛但结构逐步优化。");}},
+      {t:"渐进消化",d:"兼并重组逐步化解。GDP-5，政绩+8，财政-12",
+        fn:s=>{s.GDP-=5;s.政绩+=8;s.财政-=12;pushLog("你推动兼并重组，产能压力在数年内缓慢释放。");}},
+      {t:"继续刺激托底",d:"扩大投资维持产能。GDP+8，财政-20，道德-10，生态-10",
+        fn:s=>{s.GDP+=8;s.财政-=20;s.道德-=10;s.生态-=10;pushLog("你选择继续刺激，过剩问题被推迟但更加严重。");}},
+    ]
+  },
+  {
+    id:"debt_crisis", title:"地方债务危机", dept:"mof",
+    text:"审计署通报：多地通过融资平台盲目举债，债务率突破警戒线，部分区县已出现兑付困难。作为财政主管部门，你需拿出处置方案。",
+    opts:[
+      {t:"中央兜底化解",d:"财政出手稳定大局。财政-25，民生+10，上司好感+12，道德+8",
+        fn:s=>{s.财政-=25;s.民生+=10;s.上司好感+=12;s.道德+=8;pushLog("你推动债务置换，守住了不发生系统性风险的底线。");}},
+      {t:"严肃问责追责",d:"谁举债谁负责。道德+18，改革派+15，人脉-18，财政+8",
+        fn:s=>{s.道德+=18;s.reformRep+=15;s.人脉-=18;s.财政+=8;pushLog("你坚持终身问责，举债冲动得到遏制，但得罪了不少人。");}},
+      {t:"展期拖延",d:"借新还旧维持。财政-8，道德-15，上司好感-15",
+        fn:s=>{s.财政-=8;s.道德-=15;s.上司好感-=15;pushLog("债务雪球越滚越大，上级对你的监管不力极为不满。");}},
+    ]
+  },
+  {
+    id:"diplomatic_friction", title:"外交摩擦升级", dept:"mfa",
+    text:"邻国在争议海域扣押我方渔船，同时宣布对中方商品加征关税。国内舆论要求强硬反击，但经济部门担忧贸易战升级。",
+    opts:[
+      {t:"强硬反制",d:"对等制裁维权。国际声望+18，改革派+15，GDP-12，民生-8",
+        fn:s=>{s.国际声望=(s.国际声望||50)+18;s.reformRep+=15;s.GDP-=12;s.民生-=8;pushLog("你的强硬反制赢得国内赞誉，但经贸关系急剧恶化。");}},
+      {t:"柔性斡旋",d:"外交谈判化解。国际声望+8，GDP+8，营商+10，道德+10",
+        fn:s=>{s.国际声望=(s.国际声望||50)+8;s.GDP+=8;s.营商+=10;s.道德+=10;pushLog("你通过谈判促成渔船释放，经贸合作得以延续。");}},
+      {t:"克制退让",d:"避免冲突升级。GDP+5，国际声望-20，民生-12，道德-12",
+        fn:s=>{s.GDP+=5;s.国际声望=(s.国际声望||50)-20;s.民生-=12;s.道德-=12;pushLog("你的克制被舆论批评为软弱，支持率大幅下滑。");}},
+    ]
+  },
+  {
+    id:"sell_offices", title:"买官卖官举报", dept:"zzb",
+    text:"巡视组收到实名举报：你推荐的几名干部存在花钱买官问题，线索已移交。有人暗示你『活动一下』，也有人劝你主动说明。",
+    opts:[
+      {t:"主动报告严查",d:"刀刃向内清理门户。道德+25，廉政积分+20，人脉-20，政绩+10",
+        fn:s=>{s.道德+=25;s.廉政积分=(s.廉政积分||0)+20;s.人脉-=20;s.政绩+=10;pushLog("你主动报告并配合核查，虽折损人脉但守住了底线。");}},
+      {t:"切割自保",d:"收回推荐撇清关系。政绩+5，道德-12，上司好感-8",
+        fn:s=>{s.政绩+=5;s.道德-=12;s.上司好感-=8;pushLog("你收回了推荐，但用人失察的责任难以完全撇清。");}},
+      {t:"运作压下",d:"动用关系摆平。人脉+15，道德-30，廉政积分-15",
+        fn:s=>{s.人脉+=15;s.道德-=30;s.廉政积分=(s.廉政积分||0)-15;pushLog("你试图压下举报，但巡视组已经盯上了这件事……");}},
+    ]
+  },
+  {
+    id:"tech_blockade", title:"核心技术断供", dept:"miit",
+    text:"某国突然宣布对高端芯片及制造设备实施全面出口管制，国内多条产业链面临停摆风险。企业焦急等待主管部门的方案。",
+    opts:[
+      {t:"举国攻关替代",d:"启动国产替代专项。科创+25，政绩+20，财政-22，健康-8",
+        fn:s=>{s.科创=(s.科创||50)+25;s.政绩+=20;s.财政-=22;s.健康-=8;pushLog("你牵头组织产学研联合攻关，数年后关键技术取得突破。");}},
+      {t:"多元化采购",d:"分散供应降低风险。科创+8，GDP+5，财政-10，营商+8",
+        fn:s=>{s.科创=(s.科创||50)+8;s.GDP+=5;s.财政-=10;s.营商+=8;pushLog("你拓展了多元供应渠道，缓解了燃眉之急。");}},
+      {t:"谈判争取缓冲",d:"外交斡旋争取时间。国际声望+10，政绩+8，科创-5",
+        fn:s=>{s.国际声望=(s.国际声望||50)+10;s.政绩+=8;s.科创=(s.科创||50)-5;pushLog("你争取到缓冲期，但自主可控的根本问题仍未解决。");}},
+    ]
+  },
+  {
+    id:"one_size_fits_all", title:"环保「一刀切」风波", dept:"mee",
+    text:"为完成减排硬指标，地方层层加码，对大量企业实行「一刀切」停产限产，导致工厂倒闭、工人失业，群体性事件苗头显现。",
+    opts:[
+      {t:"立即纠偏",d:"分类施策精准治污。民生+18，道德+15，生态-8，上司好感+8",
+        fn:s=>{s.民生+=18;s.道德+=15;s.生态-=8;s.上司好感+=8;pushLog("你叫停『一刀切』，推行差异化管控，保住了就业也守住了蓝天。");}},
+      {t:"坚持硬指标",d:"环保优先不动摇。生态+20，GDP-15，民生-15，道德-10",
+        fn:s=>{s.生态+=20;s.GDP-=15;s.民生-=15;s.道德-=10;pushLog("减排目标完成了，但失业工人的诉求成了新的社会问题。");}},
+      {t:"配套安置转型",d:"治污与就业并重。生态+12，民生+12，财政-18，政绩+10",
+        fn:s=>{s.生态+=12;s.民生+=12;s.财政-=18;s.政绩+=10;pushLog("你推动职工转岗安置和产业升级，实现了环境与就业的双赢。");}},
+    ]
+  },
+
 ];
 
 /* 加权随机选事件（避免重复太频繁，路线偏好加权） */
@@ -827,7 +1048,11 @@ let lastEventId=null, recentEventIds=[];
 function pickEvent(){
   const recencyWindow=5;
   // 归一化池：统一转为 {e,w}（w 至少为 1），彻底避免原始对象/包装对象混淆
-  let pool=EVENTS.filter(e=>!recentEventIds.includes(e.id)).map(e=>({e,w:1}));
+  // 部委专属危机事件：仅当玩家已归属该部委时才进入池子
+  const myDept = (S && S.dept) ? S.dept : null;
+  let pool=EVENTS.filter(e=>!recentEventIds.includes(e.id))
+                 .filter(e=> !e.dept || e.dept===myDept)
+                 .map(e=>({e,w:1}));
   if(pool.length < EVENTS.length/2) recentEventIds=[]; // 池太小时重置近期列表
   if(!pool.length){ recentEventIds=[]; pool=EVENTS.map(e=>({e,w:1})); } // 兜底：池空则全量重开
   // 路线 / 开局模式偏好加权
@@ -848,6 +1073,8 @@ function pickEvent(){
         if(e.route==='grassroots') w=(e.weight||3)*2;
         if(e.id==='invest'||e.id==='economic_pressure') w*=0.4;
       }
+      // ---- 所属部委：专属危机事件加权（回流部委后生效） ----
+      if(S.dept && e.dept===S.dept) w = Math.max(w, 7);
       item.w=w;
     });
   }
@@ -885,6 +1112,7 @@ function renderTopbar(){
       <span class="attr">上司 <b>${S.上司好感}</b></span>
       <span class="attr">政绩点 <b>${S.政绩点}</b></span>
       ${S.route==='discipline'?`<span class="attr" style="background:rgba(47,125,79,.5)">廉政 <b>${S.廉政积分||0}</b></span>`:""}
+      ${S.dept?`<span class="attr" style="background:rgba(70,110,160,.65)">${DEPARTMENTS[S.dept].short}</span>`:""}
       ${S.mode==='selective'?`<span class="attr" style="background:rgba(180,140,30,.6)">${S.returned?'部委':(S.dunmiao?'墩苗中':'选调')}</span>`:""}
       ${S.mode==='grassroots'?`<span class="attr" style="background:rgba(60,110,60,.6)">扎根</span>`:""}
     </div>`;
@@ -905,7 +1133,26 @@ function pStats(){
       </div>
       <div class="mini" style="margin-top:8px">可支配资源点：<b>${S.cash}</b>（可用于专项建设）</div>
     </div>
-  </div>`;
+  </div>` +
+  // 部委专属指标
+  (S.dept==='mfa'? `<div class="card">
+    <div class="card-h">🌍 外交部 · 国际声望</div>
+    <div class="card-b">
+      <div class="stat-grid">
+        <div class="stat"><span class="lbl">国际声望</span><div class="n">${S.国际声望||50}</div></div>
+      </div>
+      <div class="mini" style="margin-top:8px">通过多边峰会与贸易协定积累，影响国家外部资源获取能力。</div>
+    </div>
+  </div>`:"") +
+  (S.dept==='miit'? `<div class="card">
+    <div class="card-h">🔬 工信部 · 科技创新</div>
+    <div class="card-b">
+      <div class="stat-grid">
+        <div class="stat"><span class="lbl">科创指数</span><div class="n">${S.科创||50}</div></div>
+      </div>
+      <div class="mini" style="margin-top:8px">通过专精特新与新基建积累，决定突破「卡脖子」技术的能力。</div>
+    </div>
+  </div>`:"");
 }
 
 function pFaction(){
@@ -960,7 +1207,28 @@ function pAction(){
     {t:"☕ 经营人脉", d:"联络同僚，人脉+6，上司好感+4，道德-2", fn:s=>{s.人脉+=6;s.上司好感+=4;s.道德-=2;}},
     {t:"🏠 休息调养", d:"回家陪家人，健康+15，本月不再行动", fn:s=>{s.健康+=15;return 'rest';}},
   ];
-  let html=`<div class="card">
+  let html="";
+  // ===== 部委专属技能面板（选调生回流部委后出现）=====
+  if(S.dept && DEPARTMENTS[S.dept]){
+    const d = DEPARTMENTS[S.dept];
+    let skHtml = "";
+    d.skills.forEach((sk,idx)=>{
+      const cd = (S.deptCd && S.deptCd[sk.id]) || 0;
+      const ready = cd <= 0;
+      skHtml += `<button class="btn ${ready?'':''}" data-act="deptskill" data-idx="${idx}" style="${ready?'border-left-color:#b01e23':'opacity:.55'}">
+        <span class="bt">${ready?'⚡':'⏳'} ${sk.name} ${ready?'':'（冷却中 '+cd+'月）'}</span>
+        <span class="bd">${sk.desc}<br><b style="color:#b01e23">${sk.effect}</b> · 冷却${sk.cd}月</span>
+      </button>`;
+    });
+    html += `<div class="card">
+      <div class="card-h">🏛️ ${d.short} · 专属技能 <span class="mini">（${d.school}流派）</span></div>
+      <div class="card-b">
+        <div class="mini" style="margin-bottom:8px">核心指标：<b>${d.core}</b>${d.core==='国际声望'?` （当前 ${S.国际声望||50}）`:d.core==='科创'?` （当前 ${S.科创||50}）`:''}</div>
+        ${skHtml}
+      </div>
+    </div>`;
+  }
+  html+=`<div class="card">
     <div class="card-h">🗂️ 本月行动</div>
     <div class="card-b">`;
   acts.forEach((a,i)=>{
@@ -993,8 +1261,29 @@ function renderMain(tab){
 }
 
 function renderArchive(){
+  // 干部履历（角色信息）
+  const deptInfo = S.dept ? DEPARTMENTS[S.dept] : null;
+  let resume = `<div class="card">
+    <div class="card-h">🪪 干部履历</div>
+    <div class="card-b">
+      <div class="stat-grid">
+        <div class="stat"><span class="lbl">姓名</span><div class="n" style="font-size:14px">${S.name||'—'}</div></div>
+        <div class="stat"><span class="lbl">性别</span><div class="n" style="font-size:14px">${S.gender||'—'}</div></div>
+        <div class="stat"><span class="lbl">年龄</span><div class="n" style="font-size:14px">${S.age||'—'}岁</div></div>
+        <div class="stat"><span class="lbl">籍贯</span><div class="n" style="font-size:14px">${S.hometown||'—'}</div></div>
+        <div class="stat"><span class="lbl">学历</span><div class="n" style="font-size:14px">${S.edu||'—'}</div></div>
+        <div class="stat"><span class="lbl">院校</span><div class="n" style="font-size:12px">${S.school||'—'}</div></div>
+      </div>
+      <div class="mini" style="margin-top:8px">
+        开局模式：<b>${MODES[S.mode||'normal'].name}</b>
+        ${deptInfo?` · 所属部委：<b>${deptInfo.name}</b>（${deptInfo.school}流派，核心指标：${deptInfo.core}）`:""}
+        ${S.dunmiaoMonths?` · 墩苗 <b>${S.dunmiaoMonths}</b> 个月`:""}
+      </div>
+    </div>
+  </div>`;
+
   let log=S.eventsLog.slice().reverse().slice(0,25).map(l=>`<div style="font-size:12px;line-height:1.8;border-bottom:1px dashed #ddd;padding:4px 0">· ${l}</div>`).join("");
-  return `<div class="card">
+  return resume + `<div class="card">
     <div class="card-h">📁 工作日志</div>
     <div class="card-b">${log||'<div class="muted">暂无记录</div>'}
     <button class="btn" data-act="save" style="margin-top:12px"><span class="bt">💾 保存进度</span></button>
@@ -1028,6 +1317,23 @@ function bindActions(){
       S.政绩+=8; S.政绩点+=1;
       showResult(e,opt);
       save();
+    };
+  });
+  // 部委专属技能
+  document.querySelectorAll('[data-act="deptskill"]').forEach(b=>{
+    b.onclick=()=>{
+      const idx=+b.dataset.idx;
+      const d=DEPARTMENTS[S.dept]; if(!d) return;
+      const sk=d.skills[idx]; if(!sk) return;
+      const cd=(S.deptCd && S.deptCd[sk.id])||0;
+      if(cd>0){ addToast("技能冷却中，还需 "+cd+" 个月"); return; }
+      sk.fn(S);
+      S.deptCd = S.deptCd||{}; S.deptCd[sk.id] = sk.cd;
+      pushLog(`部委施政【${d.short}·${sk.name}】：${sk.effect}`);
+      addToast("⚡ 已施展：" + sk.name);
+      clampAll();
+      renderTopbar(); renderMain('action');
+      checkPromotion();
     };
   });
   document.querySelectorAll('[data-act="do"]').forEach(b=>{
@@ -1094,6 +1400,50 @@ function flavorText(id){
   return m[id]||"你深吸一口气，继续投入工作。";
 }
 
+/* ---------- 7.5 中央部委分配（选调生回流后） ---------- */
+function openDeptChoice(){
+  let cards = "";
+  Object.keys(DEPARTMENTS).forEach(k=>{
+    const d = DEPARTMENTS[k];
+    let sk = "";
+    d.skills.forEach(s=>{ sk += `<div class="mini" style="margin-top:4px">· <b>${s.name}</b>（冷却${s.cd}月）：${s.desc}</div>`; });
+    cards += `<button class="btn" data-dept="${k}">
+      <span class="bt">${d.short} · ${d.tagline}</span>
+      <span class="bd"><b>【${d.school}】</b>${d.desc}</span>
+      <span class="bd" style="border-top:1px dashed #ddd;padding-top:6px;margin-top:6px">
+        <b>专属技能：</b>${sk}
+        <div style="margin-top:6px;color:#b01e23"><b>专属危机「${d.crisis}」：</b>${d.crisisDesc}</div>
+        <div class="mini" style="margin-top:4px;color:#666">角色定位：${d.role}</div>
+      </span>
+    </button>`;
+  });
+  $("modalTitle").textContent = "🏛️ 组织分配：选择中央部委";
+  $("modalBody").innerHTML = `
+    <div class="event-text" style="text-indent:0">
+      墩苗期满，你已100%调回中央部委。组织将根据培养方向与本人专长，把你分配到具体部委。<br>
+      <b>不同部委拥有截然不同的施政流派、专属技能与专属危机</b>，这将在很大程度上决定你后半程的仕途风格。
+    </div>${cards}`;
+  $("modal").classList.add("show");
+  document.querySelectorAll('[data-dept]').forEach(b=>{
+    b.onclick=()=>{
+      const k = b.dataset.dept;
+      const d = DEPARTMENTS[k];
+      S.dept = k; S.deptCd = {};
+      // 部委初始加成（核心指标）
+      if(k==='ndrc'){ S.政绩+=20; S.能力+=8; }
+      if(k==='mof'){ S.财政+=15; S.cash+=40; }
+      if(k==='mfa'){ S.国际声望=(S.国际声望||50)+15; S.reformRep+=10; }
+      if(k==='zzb'){ S.人脉+=15; S.廉政积分=(S.廉政积分||0)+10; S.上司好感+=10; }
+      if(k==='miit'){ S.科创=(S.科创||50)+15; S.GDP+=8; }
+      if(k==='mee'){ S.生态+=15; S.道德+=8; }
+      pushLog(`组织分配：你被分配到【${d.name}】，施政流派：${d.school}，核心指标：${d.core}。`);
+      addToast("🏛️ 分配至 " + d.short);
+      $("modal").classList.remove("show");
+      save(); renderTopbar(); renderMain(curTab);
+    };
+  });
+}
+
 /* ---------- 8. 路线选择 ---------- */
 function openRouteChoice(){
   let opts="";
@@ -1158,6 +1508,8 @@ function endGame(type){
       政绩：${S.政绩} · 道德：${S.道德} · 健康：${S.健康}<br>
       任期：${S.year}年${S.month}月 · 路线：${S.route?ROUTES[S.route].name:"—"}
       ${S.mode==='selective'?`<br>墩苗：${S.dunmiaoMonths||0}个月 · 已${S.returned?'回流部委':'在基层'}`:""}
+      ${S.dept?`<br>所属部委：<b>${DEPARTMENTS[S.dept].name}</b>（${DEPARTMENTS[S.dept].school}）`:""}
+      <br>干部：${S.name}（${S.gender}，${S.age}岁，${S.hometown}人，${S.edu}）
     </div>
     <button class="btn primary" id="again" style="margin-top:14px">再来一局</button>`;
   $("modal").classList.add("show");
@@ -1223,20 +1575,32 @@ function openCharCreate(mode){
     $("modalTitle").textContent="📝 创建角色（"+MODES[mode].name+"）";
     $("modalBody").innerHTML=`
       <div class="event-text" style="text-indent:0">
-        <label style="display:block;margin:8px 0">姓名：<input id="ci_name" class="ipt" value="玩家" style="width:60%"></label>
-        <label style="display:block;margin:8px 0">学历：
-          <select id="ci_edu" class="ipt">
-            <option>本科</option><option>硕士</option><option>博士</option>
-          </select></label>
+        <div style="border:1px solid #ddd;border-radius:8px;padding:10px">
+          <label style="display:block;margin:6px 0">姓名：<input id="ci_name" class="ipt" value="李为民" style="width:55%" maxlength="8" placeholder="请输入姓名"></label>
+          <label style="display:block;margin:6px 0">性别：
+            <select id="ci_gender" class="ipt"><option>男</option><option>女</option></select></label>
+          <label style="display:block;margin:6px 0">年龄：
+            <input id="ci_age" class="ipt" type="number" value="22" min="18" max="60" style="width:70px"> 岁</label>
+          <label style="display:block;margin:6px 0">籍贯：
+            <select id="ci_hometown" class="ipt">${HOMETOWNS.map(h=>`<option>${h}</option>`).join("")}</select></label>
+          <label style="display:block;margin:6px 0">学历：
+            <select id="ci_edu" class="ipt">
+              <option>本科</option><option>硕士</option><option>博士</option>
+            </select></label>
+        </div>
         <div class="mini" style="margin-top:10px">${MODES[mode].rules}</div>
       </div>
       <button class="btn primary" id="ci_ok">进入仕途</button>`;
     $("modal").classList.add("show");
     $("ci_ok").onclick=()=>{
-      const name=$("ci_name").value||"玩家";
+      const name=($("ci_name").value||"李为民").trim();
+      const age=parseInt($("ci_age").value,10)||22;
+      const hometown=$("ci_hometown").value;
+      const gender=$("ci_gender").value;
       const edu=$("ci_edu").value;
+      if(age<18||age>60){ addToast("年龄须在 18-60 岁之间"); return; }
       $("modal").classList.remove("show");
-      newGame({mode, name, edu});
+      newGame({mode, name, age, hometown, gender, edu});
       curTab='event'; renderTopbar(); renderNav(); renderMain();
     };
     return;
@@ -1257,13 +1621,20 @@ function openCharCreate(mode){
       </ol>
     </div>
     <div style="border:1px solid #ddd;border-radius:8px;padding:12px;margin-top:8px">
-      <label style="display:block;margin:6px 0">姓名：<input id="ci_name" class="ipt" value="玩家" style="width:55%"></label>
+      <label style="display:block;margin:6px 0">姓名：<input id="ci_name" class="ipt" value="李为民" style="width:55%" maxlength="8" placeholder="请输入姓名"></label>
+      <label style="display:block;margin:6px 0">性别：
+        <select id="ci_gender" class="ipt"><option>男</option><option>女</option></select></label>
+      <label style="display:block;margin:6px 0">年龄：
+        <input id="ci_age" class="ipt" type="number" value="24" min="18" max="40" style="width:70px"> 岁
+        <span id="ci_agetip" class="mini" style="margin-left:6px;color:#666"></span></label>
+      <label style="display:block;margin:6px 0">籍贯：
+        <select id="ci_hometown" class="ipt">${HOMETOWNS.map(h=>`<option>${h}</option>`).join("")}</select></label>
       <label style="display:block;margin:6px 0">毕业院校：<select id="ci_school" class="ipt">${opt}</select></label>
-      <label style="display:block;margin:6px 0">学历 / 年龄：
+      <label style="display:block;margin:6px 0">学历：
         <select id="ci_edu" class="ipt">
-          <option value="本科">本科（≤25岁）</option>
-          <option value="硕士">硕士（≤28岁）</option>
-          <option value="博士">博士（≤30岁）</option>
+          <option value="本科">本科（年龄≤25岁）</option>
+          <option value="硕士">硕士（年龄≤28岁）</option>
+          <option value="博士">博士（年龄≤30岁）</option>
         </select></label>
       <label style="display:block;margin:6px 0"><input type="checkbox" id="ci_party" checked> 中共党员（含预备）</label>
       <label style="display:block;margin:6px 0"><input type="checkbox" id="ci_cadre" checked> 连续学生干部满1年</label>
@@ -1272,17 +1643,21 @@ function openCharCreate(mode){
     <button class="btn primary" id="ci_ok" style="margin-top:12px">提交资格审核</button>`;
   $("modal").classList.add("show");
   $("ci_ok").onclick=()=>{
+    const edu=$("ci_edu").value;
+    const age=parseInt($("ci_age").value,10)||0;
     const data={
-      mode, name:$("ci_name").value||"玩家", school:$("ci_school").value,
-      edu:$("ci_edu").value,
+      mode, name:($("ci_name").value||"李为民").trim(), school:$("ci_school").value,
+      edu, age, gender:$("ci_gender").value, hometown:$("ci_hometown").value,
       partyMember:$("ci_party").checked, studentCadre:$("ci_cadre").checked, honors:$("ci_honor").checked,
     };
-    const ageLimit={本科:25,硕士:28,博士:30};
+    const AGE_LIMIT={本科:25,硕士:28,博士:30};
+    const lim=AGE_LIMIT[edu]||25;
     const fail=[];
     if(!data.partyMember) fail.push("政治面貌须为中共党员");
     if(!data.studentCadre) fail.push("需连续担任学生干部满1年");
     if(!data.honors) fail.push("需获得校级及以上荣誉");
-    if(({本科:true,硕士:true,博士:true})[data.edu]){} // 学历默认合规
+    if(age<18) fail.push("年龄不得低于18岁");
+    else if(age>lim) fail.push(`${edu}学历年龄须≤${lim}岁（当前${age}岁）`);
     if(fail.length){
       $("modalBody").insertAdjacentHTML("beforeend",
         `<div class="result-box" style="margin-top:10px;border-color:#c0392b;color:#c0392b">⚠️ 资格不达标：${fail.join("；")}<br>请调整或返回选择其他开局模式。</div>`);

@@ -274,8 +274,12 @@ const DEPARTMENTS = {
     skills:[
       {id:"mee_inspect", name:"环保督察", cd:6,
        desc:"对地方进行突击检查，强制关停违规企业，迅速提升生态指标，但会得罪地方利益集团。",
-       effect:"生态+26 道德+12 GDP-12 民生-6 人脉-8",
-       fn:s=>{s.生态+=26;s.道德+=12;s.GDP-=12;s.民生-=6;s.人脉-=8;}},
+       effect:"生态+26 道德+12 GDP-12 民生-6 人脉-8（懂经济的环保官：民生/人脉损失减半）",
+       fn:s=>{
+         const g = hasBuff('green_finance');   // 绿色金融补贴：降低地方抵触
+         s.生态+=26;s.道德+=12;s.GDP-=12;
+         s.民生-=(g?3:6); s.人脉-=(g?4:8);
+       }},
       {id:"mee_carbon", name:"碳交易市场", cd:8,
        desc:"建立全国碳排放权交易市场，用市场化手段推动节能减排，同时创造新经济增长点。",
        effect:"生态+16 GDP+10 营商+10 财政+8",
@@ -341,6 +345,149 @@ function hometownFull(prov, city){
      prov.indexOf("特别行政区")>=0) return prov;
   return prov + " " + city;
 }
+/* ============ 部委入职第一天：办公室政治与文化差异 ============
+   分配部委后触发，决定玩家"人设"标签与初始隐形人脉               */
+const DEPT_FIRSTDAY = {
+  ndrc:{
+    scene:"发改委的办公室灯火通明，白板上写满了复杂的经济模型和五年规划指标。空气中弥漫着浓茶和打印机的味道，老处长正对着几份地方上报的『重大项目申请』眉头紧锁。",
+    title:"抢手的红头文件",
+    text:"你刚坐下，隔壁桌的资深科员就递来一份尚未定稿的《新能源产业指导意见》，压低声音说：『兄弟，地方上几家企业在等风口，你先透个底，好处少不了你的。』",
+    opts:[
+      {t:"严词拒绝并上报处长", d:"铁面无私 · 处长好感↑↑ · 得罪同僚",
+       tag:"铁面无私",
+       fn:s=>{s.上司好感+=15;s.道德+=12;s.人脉-=8;s.能力+=5;
+             pushLog("你当面退回文件并向处长报告，老处长赞许地点点头，但办公室的气氛冷了下来。");}},
+      {t:"委婉推脱，称还在熟悉业务", d:"圆滑 · 明哲保身 · 无过无功",
+       tag:"圆滑",
+       fn:s=>{s.人脉+=8;s.能力+=3;s.道德-=2;
+             pushLog("你笑着把文件推回去说自己还在学，既没得罪人，也没留下把柄。");}},
+      {t:"顺水推舟，隐晦地给出暗示", d:"地方资本人脉 · 道德↓↓ · 埋下巡视隐患",
+       tag:"地方资本",
+       fn:s=>{s.人脉+=18;s.道德-=15;s.cash+=50;s.廉政积分=(s.廉政积分||0)-10;
+             pushLog("你含蓄地点了几句，第二天账户多了一笔『咨询费』，但巡视组的目光已悄然扫过。");}},
+    ],
+  },
+  mof:{
+    scene:"预算司的走廊堆满各省上报的拨款申请，电话铃声此起彼伏。处长桌上摊着一张密密麻麻的『转移支付分配表』，每一格都牵着上亿资金和一个省的期待。",
+    title:"分配表上的名额",
+    text:"你负责草拟本年度均衡性转移支付方案。邻省财政厅的老同学打来电话，暗示『家乡今年困难，能不能在系数上照顾一下』，并承诺事成之后在老家给你『留个位置』。",
+    opts:[
+      {t:"严格按公式测算，一视同仁", d:"铁算盘 · 道德↑↑ · 得罪老同学",
+       tag:"铁算盘",
+       fn:s=>{s.道德+=14;s.能力+=8;s.人脉-=6;s.政绩+=8;
+             pushLog("你顶住压力按公式办事，方案获司领导表扬，但老同学在电话里摔了杯子。");}},
+      {t:"在权限内微调，给个顺水人情", d:"圆滑 · 人脉↑ · 道德↓",
+       tag:"圆滑",
+       fn:s=>{s.人脉+=14;s.道德-=6;s.上司好感+=4;
+             pushLog("你在技术允许的区间内稍作倾斜，各方都挑不出毛病，老同学记了你的人情。");}},
+      {t:"大幅倾斜，换取老家政治资源", d:"地方资本人脉 · 道德↓↓ · 审计风险",
+       tag:"地方资本",
+       fn:s=>{s.人脉+=20;s.道德-=18;s.cash+=60;s.廉政积分=(s.廉政积分||0)-12;
+             pushLog("你动足了脑筋做高系数，家乡领导亲自来电致谢，但审计署的模型已经亮起红灯。");}},
+    ],
+  },
+  mfa:{
+    scene:"走廊里安静得可怕，所有人走路都轻手轻脚。你的办公桌上放着一叠厚厚的全英文外电内参，带你的参赞正用极其挑剔的目光审视你昨天写的简报。",
+    title:"措辞的陷阱",
+    text:"参赞让你修改一份关于某国制裁的声明草案。原稿中使用了『强烈抗议』，参赞抬眼问你：『你觉得，要不要改成「严正交涉」？』",
+    opts:[
+      {t:"建议保持『强烈抗议』", d:"鹰派 · 强硬作风 · 可能被批不够稳重",
+       tag:"鹰派",
+       fn:s=>{s.reformRep+=15;s.国际声望=(s.国际声望||50)+8;s.能力+=4;s.上司好感-=6;
+             pushLog("你主张措辞强硬以表明立场，参赞皱眉：『年轻人，外交不是比嗓门大。』");}},
+      {t:"改为『严正交涉』并附历史案例", d:"专业素养 · 参赞赏识 · 外交手腕↑↑",
+       tag:"外交手腕",
+       fn:s=>{s.上司好感+=16;s.能力+=10;s.国际声望=(s.国际声望||50)+12;s.政绩+=10;
+             pushLog("你不仅改了措辞，还附上三份历史交涉案例，参赞第一次正眼看你：『有点意思。』");}},
+      {t:"先询问参赞的倾向再作答", d:"安全牌 · 无过无功 · 错失展现机会",
+       tag:"",
+       fn:s=>{s.上司好感+=3;s.能力+=2;
+             pushLog("你稳妥地把问题抛了回去，没犯错，但也错失了一次留下印象的机会。");}},
+    ],
+  },
+  zzb:{
+    scene:"没有多余的寒暄，没有公开的绩效排名。你的带教领导只给了你一句话：『在这里，多看、多听、少说，把每一份干部档案都当成活生生的人。』",
+    title:"档案里的秘密",
+    text:"你在整理某位拟提拔干部的档案时，发现他早年有一段被模糊处理的『违规经商』记录，但现任领导似乎有意提拔他。",
+    opts:[
+      {t:"直接在处务会上指出问题", d:"原则性强 · 可能成为该领导政敌",
+       tag:"原则性强",
+       fn:s=>{s.道德+=16;s.廉政积分=(s.廉政积分||0)+15;s.人脉-=15;s.上司好感-=8;
+             pushLog("你当众指出档案疑点，会场一片死寂。那位领导看你的眼神，你记了很久。");}},
+      {t:"单独抽出档案，私下向主管领导汇报", d:"心腹 · 极高政治情商 · 获得核心信任",
+       tag:"心腹",
+       fn:s=>{s.上司好感+=20;s.能力+=10;s.廉政积分=(s.廉政积分||0)+10;s.人脉+=8;
+             pushLog("你把档案单独呈给主管领导，领导深深看了你一眼：『你很懂事。』从此视你为心腹。");}},
+      {t:"假装没看见，照常流程走", d:"安全过关 · 错失建立信任机会",
+       tag:"",
+       fn:s=>{s.能力+=2;s.道德-=5;
+             pushLog("你合上档案继续走流程。一切照旧，只是那道通往核心圈子的门，依旧紧闭。");}},
+    ],
+  },
+  miit:{
+    scene:"产业园区的规划图挂满整面墙，走廊里堆着各地报送的『专精特新』申报材料。处长桌上摆着一块国产芯片样品，据说能顶进口货的七成性能。",
+    title:"评审席上的诱惑",
+    text:"你参与『专精特新小巨人』企业评审。一家资质平平但背景深厚的企业找上门，承诺给你『专家咨询费』，希望在名单上占一席之地。",
+    opts:[
+      {t:"据实写评审意见，不予通过", d:"技术官僚 · 科创↑ · 得罪地方利益",
+       tag:"技术官僚",
+       fn:s=>{s.科创=(s.科创||50)+12;s.道德+=12;s.能力+=6;s.人脉-=8;
+             pushLog("你顶住说情，如实出具评审意见。名单公示后，真正的技术型企业进了名单。");}},
+      {t:"在边缘指标上松一松", d:"圆滑 · 人脉↑ · 道德↓",
+       tag:"圆滑",
+       fn:s=>{s.人脉+=14;s.道德-=6;s.cash+=40;
+             pushLog("你在几项弹性指标上做了技术处理，企业勉强入围，你也收到了『咨询费』。");}},
+      {t:"力保该企业，换取产业基金支持", d:"地方资本人脉 · 道德↓↓ · 骗补隐患",
+       tag:"地方资本",
+       fn:s=>{s.人脉+=20;s.道德-=16;s.cash+=70;s.廉政积分=(s.廉政积分||0)-12;
+             pushLog("你全力举荐，企业顺利入围。但审计部门已经开始关注这批名单的异常通过率。");}},
+    ],
+  },
+  mee:{
+    scene:"墙上挂着全国空气质量实时地图，督察整改台账摞成一座小山。办公室里常年飘着一股打印机碳粉味，电话那头永远是地方上的求情声。",
+    title:"环评报告的重量",
+    text:"你手上是某贫困县引进的唯一一个大项目——一家有污染风险但能解决三千人就业的化工厂。环评报告卡在你这里，县长亲自打来电话：『三千个饭碗，就摆在您手上。』",
+    opts:[
+      {t:"严格执行标准，不予批复", d:"守门员 · 生态↑↑ · 民生↓",
+       tag:"守门员",
+       fn:s=>{s.生态+=15;s.道德+=14;s.民生-=8;s.人脉-=8;
+             pushLog("你顶着压力写下『不予批复』。河水保住了，但县长的那通电话，你一直没敢再接。");}},
+      {t:"附条件批复，要求配套治污设施", d:"务实 · 平衡生态与发展",
+       tag:"务实",
+       fn:s=>{s.生态+=6;s.民生+=10;s.能力+=8;s.政绩+=8;s.财政-=8;
+             pushLog("你设置了严格的排污门槛和验收条件，既保住了就业，也守住了底线。");}},
+      {t:"睁一只眼闭一只眼放行", d:"地方资本人脉 · 道德↓↓ · 督察隐患",
+       tag:"地方资本",
+       fn:s=>{s.人脉+=18;s.道德-=18;s.cash+=60;s.生态-=12;s.廉政积分=(s.廉政积分||0)-12;
+             pushLog("项目顺利落地，三千人上岗。但中央环保督察组已经收到了实名举报信。");}},
+    ],
+  },
+};
+
+/* ============ 轮岗系统：软技能继承 + 硬技能重置 ============ */
+/* 软技能（通用能力）：跨部委 100% 保留 */
+const SOFT_SKILLS = [
+  {id:"writing", name:"公文写作", desc:"历任岗位积累的文字功底，跨部委永久保留。"},
+  {id:"crisis",  name:"危机公关", desc:"处置突发舆情的能力，跨部委永久保留。"},
+  {id:"mediate", name:"人际斡旋", desc:"协调各方利益的技巧，跨部委永久保留。"},
+];
+
+/* 轮岗带来的特殊增益 Buff */
+const ROTATION_BUFFS = {
+  green_finance:{
+    name:"懂经济的环保官",
+    desc:"由发改委/财政部轮岗至生态环境部。推行环保政策时可启用「绿色金融补贴」，地方抵触情绪大幅降低（环保类政策的民生/人脉损失减半）。"
+  },
+  grassroots_insight:{
+    name:"懂基层的部委大员",
+    desc:"拥有乡镇挂职经历。制定宏观政策时「接地气」，政策落地成功率+30%，不易引发群体性事件（月度民生与治安额外增益）。"
+  },
+  multi_post:{
+    name:"复合型领导干部",
+    desc:"在三个及以上部委任职过。视野极为开阔，晋升考核时获得额外认可（政绩点获取+20%）。"
+  },
+};
+
 /* ---------- 2. 玩家状态 ---------- */
 let S = null;
 
@@ -387,6 +534,17 @@ function newGame(opts){
     archive:false,          // 专项培养档案（选调生）
     dept:null,              // 所属中央部委（回流后选定）：ndrc/mof/mfa/zzb/miit/mee
     deptCd:{},              // 部委专属技能冷却：{技能id:剩余月数}
+    // ==== 轮岗系统 ====
+    tags:[],                // 人设标签（入职第一天选择决定）：铁面无私/圆滑/地方资本/心腹…
+    rotation:{              // 轮岗状态
+      count:0,              // 已轮岗次数
+      history:[],           // 历任部委（含当前）
+      buffs:[],             // 当前生效的增益：green_finance / grassroots_insight / multi_post
+      adaptation:0,         // 适应期剩余月数（>0 时政绩产出减半）
+      softSkills:{writing:1,crisis:1,mediate:1}, // 软技能等级（跨部委100%保留）
+      hardFrozen:[],        // 被冻结的旧部委硬技能（轮岗后需重新学习）
+      triggeredRanks:[],    // 已触发过轮岗的职级（防重复）
+    },
     // 部委专属指标
     国际声望:50,            // 外交部核心指标
     科创:50,                // 工信部核心指标
@@ -451,6 +609,18 @@ const $=id=>document.getElementById(id);
 function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
 function pushLog(t){ if(!S)return; S.eventsLog.push(t); if(S.eventsLog.length>40)S.eventsLog.shift(); }
 
+/* 成就解锁（去重） */
+function grantAchievement(name, desc){
+  if(!S) return;
+  S.achievements = S.achievements || [];
+  if(S.achievements.some(a=>a.name===name)) return;  // 已解锁
+  S.achievements.push({name, desc});
+  addToast("🏆 成就解锁：" + name);
+  pushLog(`🏆 解锁成就【${name}】：${desc}`);
+}
+/* 是否拥有某项轮岗增益 */
+function hasBuff(id){ return !!(S && S.rotation && S.rotation.buffs && S.rotation.buffs.includes(id)); }
+
 /* 统一收敛所有数值指标到合理区间（部委技能等大额增减后调用） */
 function clampAll(){
   if(!S) return;
@@ -459,7 +629,7 @@ function clampAll(){
     道德:[0,100], 健康:[0,100], 人脉:[0,100], 上司好感:[0,100],
     财政:[0,100], GDP:[0,100], 民生:[0,100], 生态:[0,100],
     营商:[0,100], 治安:[0,100], 廉政积分:[0,999], 法治:[0,100],
-    国际声望:[0,100], 科创:[0,100],
+    国际声望:[0,100], 科创:[0,100], 金融风险:[0,100], 科技长期:[0,99],
     partyRep:[0,100], neutralRep:[0,100], reformRep:[0,100],
   };
   Object.keys(range).forEach(k=>{
@@ -479,7 +649,22 @@ function addToast(msg){
 function monthlySettlement(){
   const r=S.rank>=6?0.6:1; // 前期事件密集
   // 自然衰减/增长
-  S.政绩 += Math.round((S.GDP*0.3 + S.民生*0.3 + S.营商*0.2 + S.生态*0.1 + S.治安*0.1)*r*0.15);
+  // 轮岗适应期：政绩产出下降50%（政绩真空期）
+  const adapt = (S.rotation && S.rotation.adaptation>0) ? 0.5 : 1;
+  S.政绩 += Math.round((S.GDP*0.3 + S.民生*0.3 + S.营商*0.2 + S.生态*0.1 + S.治安*0.1)*r*0.15*adapt);
+  // 适应期倒计时
+  if(S.rotation && S.rotation.adaptation>0){
+    S.rotation.adaptation--;
+    if(S.rotation.adaptation===0){
+      pushLog("✅ 轮岗适应期结束：你已完全熟悉新部门业务，政绩产出恢复正常。");
+      addToast("📈 适应期结束，政绩产出恢复");
+    }
+  }
+  // Buff：懂基层的部委大员（政策接地气，不易引发群体性事件）
+  if(hasBuff('grassroots_insight')){
+    S.民生 = clamp(S.民生 + 0.5, 0, 100);
+    S.治安 = clamp(S.治安 + 0.5, 0, 100);
+  }
   S.健康 = clamp(S.健康 - (S.rank>=10?0:1) - (S.健康>90?0:0), 0, 100);
   // 指标缓慢回归
   const drift=(cur,target)=> cur + (target-cur)*0.03;
@@ -488,7 +673,11 @@ function monthlySettlement(){
   // 部委专属技能冷却递减
   if(S.deptCd){ Object.keys(S.deptCd).forEach(k=>{ if(S.deptCd[k]>0) S.deptCd[k]--; }); }
   S.month++;
-  if(S.month>12){S.month=1;S.year++;S.政绩点+= Math.floor(S.政绩/100);}
+  if(S.month>12){
+    S.month=1; S.year++;
+    const gain = Math.floor(S.政绩/100);
+    S.政绩点 += hasBuff('multi_post') ? Math.ceil(gain*1.2) : gain;  // 复合型干部+20%
+  }
   // ==== 选调生墩苗计时 ====
   if(S.mode==='selective' && S.dunmiao && !S.returned){
     S.dunmiaoMonths = (S.dunmiaoMonths||0) + 1;
@@ -549,8 +738,18 @@ function doPromote(){
   // 晋升奖励
   S.能力+=5; S.政绩点+=3; S.上司好感+=10; S.cash+=60;
   // 到达顶层？
-  if(S.rank>=RANKS.length-1){ endGame("大国领袖"); }
+  if(S.rank>=RANKS.length-1){ endGame("大国领袖"); return; }
   save();
+  // ==== 跨部委轮岗触发（副处级/正处级）====
+  if(S.dept && ROTATION_RANKS.includes(S.rank)){
+    S.rotation = S.rotation || {};
+    S.rotation.triggeredRanks = S.rotation.triggeredRanks || [];
+    if(!S.rotation.triggeredRanks.includes(S.rank)){
+      S.rotation.triggeredRanks.push(S.rank);
+      save();
+      setTimeout(()=>{ openRotationChoice(); }, 600);
+    }
+  }
 }
 
 /* ---------- 4. 突发事件库 ---------- */
@@ -1097,6 +1296,106 @@ const EVENTS = [
     ]
   },
 
+  /* ============ 第九类：跨部门协作与博弈（中期核心挑战，按所属部委触发）============ */
+  {
+    id:"clash_west_energy", title:"世纪工程的博弈：西部新能源基地", dept:"ndrc", weight:6,
+    text:"发改委牵头规划千亿级『西部新能源基地』，建成后将极大拉动GDP并保障国家能源安全。但生态环境部出示的环评数据显示，项目将严重破坏当地脆弱的高原生态，双方已在国务院常务会上拍了桌子。",
+    opts:[
+      {t:"强推项目，以『国家能源安全』压人", d:"GDP↑↑ 生态↓↓ 与环保部结仇，后续项目审批被卡",
+        fn:s=>{s.GDP+=25;s.政绩+=25;s.生态-=22;s.道德-=8;s.人脉-=12;
+          s.金融风险=(s.金融风险||30)+5;
+          pushLog("你以国家能源安全为由强推项目，工程上马了，但环保部从此对你处处设卡。");}},
+      {t:"妥协退让，缩减项目规模", d:"GDP↑ 生态平稳 获环保部好感，但被批『缺乏魄力』",
+        fn:s=>{s.GDP+=10;s.生态+=5;s.人脉+=15;s.上司好感-=10;s.政绩+=8;
+          pushLog("你主动缩减规模换取环保部支持，上级却认为你魄力不足，错失了大工程。");}},
+      {t:"引入『生态补偿机制』", d:"消耗大量财政，达成双赢，解锁成就【绿色破局者】",
+        fn:s=>{
+          const greenBuff = S.rotation && S.rotation.buffs.includes('green_finance');
+          const cost = greenBuff ? 12 : 26;   // 懂经济的环保官：大幅降低资金代价
+          s.GDP+=18;s.生态+=15;s.财政-=cost;s.政绩+=30;s.道德+=12;s.人脉+=10;
+          grantAchievement("绿色破局者","在发展与保护的博弈中找到第三条路，实现生态与经济的双赢。");
+          pushLog(greenBuff
+            ? "你凭借经济工作背景设计出绿色金融补贴方案，以较低代价实现双赢，赢得两部门尊重。"
+            : "你力排众议引入生态补偿机制，虽耗资巨大，但工程与生态双双保住，成为业内标杆。");
+        }},
+    ]
+  },
+  {
+    id:"clash_property_rescue", title:"救市与防风险的拉扯：房企暴雷", dept:"mof", weight:6,
+    text:"某大型房企暴雷，全国数百个楼盘面临烂尾。财政部主张『定向注资保交楼』以稳民生；央行与金融监管总局则坚持『按市场化法治化原则处置』，拒绝无底线兜底，严防道德风险。两方僵持不下，你是财政部的关键一票。",
+    opts:[
+      {t:"联合住建部强行要求银行展期", d:"民生↑↑ 金融风险↑↑ 引发央行强烈抗议",
+        fn:s=>{s.民生+=25;s.金融风险=(s.金融风险||30)+22;s.道德+=8;s.人脉-=15;s.上司好感-=8;
+          pushLog("你推动银行全面展期，烂尾楼复工了，但央行公开抗议，金融系统的风险正在累积。");}},
+      {t:"同意市场化出清，仅给少量失业救济", d:"金融风险↓ 民生↓↓ 引发大规模维权，上级震怒",
+        fn:s=>{s.金融风险=(s.金融风险||30)-15;s.民生-=25;s.治安-=15;s.上司好感-=15;s.道德-=5;
+          pushLog("你坚持市场化出清，风险被隔离了，但维权潮席卷全国，上级震怒，你被严厉批评。");}},
+      {t:"设立『房地产纾困基金』撬动AMC接盘", d:"考验资金调配与跨部门斡旋，成功则名利双收",
+        fn:s=>{
+          const ok = s.能力>=45 || (s.rotation && s.rotation.buffs.includes('multi_post'));
+          if(ok){
+            s.民生+=18;s.金融风险=(s.金融风险||30)-8;s.财政-=15;s.政绩+=32;s.上司好感+=15;s.能力+=8;
+            grantAchievement("纾困操盘手","以小博大设立纾困基金，用财政小头撬动社会资本化解系统性风险。");
+            pushLog("你设计的纾困基金方案获国务院认可，财政部出小头撬动AMC接盘，名利双收。");
+          } else {
+            s.民生+=5;s.财政-=18;s.政绩+=6;s.能力+=5;
+            pushLog("你的纾困方案因协调能力不足未能落地，资金沉淀，各方都不满意。");
+          }
+        }},
+    ]
+  },
+  {
+    id:"clash_chip_route", title:"科技突围的路线之争：芯片瓶颈", dept:"miit", weight:6,
+    text:"面对国外技术封锁，国家急需突破芯片瓶颈。科技部主张『从0到1』的基础理论研究，把钱拨给顶尖高校；工信部主张『从1到100』的成熟制程量产，把钱拨给半导体企业。两条路线，只能选一条。",
+    opts:[
+      {t:"坚持企业路线，先解决有没有", d:"短期见效快，失败则面临『骗补』丑闻风险",
+        fn:s=>{
+          const good = s.科创>=55 || s.GDP>=60;
+          if(good){
+            s.科创=(s.科创||50)+15;s.GDP+=18;s.政绩+=22;s.财政-=15;
+            pushLog("你力主量产优先，成熟制程迅速铺开，芯片自给率显著提升，企业界一片叫好。");
+          } else {
+            s.科创=(s.科创||50)+3;s.财政-=20;s.道德-=12;s.政绩-=5;
+            pushLog("企业拿了补贴却未见成果，『骗补』质疑声四起，你被推上舆论风口。");
+          }
+        }},
+      {t:"支持科技部路线，甘当绿叶", d:"长期主义，5年后可能触发『基础科学突破』国家级大奖",
+        fn:s=>{s.科创=(s.科创||50)+22;s.改革派=s.reformRep+=12;s.政绩+=10;s.GDP-=5;
+          s.科技长期=(s.科技长期||0)+1;
+          pushLog("你把资金让给基础研究，甘当绿叶。领导评价你『有大局观，但也要有存在感』。");}},
+      {t:"推动『新型举国体制』组建创新联合体", d:"难度极高，需同时满足两部门诉求，成功解锁终极科技Buff",
+        fn:s=>{
+          const ok = (s.能力>=55 && s.科创>=50) || (s.rotation && s.rotation.buffs.includes('multi_post'));
+          if(ok){
+            s.科创=(s.科创||50)+30;s.政绩+=38;s.GDP+=12;s.能力+=10;s.上司好感+=18;
+            grantAchievement("举国体制操盘者","打破部门壁垒组建创新联合体，实现从0到100的全链条突破。");
+            if(S.rotation && !S.rotation.buffs.includes('multi_post')){}
+            pushLog("你促成高校与企业联合的创新联合体，两部门罕见地同时为你背书，这是科技突围的终极答案。");
+          } else {
+            s.科创=(s.科创||50)+5;s.政绩-=8;s.人脉-=10;s.财政-=12;
+            pushLog("联合体因两部门诉求分歧而名存实亡，你夹在中间，两边都不讨好。");
+          }
+        }},
+    ]
+  },
+
+  /* ============ 第十类：长期主义回报（科技长期投入的兑现）============ */
+  {
+    id:"basic_science_breakthrough", title:"基础科学突破：国家级大奖", dept:"miit", weight:2,
+    cond:s=>((s.科技长期||0)>=1),  // 需此前选择过「支持科技部路线」的长期主义
+    text:"五年前你力排众议支持的基础研究，如今结出硕果。高校团队在下一代芯片架构上取得原理性突破，科技部点名要与你共同申报国家最高科学技术奖。",
+    opts:[
+      {t:"出席并共同署名", d:"政绩↑↑ 科创↑↑ 改革派↑ 成就【长期主义者】",
+        fn:s=>{s.科创=(s.科创||50)+28;s.政绩+=40;s.reformRep+=18;s.上司好感+=20;
+          grantAchievement("长期主义者","五年前埋下的种子，终成荫庇后人的大树。");
+          pushLog("你出席颁奖典礼，五年的坚持换来国家级大奖，业内称你为最有远见的官员。");}},
+      {t:"把署名让给一线科学家", d:"道德↑↑ 人脉↑ 政绩↑",
+        fn:s=>{s.道德+=20;s.人脉+=18;s.政绩+=20;s.科创=(s.科创||50)+15;
+          grantAchievement("甘为人梯","把荣誉让给真正的科研工作者，你赢得了整个科学界的尊重。");
+          pushLog("你主动退出署名，把荣誉留给一线科学家，这份胸襟为你赢得了科学界的长久尊重。");}},
+    ]
+  },
+
 ];
 
 /* 加权随机选事件（避免重复太频繁，路线偏好加权） */
@@ -1108,6 +1407,7 @@ function pickEvent(){
   const myDept = (S && S.dept) ? S.dept : null;
   let pool=EVENTS.filter(e=>!recentEventIds.includes(e.id))
                  .filter(e=> !e.dept || e.dept===myDept)
+                 .filter(e=> !e.cond || (S && e.cond(S)))   // 前置条件（如长期主义回报）
                  .map(e=>({e,w:1}));
   if(pool.length < EVENTS.length/2) recentEventIds=[]; // 池太小时重置近期列表
   if(!pool.length){ recentEventIds=[]; pool=EVENTS.map(e=>({e,w:1})); } // 兜底：池空则全量重开
@@ -1130,7 +1430,11 @@ function pickEvent(){
         if(e.id==='invest'||e.id==='economic_pressure') w*=0.4;
       }
       // ---- 所属部委：专属危机事件加权（回流部委后生效） ----
-      if(S.dept && e.dept===S.dept) w = Math.max(w, 7);
+      if(S.dept && e.dept===S.dept){
+        w = Math.max(w, 7);
+        // 跨部门协作与博弈：中期核心挑战，副处级以上大幅加权
+        if(e.id && e.id.indexOf('clash_')===0 && S.rank>=5) w = Math.max(w, 10);
+      }
       item.w=w;
     });
   }
@@ -1169,6 +1473,8 @@ function renderTopbar(){
       <span class="attr">政绩点 <b>${S.政绩点}</b></span>
       ${S.route==='discipline'?`<span class="attr" style="background:rgba(47,125,79,.5)">廉政 <b>${S.廉政积分||0}</b></span>`:""}
       ${S.dept?`<span class="attr" style="background:rgba(70,110,160,.65)">${DEPARTMENTS[S.dept].short}</span>`:""}
+      ${(S.rotation&&S.rotation.adaptation>0)?`<span class="attr" style="background:rgba(176,30,35,.6)">适应期${S.rotation.adaptation}</span>`:""}
+      ${(S.rotation&&S.rotation.buffs&&S.rotation.buffs.length)?`<span class="attr" style="background:rgba(47,125,79,.6)">✨${S.rotation.buffs.length}</span>`:""}
       ${S.mode==='selective'?`<span class="attr" style="background:rgba(180,140,30,.6)">${S.returned?'部委':(S.dunmiao?'墩苗中':'选调')}</span>`:""}
       ${S.mode==='grassroots'?`<span class="attr" style="background:rgba(60,110,60,.6)">扎根</span>`:""}
     </div>`;
@@ -1265,6 +1571,16 @@ function pAction(){
   ];
   let html="";
   // ===== 部委专属技能面板（选调生回流部委后出现）=====
+  // 轮岗适应期 / 增益提示
+  if(S.rotation && (S.rotation.adaptation>0 || (S.rotation.buffs&&S.rotation.buffs.length))){
+    let tips = "";
+    if(S.rotation.adaptation>0)
+      tips += `<div class="mini" style="color:#b01e23">⏳ 轮岗适应期剩余 <b>${S.rotation.adaptation}</b> 个月：政绩产出 -50%</div>`;
+    (S.rotation.buffs||[]).forEach(b=>{
+      const B=ROTATION_BUFFS[b]; if(B) tips += `<div class="mini" style="color:#2f7d4f;margin-top:3px">✨ <b>${B.name}</b> 生效中</div>`;
+    });
+    html += `<div class="card"><div class="card-h">🔄 轮岗状态</div><div class="card-b">${tips}</div></div>`;
+  }
   if(S.dept && DEPARTMENTS[S.dept]){
     const d = DEPARTMENTS[S.dept];
     let skHtml = "";
@@ -1319,6 +1635,39 @@ function renderMain(tab){
 function renderArchive(){
   // 干部履历（角色信息）
   const deptInfo = S.dept ? DEPARTMENTS[S.dept] : null;
+  const rot = S.rotation || {};
+
+  // 轮岗履历卡片
+  let rotCard = "";
+  if(rot.count>0){
+    const histNames = (rot.history||[]).map(k=>DEPARTMENTS[k]?DEPARTMENTS[k].short:k);
+    const curName = S.dept && DEPARTMENTS[S.dept] ? DEPARTMENTS[S.dept].short : "—";
+    rotCard = `<div style="border-top:1px dashed #ddd;margin-top:8px;padding-top:8px">
+      <div class="mini"><b>🔄 轮岗履历</b>（${rot.count} 次）：${histNames.join(' → ')} → <b>${curName}</b></div>
+      <div class="mini" style="margin-top:4px">软技能（永久保留）：${SOFT_SKILLS.map(x=>x.name+' Lv.'+((rot.softSkills&&rot.softSkills[x.id])||1)).join(' · ')}</div>
+      ${(rot.hardFrozen&&rot.hardFrozen.length)?`<div class="mini" style="margin-top:4px;color:#999">已冻结的旧专业技能：${rot.hardFrozen.length} 项</div>`:""}
+      ${(rot.adaptation>0)?`<div class="mini" style="margin-top:4px;color:#b01e23">⏳ 适应期剩余 ${rot.adaptation} 个月，政绩产出 -50%</div>`:""}
+    </div>`;
+  }
+
+  // 增益卡片
+  let buffCard = "";
+  if(rot.buffs && rot.buffs.length){
+    buffCard = `<div style="border-top:1px dashed #ddd;margin-top:8px;padding-top:8px">
+      <div class="mini"><b>✨ 轮岗增益</b></div>
+      ${rot.buffs.map(b=>{const B=ROTATION_BUFFS[b]; return B?`<div class="mini" style="margin-top:4px;color:#2f7d4f"><b>${B.name}</b>：${B.desc}</div>`:"";}).join("")}
+    </div>`;
+  }
+
+  // 成就卡片
+  let achCard = "";
+  if(S.achievements && S.achievements.length){
+    achCard = `<div style="border-top:1px dashed #ddd;margin-top:8px;padding-top:8px">
+      <div class="mini"><b>🏆 成就</b>（${S.achievements.length}）</div>
+      ${S.achievements.map(a=>`<div class="mini" style="margin-top:4px"><b style="color:#b01e23">【${a.name}】</b>${a.desc||''}</div>`).join("")}
+    </div>`;
+  }
+
   let resume = `<div class="card">
     <div class="card-h">🪪 干部履历</div>
     <div class="card-b">
@@ -1335,6 +1684,10 @@ function renderArchive(){
         ${deptInfo?` · 所属部委：<b>${deptInfo.name}</b>（${deptInfo.school}流派，核心指标：${deptInfo.core}）`:""}
         ${S.dunmiaoMonths?` · 墩苗 <b>${S.dunmiaoMonths}</b> 个月`:""}
       </div>
+      ${(S.tags&&S.tags.length)?`<div class="mini" style="margin-top:6px">人设标签：${S.tags.map(t=>`<span style="display:inline-block;background:#b01e23;color:#fff;border-radius:3px;padding:1px 6px;margin:2px 3px 2px 0;font-size:11px">${t}</span>`).join("")}</div>`:""}
+      ${rotCard}
+      ${buffCard}
+      ${achCard}
     </div>
   </div>`;
 
@@ -1452,8 +1805,164 @@ function flavorText(id){
     gr_collective:"产业兴则乡村兴，集体强则农民富。",
     gr_grid:"基层治理是国家治理的最后一公里。",
     gr_promotion_local:"组织不会埋没任何一个实干的人。",
+    // 跨部门博弈 & 长期回报
+    clash_west_energy:"既要金山银山，也要绿水青山。",
+    clash_property_rescue:"房子是用来住的、不是用来炒的。",
+    clash_chip_route:"关键核心技术是要不来、买不来、讨不来的。",
+    basic_science_breakthrough:"功成不必在我，功成必定有我。",
   };
   return m[id]||"你深吸一口气，继续投入工作。";
+}
+
+/* ---------- 7.4 部委入职第一天：办公室政治 ---------- */
+function openDeptFirstDay(){
+  const k = S.dept; if(!k || !DEPT_FIRSTDAY[k]) return;
+  const d = DEPARTMENTS[k], f = DEPT_FIRSTDAY[k];
+  let btns = "";
+  f.opts.forEach((o,idx)=>{
+    btns += `<button class="btn" data-fd="${idx}">
+      <span class="bt">${o.t}</span><span class="bd">${o.d}</span>
+    </button>`;
+  });
+  $("modalTitle").textContent = "🏛️ " + d.short + " · 入职第一天";
+  $("modalBody").innerHTML = `
+    <div class="event-text" style="text-indent:0;font-size:12px;line-height:1.9">
+      <div style="background:#f7f3e8;border-left:3px solid #b01e23;padding:8px 10px;margin-bottom:10px">
+        <b>【${f.title}】</b><br>${f.scene}
+      </div>
+      ${f.text}
+      <div class="mini" style="margin-top:10px;color:#666">
+        这一天你的选择，将决定你在${d.short}的初始人设与隐形人脉——它会影响此后所有人对你的看法。
+      </div>
+    </div>${btns}`;
+  $("modal").classList.add("show");
+  document.querySelectorAll('[data-fd]').forEach(b=>{
+    b.onclick=()=>{
+      const o = f.opts[+b.dataset.fd];
+      o.fn(S);
+      if(o.tag){
+        S.tags = S.tags || [];
+        if(!S.tags.includes(o.tag)) S.tags.push(o.tag);
+        pushLog(`你在${d.short}入职第一天的表现，为你赢得了「${o.tag}」的口碑。`);
+        addToast("🏷️ 获得标签：" + o.tag);
+      }
+      clampAll();
+      $("modal").classList.remove("show");
+      save(); renderTopbar(); renderMain(curTab);
+      // 入职第一天：办公室政治
+      setTimeout(()=>{ openDeptFirstDay(); }, 400);
+    };
+  });
+}
+
+/* ---------- 7.45 部委轮岗系统（副处级/正处级触发）---------- */
+const ROTATION_RANKS = [5, 8];   // 副县长(副处级) / 县长(正处级)
+
+function openRotationChoice(){
+  const cur = S.dept; if(!cur) return;
+  const curD = DEPARTMENTS[cur];
+  let cards = "";
+  Object.keys(DEPARTMENTS).forEach(k=>{
+    if(k === cur) return;   // 不能轮岗到本部委
+    const d = DEPARTMENTS[k];
+    // Buff 预告
+    let buffTip = "";
+    if(k==='mee' && (cur==='ndrc'||cur==='mof'))
+      buffTip = `<div style="color:#2f7d4f;margin-top:6px">✨ 可获增益【${ROTATION_BUFFS.green_finance.name}】：${ROTATION_BUFFS.green_finance.desc}</div>`;
+    if(S.rotation && !S.rotation.buffs.includes('grassroots_insight') &&
+       (S.mode==='grassroots' || (S.dunmiaoMonths||0)>0))
+      buffTip += `<div style="color:#2f7d4f;margin-top:4px">✨ 可获增益【${ROTATION_BUFFS.grassroots_insight.name}】：${ROTATION_BUFFS.grassroots_insight.desc}</div>`;
+    if(S.rotation && S.rotation.history.length>=1 && !S.rotation.buffs.includes('multi_post'))
+      buffTip += `<div style="color:#2f7d4f;margin-top:4px">✨ 可获增益【${ROTATION_BUFFS.multi_post.name}】：${ROTATION_BUFFS.multi_post.desc}</div>`;
+    let sk=""; d.skills.forEach(s2=>{ sk += `· ${s2.name}（冷却${s2.cd}月） `; });
+    cards += `<button class="btn" data-rot="${k}">
+      <span class="bt">${d.short} · ${d.tagline}</span>
+      <span class="bd"><b>【${d.school}】</b>${d.desc}
+        <div class="mini" style="margin-top:6px">新专业技能：${sk}</div>
+        ${buffTip}
+      </span>
+    </button>`;
+  });
+  $("modalTitle").textContent = "🔄 跨部委轮岗：复合型干部培养";
+  $("modalBody").innerHTML = `
+    <div class="event-text" style="text-indent:0;font-size:12px;line-height:1.9">
+      你在 <b>${curD.name}</b> 已晋升至 <b>${RANKS[S.rank][0]}</b>。组织决定安排你<b>跨部委轮岗</b>，培养复合型领导能力。<br><br>
+      <b style="color:#2f7d4f">✓ 能力迁移（100%保留）</b><br>
+      <span class="mini">${SOFT_SKILLS.map(x=>x.name).join(' · ')} 等软技能永久保留；软技能等级 +1。</span><br><br>
+      <b style="color:#b01e23">✗ 专业技能重置</b><br>
+      <span class="mini">原「${curD.skills.map(x=>x.name).join('、')}」将被冻结，需重新学习新部委技能（技能初始进入冷却=学习期）。</span><br><br>
+      <b style="color:#b01e23">⚠ 轮岗代价</b><br>
+      <span class="mini">· <b>人脉断层</b>：原部门盟友变为跨部门联系，人脉 -15，消耗 40 政治点数重新打点<br>
+      · <b>政绩真空期</b>：轮岗后 12 个月为适应期，政绩产出下降 50%</span>
+      <div class="mini" style="margin-top:10px;color:#666">请选择轮岗去向：</div>
+    </div>${cards}
+    <button class="btn" data-rot="__stay__" style="margin-top:8px;border-left-color:#888">
+      <span class="bt">暂不轮岗，留在 ${curD.short} 深耕</span>
+      <span class="bd">放弃跨部门视野与增益，但保住现有人脉与技能熟练度。</span>
+    </button>`;
+  $("modal").classList.add("show");
+  document.querySelectorAll('[data-rot]').forEach(b=>{
+    b.onclick=()=>{
+      const k = b.dataset.rot;
+      $("modal").classList.remove("show");
+      if(k === '__stay__'){
+        pushLog("你婉拒了轮岗机会，选择留在" + curD.short + "继续深耕。");
+        addToast("已选择留任 " + curD.short);
+        save(); renderMain(curTab);
+        return;
+      }
+      doRotate(k);
+    };
+  });
+}
+
+function doRotate(newDept){
+  const oldDept = S.dept;
+  const oldD = DEPARTMENTS[oldDept], newD = DEPARTMENTS[newDept];
+  // 1) 硬技能冻结（旧部委专业技能）
+  S.rotation.hardFrozen = oldD ? oldD.skills.map(x=>x.id) : [];
+  // 2) 软技能保留并升级
+  const ss = S.rotation.softSkills || {writing:1,crisis:1,mediate:1};
+  ss.writing=(ss.writing||1)+1; ss.crisis=(ss.crisis||1)+1; ss.mediate=(ss.mediate||1)+1;
+  S.rotation.softSkills = ss;
+  // 3) 切换部委：新专业技能进入"学习期"（初始冷却）
+  S.dept = newDept;
+  S.deptCd = {};
+  newD.skills.forEach(sk=>{ S.deptCd[sk.id] = sk.cd; });
+  // 4) 代价：人脉断层 + 政治点数
+  S.人脉 = clamp((S.人脉||0) - 15, 0, 100);
+  S.cash = Math.max(0, (S.cash||0) - 40);
+  // 5) 政绩真空期（适应期12个月）
+  S.rotation.adaptation = 12;
+  S.rotation.count = (S.rotation.count||0) + 1;
+  S.rotation.history = S.rotation.history || [];
+  S.rotation.history.push(oldDept);
+  // 6) 增益判定
+  S.rotation.buffs = S.rotation.buffs || [];
+  const gained = [];
+  if(newDept==='mee' && (oldDept==='ndrc'||oldDept==='mof') && !S.rotation.buffs.includes('green_finance')){
+    S.rotation.buffs.push('green_finance'); gained.push(ROTATION_BUFFS.green_finance.name);
+  }
+  if((S.mode==='grassroots' || (S.dunmiaoMonths||0)>0) && !S.rotation.buffs.includes('grassroots_insight')){
+    S.rotation.buffs.push('grassroots_insight'); gained.push(ROTATION_BUFFS.grassroots_insight.name);
+  }
+  if(S.rotation.history.length>=2 && !S.rotation.buffs.includes('multi_post')){
+    S.rotation.buffs.push('multi_post'); gained.push(ROTATION_BUFFS.multi_post.name);
+  }
+  // 7) 专属指标初始化
+  if(S.国际声望===undefined) S.国际声望=50;
+  if(S.科创===undefined) S.科创=50;
+  if(S.金融风险===undefined) S.金融风险=30;
+
+  pushLog(`🔄 跨部委轮岗：${oldD.short} → ${newD.short}。软技能（${SOFT_SKILLS.map(x=>x.name).join('/')}）100%保留并升级；原专业技能「${oldD.skills.map(x=>x.name).join('、')}」已冻结，新技能需重新学习（12个月适应期，政绩产出-50%）。`);
+  if(gained.length){
+    pushLog("✨ 轮岗增益：" + gained.join('、') + "。");
+    addToast("✨ 获得增益：" + gained.join('、'));
+  }
+  clampAll();
+  save(); renderTopbar(); renderMain(curTab);
+  // 新部门的第一天：感受不同的办公室文化
+  setTimeout(()=>{ openDeptFirstDay(); }, 500);
 }
 
 /* ---------- 7.5 中央部委分配（选调生回流后） ---------- */
@@ -1496,6 +2005,8 @@ function openDeptChoice(){
       addToast("🏛️ 分配至 " + d.short);
       $("modal").classList.remove("show");
       save(); renderTopbar(); renderMain(curTab);
+      // 入职第一天：办公室政治
+      setTimeout(()=>{ openDeptFirstDay(); }, 400);
     };
   });
 }
@@ -1555,6 +2066,13 @@ function endGame(type){
   if(S.mode==='grassroots' && S.rank>=8){
     ending={t:"🌾 百姓的好官（扎根基层）",d:"你一生扎根基层，把一方水土治理得井井有条。虽然没有走上最高位，但群众把你的名字刻在了心坎上。"};
   }
+  // ---- 轮岗专属结局分支 ----
+  if(S.rotation && S.rotation.count>=2){
+    ending={t:"🔄 复合型栋梁",d:`你在${S.rotation.count}个中央部委历练过，兼具宏观视野与专业深度。这种复合型履历，正是新时代领导干部最稀缺的品质。`};
+  }
+  if(S.rotation && S.rotation.buffs && S.rotation.buffs.includes('multi_post') && S.rank>=10){
+    ending={t:"🏛️ 跨部门统帅",d:"历经三个以上部委的淬炼，你既能看懂经济模型，也读得懂干部档案。站在全局高度统筹协调，这是单一部门出身的干部难以企及的境界。"};
+  }
   $("modalTitle").textContent=ending.t;
   $("modalBody").innerHTML=`
     <div class="result-box" style="border-style:solid">${ending.d}</div>
@@ -1566,6 +2084,10 @@ function endGame(type){
       ${S.mode==='selective'?`<br>墩苗：${S.dunmiaoMonths||0}个月 · 已${S.returned?'回流部委':'在基层'}`:""}
       ${S.dept?`<br>所属部委：<b>${DEPARTMENTS[S.dept].name}</b>（${DEPARTMENTS[S.dept].school}）`:""}
       <br>干部：${S.name}（${S.gender}，${S.age}岁，${S.hometownCity||S.hometown}人，${S.edu}）
+      ${(S.tags&&S.tags.length)?`<br>人设标签：${S.tags.join(' · ')}`:""}
+      ${(S.rotation&&S.rotation.count>0)?`<br>轮岗履历：${(S.rotation.history||[]).map(k=>DEPARTMENTS[k]?DEPARTMENTS[k].short:k).join(' → ')} → <b>${S.dept&&DEPARTMENTS[S.dept]?DEPARTMENTS[S.dept].short:'—'}</b>（共${S.rotation.count}次）`:""}
+      ${(S.rotation&&S.rotation.buffs&&S.rotation.buffs.length)?`<br>轮岗增益：${S.rotation.buffs.map(b=>ROTATION_BUFFS[b]?ROTATION_BUFFS[b].name:b).join('、')}`:""}
+      ${(S.achievements&&S.achievements.length)?`<div style="margin-top:8px;border-top:1px dashed #ccc;padding-top:8px"><b>🏆 解锁成就（${S.achievements.length}）</b><br>${S.achievements.map(a=>`【${a.name}】${a.desc||''}`).join('<br>')}</div>`:""}
     </div>
     <button class="btn primary" id="again" style="margin-top:14px">再来一局</button>`;
   $("modal").classList.add("show");

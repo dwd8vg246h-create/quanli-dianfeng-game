@@ -135,8 +135,8 @@ const RANKS = [
   ["试用期公务员（见习办事员）","试用期",0,0,"未定级","试用期公务员"],
   // ===== 第二级：科员级（基层办事层）=====
   ["科员","科员级",20,6,"二级科员 / 一级科员","部委科员"],
-  ["副股长（业务小组负责人）","乡科级副职",50,15,"四级主任科员","部委副主任科员"],
-  ["股长 / 科室负责人","乡科级副职",90,26,"三级主任科员","部委副主任科员"],
+  ["副股长（业务小组负责人）","股所级",50,15,"二级科员 / 一级科员","—"],
+  ["股长 / 科室负责人","股所级",90,26,"一级科员 / 四级主任科员","—"],
   // ===== 第三级：乡科级副职（副科级·基层实权起点）=====
   ["乡镇副镇长 / 县局副局长","乡科级副职",140,38,"三级主任科员","部委副主任科员"],
   ["街道办副主任 / 乡镇党委副书记","乡科级副职",200,50,"二级主任科员","部委主任科员"],
@@ -146,7 +146,7 @@ const RANKS = [
   // ===== 第五级：县处级副职（副处级·县级实权分水岭）=====
   ["副县长","县处级副职",440,86,"四级调研员","副处长"],
   ["县委常委","县处级副职",540,98,"三级调研员","副处长（处务会成员）"],
-  ["县纪委书记 / 县政法委书记","县处级副职",650,110,"三级调研员","副处长（专职常委）"],
+  ["县纪委书记 / 县政法委书记 / 县委宣传部长·统战部长","县处级副职",650,110,"三级调研员","副处长（专职常委）"],
   ["常务副县长 / 县委副书记","县处级副职",770,122,"三级调研员","副处长（分管日常工作）"],
   // ===== 第六级：县处级正职（正处级·县委书记/县长）=====
   ["县长","县处级正职",900,134,"二级调研员","处长"],
@@ -155,7 +155,7 @@ const RANKS = [
   // ===== 第七级：厅局级副职（副厅级·地级市领导）=====
   ["副市长","厅局级副职",1350,170,"二级巡视员","副司长"],
   ["市委常委","厅局级副职",1520,184,"二级巡视员","副司长（司务会成员）"],
-  ["市纪委书记 / 市委组织部长","厅局级副职",1700,198,"二级巡视员","副司长（专职常委）"],
+  ["市纪委书记 / 市委政法委书记 / 市委组织部长","厅局级副职",1700,198,"二级巡视员","副司长（专职常委）"],
   ["常务副市长 / 市委副书记","厅局级副职",1890,212,"二级巡视员","副司长（分管日常工作）"],
   // ===== 第八级：厅局级正职（正厅级·市委书记/市长）=====
   ["市长","厅局级正职",2090,226,"一级巡视员","司长"],
@@ -164,7 +164,7 @@ const RANKS = [
   // ===== 第九级：省部级副职（副省级·省级领导）※无对应职级=====
   ["副省长","省部级副职",2750,272,"十级至六级","副部长"],
   ["省委常委","省部级副职",2990,288,"十级至六级","副部长（党组成员）"],
-  ["省委副书记 / 省纪委书记·组织部长","省部级副职",3240,306,"十级至六级","副部长（分管日常工作）"],
+  ["省委副书记 / 省纪委书记·政法委书记·组织部长","省部级副职",3240,306,"十级至六级","副部长（分管日常工作）"],
   // ===== 第十级：省部级正职（正省级·封疆大吏）※无对应职级=====
   ["省长","省部级正职",3500,324,"八级至四级","部长"],
   ["省委书记 / 中央部委部长","省部级正职",3770,342,"八级至四级","部长（一把手）"],
@@ -180,6 +180,7 @@ const RANKS = [
 const LAYER_GROUPS = {
   "试用期":      {label:"试用期",       color:"#8a8a8a"},
   "科员级":      {label:"科员级",       color:"#7a8b6f"},
+  "股所级":      {label:"股所级（非法定层次）", color:"#8a8a6f"},
   "乡科级副职":  {label:"乡科级副职",   color:"#6b8a5f"},
   "乡科级正职":  {label:"乡科级正职",   color:"#4f7a45"},
   "县处级副职":  {label:"县处级副职",   color:"#4a6b8a"},
@@ -191,6 +192,58 @@ const LAYER_GROUPS = {
   "国家级副职":  {label:"国家级副职",   color:"#7a2f8a"},
   "国家级正职":  {label:"国家级正职",   color:"#6a1f7a"},
 };
+
+/* ========== 机构建制 ≠ 个人级别：现实中的「高配」现象 ==========
+   政法委等部门的机构建制，与书记本人的级别往往不一致——
+   书记由同级党委常委兼任，个人级别高于所在机构的建制级别。 */
+const ORG_VS_PERSON = {
+  county_political:{
+    key:"county_political",
+    position:"县委政法委书记", organ:"县委政法委", organLevel:"正科级（县级机关内设机构规格）",
+    personLevel:"副处级", reason:"由县委常委兼任",
+    desc:"县委政法委机关本身是正科级单位，但书记统一由县委常委兼任，个人为副处级。这是『机构建制』与『个人级别』分离的典型。",
+  },
+  city_political:{
+    key:"city_political",
+    position:"市委政法委书记", organ:"市委政法委", organLevel:"正科级（按三定方案核定）",
+    personLevel:"副厅级", reason:"由市委常委兼任",
+    desc:"市委政法委机关多为正科级建制，书记由市委常委兼任，个人为副厅级（如南昌市委原常委、政法委原书记为副厅级）。",
+  },
+  province_political:{
+    key:"province_political",
+    position:"省委政法委书记", organ:"省委政法委", organLevel:"正厅级",
+    personLevel:"副部级", reason:"由省委常委兼任",
+    desc:"省委政法委机关是正厅级建制，但书记统一由省委常委兼任，个人高配副部级。组织、宣传、统战等省委重要部门负责人均按此模式配置。",
+  },
+  county_discipline:{
+    key:"county_discipline",
+    position:"县纪委书记", organ:"县纪委监委", organLevel:"正科级",
+    personLevel:"副处级", reason:"由县委常委兼任",
+    desc:"与政法委同理，县纪委机关为正科级，书记由县委常委兼任，个人为副处级。",
+  },
+  province_discipline:{
+    key:"province_discipline",
+    position:"省纪委书记", organ:"省纪委监委", organLevel:"正厅级",
+    personLevel:"副部级", reason:"由省委常委兼任",
+    desc:"省纪委机关为正厅级，书记由省委常委兼任，个人高配副部级。",
+  },
+};
+
+/* 判断当前职务是否属于「机构建制 ≠ 个人级别」的高配情形 */
+function highProfileNote(title){
+  if(!title) return null;
+  const t = title.toString();
+  // 按从高到低匹配（省级优先，避免"省纪委书记"被"县纪委书记"规则误伤）
+  if(t.includes("省委政法委书记") || t.includes("省纪委书记·政法委书记")) return ORG_VS_PERSON.province_political;
+  if(t.includes("省纪委书记")) return ORG_VS_PERSON.province_discipline;
+  if(t.includes("市委政法委书记")) return ORG_VS_PERSON.city_political;
+  if(t.includes("县政法委书记")) return ORG_VS_PERSON.county_political;
+  if(t.includes("县纪委书记")) return ORG_VS_PERSON.county_discipline;
+  return null;
+}
+
+/* 股所级说明（非法定领导职务层次） */
+const GRASSROOT_NOTE = "股长、副股长属『股所级』，不是《公务员法》规定的领导职务层次（最低为乡科级副职），而是县乡机关内部的管理岗位，俗称『内部粮票』。担任者通常是资深科员。";
 
 /* 副国级方向分支（用户表第十一级：实权 / 荣誉 / 监察司法 / 军事） */
 const VICE_NATIONAL_PATHS = {
@@ -662,9 +715,11 @@ function newGame(opts){
   let startRank = 0, start政绩 = 0, start上司 = 30, start人脉 = 10, start道德 = 60;
   if(mode==="selective"){
     const edu = (opts.edu||"本科");
-    // 按新公务员法转正定级：本科=一级科员，硕士=四级主任科员，博士=二级主任科员
-    if(edu==="博士"){ startRank = 5; }        // 二级主任科员（乡科级正职层次）
-    else if(edu==="硕士"){ startRank = 2; }    // 四级主任科员（乡科级副职层次）
+    // 按《新录用公务员任职定级规定》转正定级：
+    // 本科=一级科员 · 硕士=四级主任科员 · 博士=二级主任科员
+    // 索引按职级序列准确对应（股所级插入后已重算）
+    if(edu==="博士"){ startRank = 6; }        // 二级主任科员（对应乡科级正职待遇档）
+    else if(edu==="硕士"){ startRank = 3; }    // 四级主任科员（对应股长档）
     else { startRank = 1; }                    // 一级科员（科员级）
     start政绩 = 40; start上司 = 45; start人脉 = 25; start道德 = 65; // 高起点
   } else if(mode==="grassroots"){
@@ -921,6 +976,15 @@ function doPromote(){
   const ttl=rankTitle(S.rank), lyr=rankLayer(S.rank), grd=rankGrade(S.rank);
   addToast("🎉 晋升："+ttl);
   pushLog(`晋升为【${ttl}】（${lyr}${grd&&grd!=="—"?" · "+grd:""}）`);
+  // 股所级：说明其并非法定领导职务层次
+  if(lyr==="股所级"){
+    pushLog(`（注：${GRASSROOT_NOTE}）`);
+  }
+  // 高配职务：说明机构建制 ≠ 个人级别
+  const hp = highProfileNote(ttl);
+  if(hp){
+    pushLog(`（注：${hp.desc}）`);
+  }
   // 晋升奖励
   S.能力+=5; S.政绩点+=3; S.上司好感+=10; S.cash+=60;
   // 到达顶层（正国级）：先选择终极职位，再结算结局
@@ -1794,6 +1858,8 @@ function pAction(){
           </div>
           <div class="mini" style="margin-top:8px;color:#666">
             现任：${rankTitle(S.rank)}（${rankLayer(S.rank)}${rankGrade(S.rank)!=="—"?" · "+rankGrade(S.rank):""}）
+            ${rankLayer(S.rank)==="股所级"?`<div style="color:#8a6a35;margin-top:3px">⚠ 股所级不是《公务员法》规定的领导职务层次，属县乡机关内部管理岗位。</div>`:""}
+            ${highProfileNote(rankTitle(S.rank))?`<div style="color:#b01e23;margin-top:3px">⚠ 高配岗位：${highProfileNote(rankTitle(S.rank)).organ}建制为${highProfileNote(rankTitle(S.rank)).organLevel}，因${highProfileNote(rankTitle(S.rank)).reason}，个人为${highProfileNote(rankTitle(S.rank)).personLevel}。</div>`:""}
           </div>
         </div>
       </div>`;
@@ -1906,8 +1972,8 @@ function renderArchive(){
         <div class="stat"><span class="lbl">籍贯</span><div class="n" style="font-size:12px;line-height:1.3">${S.hometown||'—'}</div></div>
         <div class="stat"><span class="lbl">学历</span><div class="n" style="font-size:14px">${S.edu||'—'}</div></div>
         <div class="stat"><span class="lbl">现任职务</span><div class="n" style="font-size:12px;line-height:1.3">${rankTitle(S.rank)}</div></div>
-        <div class="stat"><span class="lbl">行政层级</span><div class="n" style="font-size:12px;line-height:1.3">${rankLayer(S.rank)}</div></div>
-        <div class="stat"><span class="lbl">公务员职级</span><div class="n" style="font-size:12px;line-height:1.3">${rankGrade(S.rank)}</div></div>
+        <div class="stat"><span class="lbl">行政层级</span><div class="n" style="font-size:12px;line-height:1.3">${rankLayer(S.rank)}${highProfileNote(rankTitle(S.rank))?`<span style="display:block;font-size:10px;color:#b01e23;margin-top:2px">⚠ 高配：机构${highProfileNote(rankTitle(S.rank)).organLevel}，个人${highProfileNote(rankTitle(S.rank)).personLevel}</span>`:""}</div></div>
+        <div class="stat"><span class="lbl">公务员职级</span><div class="n" style="font-size:12px;line-height:1.3">${rankGrade(S.rank)}${rankLayer(S.rank)==="股所级"?`<span style="display:block;font-size:10px;color:#8a6a35;margin-top:2px">⚠ 非法定领导职务层次</span>`:""}</div></div>
         <div class="stat"><span class="lbl">院校</span><div class="n" style="font-size:12px">${S.school||'—'}</div></div>
       </div>
       <div class="mini" style="margin-top:8px">

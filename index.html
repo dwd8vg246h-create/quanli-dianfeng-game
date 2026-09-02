@@ -697,6 +697,698 @@ function openModal(title, bodyHtml){
 }
 
 
+/* ============================================================
+   一、城市财政体系（依据现行财政体制与预算管理制度）
+   ============================================================ */
+const FISCAL_SYSTEM = {
+  /* 一般公共预算收入构成（现实中的财政收入结构） */
+  revenueItems:[
+    {key:"税收收入",   desc:"增值税、企业所得税、个人所得税等主体税种", share:0.75, tag:"主体"},
+    {key:"非税收入",   desc:"行政事业性收费、罚没收入、国有资源有偿使用收入", share:0.25, tag:"补充"},
+  ],
+  /* 财政支出口径（现实中的支出方向） */
+  spendItems:[
+    {key:"一般公共服务", desc:"党政机关运转支出（保运转）", share:0.10},
+    {key:"教育",         desc:"各级教育经费（保基本民生）", share:0.18},
+    {key:"社会保障和就业",desc:"养老、低保、就业补助（保基本民生）", share:0.14},
+    {key:"卫生健康",     desc:"医疗保障与公共卫生（保基本民生）", share:0.09},
+    {key:"城乡社区",     desc:"城市建设与维护",           share:0.10},
+    {key:"农林水",       desc:"农业农村与水利",           share:0.11},
+    {key:"交通运输",     desc:"公路水路建设养护",         share:0.06},
+    {key:"公共安全",     desc:"公安、司法、应急（保运转）", share:0.06},
+    {key:"其他",         desc:"债务付息、预备费等",       share:0.16},
+  ],
+  /* 财政健康度评价标准（现实中的警戒线） */
+  thresholds:{
+    自给率良好:0.70,     // 财政自给率70%以上为较好
+    自给率一般:0.40,     // 40%-70%为一般
+    自给率困难:0.20,     // 20%以下为财政困难县
+    债务绿色:1.00,       // 债务率100%以下为绿色区间
+    债务橙色:1.20,       // 100%-120%为橙色预警
+    债务红色:1.20,       // 120%以上为红色高风险
+    转移支付高依赖:0.60, // 转移支付占支出60%以上为高度依赖
+  },
+  /* 财政等级（对应现实的财政状况分类） */
+  grades:[
+    {min:80, t:"财政充裕", c:"#2f7d4f", d:"自有财力雄厚，可自主安排大量建设资金。对应现实中东部发达县市。"},
+    {min:65, t:"财政良好", c:"#4a8f5f", d:"收支基本平衡，略有结余，具备一定建设能力。"},
+    {min:50, t:"财政紧平衡", c:"#8a6a35", d:"收支大致相当，需精打细算，建设资金依赖上级补助。"},
+    {min:35, t:"财政困难", c:"#b8860b", d:"自有财力不足，高度依赖上级转移支付。对应现实中的财政困难县。"},
+    {min:0,  t:"财政困难县", c:"#b01e23", d:"收支矛盾突出，属财政部重点监测的财政困难县，主要靠转移支付维持运转。"},
+  ],
+};
+
+/* 计算财政健康度（0-100） */
+function fiscalHealth(){
+  const f = S.财政数据 || {};
+  const 自给率 = (f.财政自给率 || 0) / 100;
+  const 债务率 = (f.政府债务率 || 0) / 100;
+  const 转移依赖 = (f.转移支付依赖度 || 0) / 100;
+  // 自给率占50%，债务率占30%，转移支付依赖占20%（越低越好）
+  let score = 自给率*100*0.5;
+  score += Math.max(0, (1.5 - 债务率)/1.5)*100*0.3;
+  score += (1 - 转移依赖)*100*0.2;
+  return Math.round(clamp(score, 0, 100));
+}
+function fiscalGrade(){
+  const v = fiscalHealth();
+  return FISCAL_SYSTEM.grades.find(g=>v>=g.min) || FISCAL_SYSTEM.grades[FISCAL_SYSTEM.grades.length-1];
+}
+
+/* 初始化/更新财政数据（随任职地与职级变化） */
+function refreshFiscal(){
+  const loc = S.任职地 || {};
+  const layer = rankLayer(S.rank);
+  // 基准值：按层级与地区差异生成
+  const base = {"试用期":0.5,"科员级":0.5,"股所级":0.6,"乡科级副职":0.7,"乡科级正职":0.8,
+    "县处级副职":1.0,"县处级正职":1.1,"厅局级副职":1.3,"厅局级正职":1.4,
+    "省部级副职":1.6,"省部级正职":1.7,"国家级副职":2.0,"国家级正职":2.0}[layer] || 1;
+  // 地区系数：沿海发达地区高，西部欠发达地区低
+  const prov = loc.prov || "";
+  const rich = ["广东省","江苏省","浙江省","上海市","北京市","山东省","福建省"];
+  const poor = ["西藏自治区","青海省","宁夏回族自治区","甘肃省","贵州省","云南省","广西壮族自治区","新疆维吾尔自治区"];
+  let coef = 1.0;
+  if(rich.some(p=>prov.includes(p.slice(0,2)))) coef = 1.35;
+  else if(poor.some(p=>prov.includes(p.slice(0,2)))) coef = 0.62;
+  // 用指标联动：营商影响税收、GDP影响收入、民生影响支出压力
+  const 营商 = indVal("营商"), GDP = indVal("GDP"), 民生 = indVal("民生");
+  const 收入质量 = clamp(0.55 + 营商*0.0035, 0.45, 0.92);          // 税收占比
+  const 自给率 = clamp((0.22 + GDP*0.0062) * coef, 0.08, 1.25);     // 财政自给率
+  const 转移依赖 = clamp(1 - 自给率*0.85, 0.05, 0.92);              // 转移支付依赖度
+  const 债务率 = clamp(2.6 - 自给率*1.5 - 营商*0.006, 0.35, 3.2);   // 债务率（倍数）
+  const 土地依赖 = clamp(0.42 - 营商*0.0022, 0.05, 0.55);           // 土地出让收入依赖度
+  S.财政数据 = {
+    一般公共预算收入: Math.round(base*coef*18*(0.6+GDP*0.009)),  // 亿元
+    税收占比: Math.round(收入质量*100),
+    财政自给率: Math.round(自给率*100),
+    上级转移支付: Math.round(base*coef*22*转移依赖),
+    转移支付依赖度: Math.round(转移依赖*100),
+    政府性基金收入: Math.round(base*coef*14*(0.5+土地依赖)),
+    土地出让依赖度: Math.round(土地依赖*100),
+    政府债务率: Math.round(债务率*100),
+    三保保障: clamp(Math.round(100 - (1-自给率)*55 - (民生<30?18:0)), 0, 100),
+    层级: layer,
+  };
+  return S.财政数据;
+}
+
+/* ============================================================
+   二、管辖区域（按行政层级的辖区规模）
+   ============================================================ */
+const JURISDICTION_META = {
+  "乡镇级":{
+    unit:"行政村 / 社区", unitSingular:"个行政村（社区）",
+    areaUnit:"平方公里", popUnit:"万人",
+    subName:"村民委员会", subChief:"村党支部书记 / 村委会主任",
+    note:"乡镇是我国最基层的行政建制，直接面对群众。下辖行政村与社区，各设村党支部与村民委员会（基层群众自治组织）。",
+  },
+  "县区级":{
+    unit:"乡镇 / 街道", unitSingular:"个乡镇（街道）",
+    areaUnit:"平方公里", popUnit:"万人",
+    subName:"乡镇党委、政府 / 街道党工委、办事处", subChief:"乡镇党委书记、乡镇长 / 街道党工委书记、办事处主任",
+    note:"县（区）是功能完备的基层政权，承上启下。下辖乡镇与街道，街道为市辖区或不设区市的派出机关。",
+  },
+  "地市级":{
+    unit:"县 / 区 / 县级市", unitSingular:"个县（市、区）",
+    areaUnit:"平方公里", popUnit:"万人",
+    subName:"县（市、区）委、政府", subChief:"县（市、区）委书记、县（市、区）长",
+    note:"地级市是省与县之间的一级行政建制，下辖县、区与县级市，另设有派出机关（街道办事处）。",
+  },
+  "省级":{
+    unit:"地级行政区", unitSingular:"个地级行政区",
+    areaUnit:"万平方公里", popUnit:"万人",
+    subName:"市（地、州、盟）委、政府", subChief:"市委书记、市长 / 州委书记、州长",
+    note:"省级行政区下辖地级市、地区、自治州、盟等地级行政建制，是地方最高一级行政层级。",
+  },
+  "中央级":{
+    unit:"省级行政区", unitSingular:"个省级行政区",
+    areaUnit:"万平方公里", popUnit:"亿人",
+    subName:"省（自治区、直辖市）委、政府", subChief:"省委书记、省长",
+    note:"全国划分为34个省级行政区：23个省、5个自治区、4个直辖市、2个特别行政区。",
+  },
+};
+
+/* 生成/更新管辖区域数据 */
+function refreshJurisdiction(){
+  const loc = S.任职地 || {};
+  const layer = rankLayer(S.rank);
+  const tier = {"乡科级副职":"乡镇级","乡科级正职":"乡镇级","县处级副职":"县区级","县处级正职":"县区级",
+    "厅局级副职":"地市级","厅局级正职":"地市级","省部级副职":"省级","省部级正职":"省级",
+    "国家级副职":"中央级","国家级正职":"中央级"}[layer] || "乡镇级";
+  const M = JURISDICTION_META[tier];
+  const rnd = (a,b)=>a+Math.floor(Math.random()*(b-a+1));
+  let sub, area, pop, fiscalPop;
+  if(tier==="乡镇级"){
+    sub = rnd(6,22); area = rnd(28,210); pop = (rnd(8,95)/10).toFixed(1);
+  } else if(tier==="县区级"){
+    sub = rnd(8,20); area = rnd(900,3200); pop = rnd(18,120);
+  } else if(tier==="地市级"){
+    sub = rnd(5,12); area = rnd(5000,21000); pop = rnd(180,950);
+  } else if(tier==="省级"){
+    // 省级下辖地级行政区数量：从真实数据推算
+    sub = provinceSubCount(loc.prov||""); area = rnd(4,120); pop = rnd(300,12000);
+  } else {
+    sub = 34; area = 960; pop = 14.1;
+  }
+  S.管辖区域 = {
+    tier, meta:M,
+    下辖数量: sub,
+    下辖单位: M.unit,
+    面积: area, 面积单位: M.areaUnit,
+    人口: pop, 人口单位: M.popUnit,
+    下级建制: M.subName,
+    下级主官: M.subChief,
+    名称: loc.name || "—",
+    全称: loc.city ? `${loc.prov||""}${loc.city}${loc.name}` : `${loc.prov||""}${loc.name}`,
+    说明: M.note,
+  };
+  return S.管辖区域;
+}
+
+/* 省下辖地级行政区数量（依据真实行政区划） */
+function provinceSubCount(prov){
+  const real = {
+    "广东省":21, "江苏省":13, "山东省":16, "浙江省":11, "河南省":17, "四川省":21,
+    "湖北省":13, "湖南省":14, "河北省":11, "福建省":9, "安徽省":16, "陕西省":10,
+    "辽宁省":14, "江西省":11, "云南省":16, "广西壮族自治区":14, "山西省":11,
+    "贵州省":9, "黑龙江省":13, "吉林省":9, "甘肃省":14, "内蒙古自治区":12,
+    "新疆维吾尔自治区":14, "海南省":4, "宁夏回族自治区":5, "青海省":8,
+    "西藏自治区":7, "北京市":16, "上海市":16, "天津市":16, "重庆市":38,
+    "香港特别行政区":18, "澳门特别行政区":8, "台湾省":22,
+  };
+  for(const k in real){ if(prov.includes(k.slice(0,2))||k.includes(prov.slice(0,2))) return real[k]; }
+  return 12;
+}
+
+/* ============================================================
+   三、城市建设项目库（按现实中的基建与公共服务类别）
+   ============================================================ */
+const URBAN_PROJECTS = [
+  /* —— 交通基础设施 —— */
+  {id:"road_net", cat:"交通基础设施", name:"路网优化工程",
+   desc:"新建与改扩建干道，打通断头路，完善区域路网微循环。",
+   cost:28, months:6, gain:{GDP:10, 营商:8, 民生:5}, risk:"征地拆迁阻力", 财政依赖:0.7,
+   note:"对应现实中的市政道路建设，属地方事权，主要依靠地方财政与专项债。"},
+  {id:"rail_transit", cat:"交通基础设施", name:"轨道交通前期",
+   desc:"启动城市轨道交通线网规划与前期工程，需报国家审批。",
+   cost:60, months:18, gain:{GDP:16, 民生:14, 营商:10}, risk:"投资规模大、审批周期长", 财政依赖:0.9,
+   note:"城市轨道交通需满足客流、GDP、财政三道门槛，报国家发展改革委审批。"},
+  {id:"rural_road", cat:"交通基础设施", name:"四好农村路",
+   desc:"推进建制村通硬化路、通客车，完善农村公路网络。",
+   cost:18, months:5, gain:{民生:12, GDP:5}, risk:"后期养护资金不足", 财政依赖:0.6,
+   note:"「四好农村路」为习近平总书记提出的民生工程，中央车购税予以补助。"},
+
+  /* —— 市政公用设施 —— */
+  {id:"water_supply", cat:"市政公用设施", name:"供水与污水处理提标",
+   desc:"新建水厂、改造老旧管网，污水处理厂提标扩容。",
+   cost:32, months:8, gain:{生态:14, 民生:10}, risk:"建设期扰民", 财政依赖:0.8,
+   note:"属城市市政公用事业，可通过特许经营模式引入社会资本。"},
+  {id:"power_grid", cat:"市政公用设施", name:"电网与能源保障升级",
+   desc:"改造配电网，提升供电可靠性，配套新能源接入。",
+   cost:26, months:7, gain:{GDP:8, 营商:10, 生态:5}, risk:"与供电企业协调", 财政依赖:0.4,
+   note:"电网主要由电网企业投资建设，地方负责协调与配套。"},
+  {id:"gas_heat", cat:"市政公用设施", name:"燃气与集中供热管网",
+   desc:"推进管道燃气与集中供热覆盖，替代散煤与小锅炉。",
+   cost:24, months:6, gain:{民生:9, 生态:11}, risk:"安全监管压力", 财政依赖:0.7,
+   note:"北方地区冬季清洁取暖属中央财政支持重点，可申请专项资金。"},
+
+  /* —— 公共服务设施 —— */
+  {id:"school_build", cat:"公共服务设施", name:"中小学与幼儿园新改扩建",
+   desc:"按学位需求新建学校，消除大班额，配建普惠性幼儿园。",
+   cost:30, months:9, gain:{民生:18, 营商:4}, risk:"学位供需变化", 财政依赖:0.75,
+   note:"义务教育属财政保障重点，建设资金由地方财政为主、上级补助为辅。"},
+  {id:"hospital_build", cat:"公共服务设施", name:"公共卫生与医疗能力提升",
+   desc:"改扩建县级医院与乡镇卫生院，建设紧密型县域医共体。",
+   cost:34, months:10, gain:{民生:16, 生态:2}, risk:"人才引进难", 财政依赖:0.7,
+   note:"中央预算内投资对县级医院、乡镇卫生院建设给予专项支持。"},
+  {id:"elderly_care", cat:"公共服务设施", name:"养老服务与托育设施",
+   desc:"建设社区养老服务中心与普惠托育机构，应对老龄化。",
+   cost:20, months:5, gain:{民生:14, 营商:3}, risk:"运营可持续性", 财政依赖:0.6,
+   note:"养老托育属「一老一小」民生重点，中央预算内投资予以支持。"},
+  {id:"culture_sport", cat:"公共服务设施", name:"文化体育设施建设",
+   desc:"建设图书馆、文化馆、体育公园与全民健身设施。",
+   cost:16, months:4, gain:{民生:10, 生态:4}, risk:"使用率不高", 财政依赖:0.65,
+   note:"公共文化体育设施应免费或低收费开放，运维纳入财政预算。"},
+
+  /* —— 生态环保设施 —— */
+  {id:"park_green", cat:"生态环保设施", name:"公园绿地与绿道建设",
+   desc:"新建综合公园、社区公园与城市绿道，提升人均公园绿地面积。",
+   cost:22, months:6, gain:{生态:16, 民生:11}, risk:"土地指标紧张", 财政依赖:0.7,
+   note:"人均公园绿地面积是园林城市与生态园林城市的核心考核指标。"},
+  {id:"river_treat", cat:"生态环保设施", name:"黑臭水体与河湖治理",
+   desc:"实施控源截污、内源治理、生态修复，消除城市黑臭水体。",
+   cost:38, months:12, gain:{生态:20, 民生:8}, risk:"治理成效易反弹", 财政依赖:0.85,
+   note:"城市黑臭水体整治由住房城乡建设部与生态环境部联合考核。"},
+  {id:"waste_sort", cat:"生态环保设施", name:"垃圾分类与处理体系",
+   desc:"建设分类投放、收集、运输、处理的全链条生活垃圾系统。",
+   cost:18, months:5, gain:{生态:13, 民生:6}, risk:"居民习惯养成慢", 财政依赖:0.6,
+   note:"垃圾分类是「关键小事」，住建部对生活垃圾分类工作进行考核。"},
+
+  /* —— 新型基础设施 —— */
+  {id:"digital_gov", cat:"新型基础设施", name:"数字政府与一网通办",
+   desc:"建设政务大数据平台，推动「一网通办」「一网统管」。",
+   cost:26, months:7, gain:{营商:20, 民生:8}, risk:"数据壁垒难打通", 财政依赖:0.7,
+   note:"数字政府建设是优化营商环境的重要抓手，省级统筹、市县实施。"},
+  {id:"new_infra_5g", cat:"新型基础设施", name:"5G与数据中心布局",
+   desc:"推进5G网络覆盖，布局边缘数据中心与工业互联网平台。",
+   cost:30, months:8, gain:{GDP:14, 营商:12}, risk:"投资回报周期长", 财政依赖:0.35,
+   note:"新型基础设施以企业投资为主，地方负责应用场景与配套政策。"},
+
+  /* —— 城市更新 —— */
+  {id:"old_community", cat:"城市更新", name:"城镇老旧小区改造",
+   desc:"改造水电气路信等配套设施，加装电梯，提升居住环境。",
+   cost:28, months:9, gain:{民生:17, 生态:5}, risk:"居民意见难统一", 财政依赖:0.65,
+   note:"城镇老旧小区改造纳入中央预算内投资与中央财政城镇保障性安居工程补助支持范围。"},
+  {id:"shantytown", cat:"城市更新", name:"棚户区与城中村改造",
+   desc:"推进棚户区改造与城中村整治，改善困难群众住房条件。",
+   cost:44, months:14, gain:{民生:15, GDP:10, 生态:4}, risk:"资金平衡难度大", 财政依赖:0.9,
+   note:"需严格防止大拆大建，改造方案须征求居民意见并做资金平衡测算。"},
+  {id:"underground_pipe", cat:"城市更新", name:"地下管网与海绵城市",
+   desc:"改造老旧地下管网，推进海绵城市建设，提升排涝能力。",
+   cost:32, months:10, gain:{生态:12, 民生:9, 治安:6}, risk:"施工影响交通", 财政依赖:0.8,
+   note:"城市地下管网改造与内涝治理属城市安全底线工程，中央资金支持。"},
+
+  /* —— 产业平台 —— */
+  {id:"industrial_park", cat:"产业平台", name:"产业园区提档升级",
+   desc:"完善园区基础设施与公共服务平台，提升承载能力。",
+   cost:36, months:10, gain:{GDP:18, 财政:12, 营商:8}, risk:"招商不及预期", 财政依赖:0.75,
+   note:"开发区建设应严控新增建设用地，注重亩均效益与产出强度。"},
+  {id:"business_env", cat:"产业平台", name:"营商环境优化专项行动",
+   desc:"压减审批时限，推行「免申即享」，建立企业服务专员制度。",
+   cost:14, months:4, gain:{营商:16, GDP:8}, risk:"部门协同难", 财政依赖:0.3,
+   note:"营商环境评价采用企业满意度调查与第三方评估相结合的方式。"},
+];
+
+/* 取当前层级可用项目 */
+function availableProjects(){
+  const tier = (S.管辖区域 && S.管辖区域.tier) || "乡镇级";
+  const limited = { "乡镇级":["rural_road","water_supply","elderly_care","culture_sport","park_green",
+                             "waste_sort","old_community","digital_gov","school_build","hospital_build"] };
+  if(tier==="乡镇级"){
+    return URBAN_PROJECTS.filter(p=>limited["乡镇级"].includes(p.id));
+  }
+  // 县区及以上：除轨道交通（需更高层级）外均可
+  if(tier==="县区级"){
+    return URBAN_PROJECTS.filter(p=>p.id!=="rail_transit");
+  }
+  return URBAN_PROJECTS;
+}
+
+/* 启动建设项目 */
+function startProject(pid){
+  const p = URBAN_PROJECTS.find(x=>x.id===pid);
+  if(!p) return;
+  const f = S.财政数据 || refreshFiscal();
+  // 财政承受能力评估
+  if(S.cash < p.cost){
+    addToast("资源点不足，无法启动该项目");
+    return;
+  }
+  if(f.政府债务率 > 120 && p.财政依赖 >= 0.8){
+    addToast("⚠ 债务率超警戒线，高依赖类项目不予立项");
+    pushLog(`⚠ 债务率 ${f.政府债务率}%（超120%警戒线），【${p.name}】未通过财政承受能力评估。`);
+    return;
+  }
+  S.cash -= p.cost;
+  S.在建项目 = S.在建项目 || [];
+  S.在建项目.push({
+    id:p.id, name:p.name, cat:p.cat, months:p.months, left:p.months,
+    gain:p.gain, risk:p.risk, cost:p.cost, start:`${S.year}年${S.month}月`,
+  });
+  pushLog(`🏗️ 【${p.cat}】<b>${p.name}</b> 立项开工。投入资源点 <b>${p.cost}</b>，工期 ${p.months} 个月。`);
+  addToast("项目已开工："+p.name);
+  save(); renderTopbar(); renderMain(curTab);
+}
+
+/* 项目月度推进（在 monthlySettlement 中调用） */
+function advanceProjects(){
+  if(!S.在建项目 || !S.在建项目.length) return;
+  const done = [];
+  S.在建项目.forEach(p=>{
+    p.left--;
+    if(p.left<=0){
+      done.push(p);
+      Object.keys(p.gain||{}).forEach(k=>{
+        if(k==="GDP") S.GDP = clamp(S.GDP+p.gain[k],0,100);
+        else if(k==="财政") S.财政 = clamp(S.财政+p.gain[k],0,100);
+        else if(k==="民生") S.民生 = clamp(S.民生+p.gain[k],0,100);
+        else if(k==="生态") S.生态 = clamp(S.生态+p.gain[k],0,100);
+        else if(k==="营商") S.营商 = clamp(S.营商+p.gain[k],0,100);
+        else if(k==="治安") S.治安 = clamp(S.治安+p.gain[k],0,100);
+      });
+      S.政绩 += 12;
+      pushLog(`✅ 【${p.cat}】<b>${p.name}</b> 竣工投用，${Object.keys(p.gain||{}).map(k=>k+'+'+p.gain[k]).join(' ')}，政绩+12。`);
+    }
+  });
+  if(done.length){
+    S.在建项目 = S.在建项目.filter(p=>!done.includes(p));
+    S.完工项目 = (S.完工项目||0) + done.length;
+    addToast("🏗️ 项目竣工："+done.map(p=>p.name).join('、'));
+  }
+}
+
+
+/* ============================================================
+   领导班子（部门同事 + 上司）——严格依据现实职数与分工
+   ============================================================ */
+
+/* 领导班子职数（现实中的编制规定） */
+const LEADERSHIP_QUOTA = {
+  /* 党委常委会 / 委员会 */
+  "乡镇党委":{描述:"乡镇党委由 7—9 人组成", 正职:1, 副职:2, 委员:[4,6], 来源:"《中国共产党地方委员会工作条例》及地方党委换届规定"},
+  "县委":    {描述:"县委常委会由 9—11 人组成", 正职:1, 副职:2, 委员:[6,8], 来源:"县委常委会一般 9—11 人（书记1、副书记2、常委6—8）"},
+  "市委":    {描述:"市委常委会由 11—13 人组成", 正职:1, 副职:2, 委员:[8,10], 来源:"市委常委会一般 11—13 人"},
+  "省委":    {描述:"省委常委会由 11—13 人组成", 正职:1, 副职:2, 委员:[8,10], 来源:"省委常委会一般 11—13 人"},
+  /* 政府班子 */
+  "乡镇政府":{描述:"乡镇长1名、副乡镇长 3—5 名", 正职:1, 副职:[3,5], 来源:"乡镇政府领导职数"},
+  "县政府":  {描述:"县长1名、副县长 4—6 名", 正职:1, 副职:[4,6], 来源:"县政府领导职数"},
+  "市政府":  {描述:"市长1名、副市长 5—7 名", 正职:1, 副职:[5,7], 来源:"市政府领导职数"},
+  "省政府":  {描述:"省长1名、副省长 6—8 名", 正职:1, 副职:[6,8], 来源:"省政府领导职数"},
+  /* 部门（委办局）班子：机构越大职数越多 */
+  "县局":    {描述:"局长1名、副局长 2—3 名", 正职:1, 副职:[2,3], 来源:"县级政府部门领导职数（小局2名、大局3名）"},
+  "市局":    {描述:"局长1名、副局长 3—4 名", 正职:1, 副职:[3,4], 来源:"市级政府部门领导职数"},
+  "省厅":    {描述:"厅长1名、副厅长 4—5 名", 正职:1, 副职:[4,5], 来源:"省级政府部门领导职数（一般不超过5名）"},
+  "部委":    {描述:"部长1名、副部长 4—5 名", 正职:1, 副职:[4,5], 来源:"国务院组成部门领导职数"},
+};
+
+/* 领导干部分工（现实中的标准分工方式） */
+const LEADER_DUTIES = [
+  {key:"分管日常工作", desc:"协助正职处理日常工作，分管办公室、人事、财务", tag:"常务"},
+  {key:"业务分管",     desc:"分管主要业务科室与专项工作",           tag:"业务"},
+  {key:"党建政工",     desc:"分管党建、宣传、人事、群团工作",       tag:"政工"},
+  {key:"纪检监察",     desc:"专司监督执纪问责，不分管业务（现实规矩）", tag:"纪检"},
+  {key:"财务后勤",     desc:"分管财务、机关事务、后勤保障",         tag:"后勤"},
+  {key:"行政审批",     desc:"分管行政审批、政务服务与窗口单位",     tag:"审批"},
+  {key:"执法监督",     desc:"分管行政执法、监督检查与安全生产",     tag:"执法"},
+  {key:"规划发展",     desc:"分管规划编制、项目审批与产业发展",     tag:"规划"},
+  {key:"民生社会",     desc:"分管教育、医疗、民政、人社等民生事务", tag:"民生"},
+  {key:"政法维稳",     desc:"分管政法、信访、社会治安综合治理",     tag:"政法"},
+  {key:"农业农村",     desc:"分管农业农村、乡村振兴与水利",         tag:"三农"},
+  {key:"经贸招商",     desc:"分管工业和信息化、商务、招商引资",     tag:"经贸"},
+];
+
+/* 领导干部类型（现实中常见的干部风格） */
+const LEADER_TYPES = [
+  {key:"稳健型", color:"#35618a", desc:"求稳怕乱，不求出彩但求不出事，对风险高度敏感。",
+   react:{汇报:1.0, 宴请:0.3, 送礼:-3.0}, 偏好:"稳妥方案"},
+  {key:"进取型", color:"#b01e23", desc:"敢闯敢干，支持改革创新，风险偏好高，喜欢出政绩。",
+   react:{汇报:1.2, 宴请:0.6, 送礼:-2.0}, 偏好:"突破性举措"},
+  {key:"务实型", color:"#4a8f5f", desc:"看实际效果，重视数据和结果，反感形式主义。",
+   react:{汇报:1.5, 宴请:0.2, 送礼:-2.5}, 偏好:"实打实的成效"},
+  {key:"原则型", color:"#8a4a8a", desc:"讲规矩守纪律，重视程序和廉政，六亲不认。",
+   react:{汇报:1.1, 宴请:-2.5, 送礼:-6.0}, 偏好:"程序合规"},
+  {key:"圆滑型", color:"#8a6a35", desc:"善于协调关系，不得罪人，谁也不想得罪。",
+   react:{汇报:0.8, 宴请:1.0, 送礼:-1.0}, 偏好:"皆大欢喜"},
+  {key:"强势型", color:"#a02a2a", desc:"作风硬朗，说一不二，喜欢执行力强的下属。",
+   react:{汇报:1.3, 宴请:0.1, 送礼:-3.5}, 偏好:"令行禁止"},
+  {key:"亲民型", color:"#2f7d4f", desc:"重视群众评价，关注民生疾苦，反感形象工程。",
+   react:{汇报:1.0, 宴请:-1.0, 送礼:-4.0}, 偏好:"群众获得感"},
+  {key:"官场老手", color:"#4a4a6a", desc:"资历深人脉广，城府极深，不轻易表态。",
+   react:{汇报:0.9, 宴请:0.8, 送礼:-0.5}, 偏好:"滴水不漏"},
+];
+
+/* 干部来源（现实中班子成员的不同出身） */
+const LEADER_ORIGINS = [
+  {key:"本地成长",  desc:"在本地一步步干上来的，根基深厚，对当地情况了如指掌。", 人脉加成:8},
+  {key:"上级下派",  desc:"由上级机关下派任职，视野开阔，代表上级意图。",         上级好感加成:6},
+  {key:"交流任职",  desc:"从外地交流过来，属干部交流制度安排，避免形成利益圈子。", 视野加成:5},
+  {key:"挂职锻炼",  desc:"挂职干部，人事关系在原单位，期满一般回原单位。",       关系加成:4},
+  {key:"选调生出身",desc:"选调生出身，学历高、有培养前途，组织重点关注对象。",   前途加成:6},
+  {key:"军转干部",  desc:"军队转业安置，作风硬朗，执行能力强。",               执行加成:5},
+];
+
+/* 常用姓氏与名字（生成班子成员姓名） */
+const SURNAMES = ["王","李","张","刘","陈","杨","黄","赵","周","吴","徐","孙","马","朱","胡",
+                  "林","郭","何","高","罗","郑","梁","谢","宋","唐","许","韩","冯","邓","曹",
+                  "彭","曾","肖","田","董","袁","潘","蒋","蔡","余","杜","叶","程","苏","魏"];
+const GIVEN_NAMES = ["建国","建军","志强","国强","伟","明","军","涛","波","辉","刚","强","磊",
+                     "鹏","宇","晨","峰","斌","杰","超","勇","军","平","安","宁","静","丽","娟",
+                     "敏","慧","华","芳","燕","霞","秀英","桂英","玉兰","红梅","春燕","海燕",
+                     "文","武","斌","彦","君","卿","睿","哲","博","远","达","成","功","胜","利"];
+
+/* 生成姓名 */
+function genLeaderName(){
+  const s = SURNAMES[Math.floor(Math.random()*SURNAMES.length)];
+  const g = GIVEN_NAMES[Math.floor(Math.random()*GIVEN_NAMES.length)];
+  return s+g;
+}
+
+/* 按当前职级判断所属班子类型 */
+function leadershipType(){
+  const layer = rankLayer(S.rank);
+  const dept = S.部门 || {};
+  const deptName = dept.name || "";
+  // 部门负责人 / 部门内设机构
+  if(deptName.includes("部")||deptName.includes("委员会")||deptName.includes("总局")||deptName.includes("总署")){
+    return "部委";
+  }
+  const map = {
+    "试用期":"县局", "科员级":"县局", "股所级":"县局",
+    "乡科级副职":"乡镇政府", "乡科级正职":"乡镇政府",
+    "县处级副职":"县局", "县处级正职":"县政府",
+    "厅局级副职":"市局", "厅局级正职":"市政府",
+    "省部级副职":"省厅", "省部级正职":"省政府",
+    "国家级副职":"部委", "国家级正职":"部委",
+  };
+  return map[layer] || "县局";
+}
+
+/* 生成领导班子（同事 + 上司） */
+function generateLeadership(){
+  const type = leadershipType();
+  const Q = LEADERSHIP_QUOTA[type] || LEADERSHIP_QUOTA["县局"];
+  const layer = rankLayer(S.rank);
+  const myTitle = rankTitle(S.rank);
+  const deptName = (S.部门 && S.部门.name) || "本机关";
+
+  const members = [];
+  const usedNames = new Set();
+  const mkName = ()=>{ let n; do{ n=genLeaderName(); }while(usedNames.has(n)); usedNames.add(n); return n; };
+
+  // 副职数量
+  let viceN;
+  if(Array.isArray(Q.副职)) viceN = Q.副职[0] + Math.floor(Math.random()*(Q.副职[1]-Q.副职[0]+1));
+  else viceN = Q.副职;
+  // 委员数量
+  let memberN = 0;
+  if(Q.委员) memberN = Q.委员[0] + Math.floor(Math.random()*(Q.委员[1]-Q.委员[0]+1));
+
+  const isGov = type.includes("政府");
+  const isDept = ["县局","市局","省厅","部委"].includes(type);
+  const unitName = isGov ? ({"乡镇政府":"乡镇","县政府":"县","市政府":"市","省政府":"省"}[type]||"本府") :
+                   isDept ? deptName.replace(/局|厅|部|委员会$/,"") : "党委";
+
+  // 职务名生成（预先计算，避免模板字符串内嵌套复杂三元）
+  const govZheng = {"省":"省长","市":"市长","县":"县长","乡镇":"乡镇长"}[unitName] || "行政主官";
+  const govFu = "副"+govZheng;
+  const deptBase = deptName.replace(/局$/,'').replace(/厅$/,'').replace(/部$/,'').replace(/委员会$/,'');
+  const deptZheng = deptBase + (type==="部委"?"部长":(type==="省厅"?"厅长":"局长"));
+  const deptFu = "副" + (type==="部委"?"部长":(type==="省厅"?"厅长":"局长"));
+
+  // —— 正职（一把手）——
+  {
+    const t = LEADER_TYPES[Math.floor(Math.random()*LEADER_TYPES.length)];
+    const o = LEADER_ORIGINS[Math.floor(Math.random()*LEADER_ORIGINS.length)];
+    members.push({
+      role:"正职", title:(isGov?govZheng:(isDept?deptZheng:"书记")),
+      name:mkName(),
+      age:({
+        "部委":58, "省厅":54, "市局":52, "县局":50,
+        "省政府":58, "市政府":54, "县政府":52, "乡镇政府":50
+      }[type] || 52),
+      duty:LEADER_DUTIES[0],  // 主持全面工作
+      type:t, origin:o,
+      relation:60 + Math.floor(Math.random()*20),
+      isBoss:true, isDirectBoss:false,
+      note:"主持全面工作，对班子成员分工负总责。",
+    });
+  }
+
+  // —— 常务副职（分管日常工作）——
+  {
+    const t = LEADER_TYPES[Math.floor(Math.random()*LEADER_TYPES.length)];
+    const o = LEADER_ORIGINS[Math.floor(Math.random()*LEADER_ORIGINS.length)];
+    members.push({
+      role:"常务副职",
+      title:(isGov?("常务"+govFu):("分管日常工作的"+deptFu)),
+      name:mkName(),
+      age:isDept?(type==="部委"?54:(type==="省厅"?51:(type==="市局"?49:47)))
+                :(type==="省政府"?55:(type==="市政府"?52:50)),
+      duty:LEADER_DUTIES.find(d=>d.key==="分管日常工作"),
+      type:t, origin:o,
+      relation:55 + Math.floor(Math.random()*20),
+      isBoss:false, isDirectBoss:false,
+      note:"协助正职处理日常工作，正职外出期间主持工作。",
+    });
+  }
+
+  // —— 纪检监察（派驻，不分管业务）——
+  {
+    const t = LEADER_TYPES.find(x=>x.key==="原则型") || LEADER_TYPES[3];
+    const o = LEADER_ORIGINS[Math.floor(Math.random()*LEADER_ORIGINS.length)];
+    members.push({
+      role:"纪检监察",
+      title:isDept?"派驻纪检监察组组长":"纪委书记（监委主任）",
+      name:mkName(),
+      age:(type==="部委"?53:(type==="省厅"?52:(type==="市局"?50:(type==="县局"?48:50)))),
+      duty:LEADER_DUTIES.find(d=>d.key==="纪检监察"),
+      type:t, origin:o,
+      relation:50 + Math.floor(Math.random()*15),
+      isBoss:false, isDirectBoss:false, isDiscipline:true,
+      note:"由上级纪委监委提名、派驻，专司监督执纪问责，按规矩不分管具体业务。",
+    });
+  }
+
+  // —— 其他副职 ——
+  const viceDuties = LEADER_DUTIES.filter(d=>!["分管日常工作","纪检监察"].includes(d.key));
+  for(let i=0; i<viceN-1; i++){
+    const t = LEADER_TYPES[Math.floor(Math.random()*LEADER_TYPES.length)];
+    const o = LEADER_ORIGINS[Math.floor(Math.random()*LEADER_ORIGINS.length)];
+    const d = viceDuties[Math.floor(Math.random()*viceDuties.length)];
+    const isDirect = (i===0);   // 第一个业务副职作为直接上司
+    members.push({
+      role:"副职",
+      title:(isGov?govFu:deptFu),
+      name:mkName(),
+      age:(isDept?(40+Math.floor(Math.random()*6)):(42+Math.floor(Math.random()*6))),
+      duty:d, type:t, origin:o,
+      relation:50 + Math.floor(Math.random()*25),
+      isBoss:false, isDirectBoss:isDirect,
+      note:`分管${d.key}，${d.desc}。`,
+    });
+  }
+
+  // —— 党委/班子委员（内设机构负责人或中层）——
+  const midTitle = {"县局":"股长/科长","市局":"科长","省厅":"处长","部委":"司长/处长",
+                    "乡镇政府":"乡镇党委委员","县政府":"县委常委","市政府":"市委常委","省政府":"省委常委"}[type] || "干部";
+  const midDuties = LEADER_DUTIES.filter(d=>!["纪检监察"].includes(d.key));
+  for(let i=0; i<memberN; i++){
+    const t = LEADER_TYPES[Math.floor(Math.random()*LEADER_TYPES.length)];
+    const o = LEADER_ORIGINS[Math.floor(Math.random()*LEADER_ORIGINS.length)];
+    const d = midDuties[Math.floor(Math.random()*midDuties.length)];
+    members.push({
+      role:"班子成员",
+      title:midTitle,
+      name:mkName(),
+      age:38+Math.floor(Math.random()*10),
+      duty:d, type:t, origin:o,
+      relation:45 + Math.floor(Math.random()*30),
+      isBoss:false, isDirectBoss:false, isPeer:true,
+      note:`${midTitle}层级，分管${d.key}。班子内部既是协作关系，也是职务晋升的竞争关系。`,
+    });
+  }
+
+  S.领导班子 = {
+    type, quota:Q, 单位:deptName, 我的职务:myTitle,
+    members,
+    生成时间:`${S.year}年${S.month}月`,
+  };
+  S.直接上司 = members.find(m=>m.isDirectBoss) || null;
+  S.一把手 = members.find(m=>m.isBoss) || null;
+  S.纪检负责人 = members.find(m=>m.isDiscipline) || null;
+  return S.领导班子;
+}
+
+/* 取班子成员（若未生成或层级已变则重新生成） */
+function getLeadership(force){
+  const type = leadershipType();
+  if(!force && S.领导班子 && S.领导班子.type===type && S.领导班子.members && S.领导班子.members.length) return S.领导班子;
+  return generateLeadership();
+}
+
+/* 与领导互动 */
+const LEADER_INTERACTIONS = [
+  {key:"请示汇报", icon:"📋", desc:"就分管工作主动请示汇报，展示工作思路",
+   cost:{健康:1.5}, gain:{能力:2}, relDelta:2.0, risk:0,
+   log:"你就分管工作向%s作了专题汇报，%s对你的思路表示认可。"},
+  {key:"送阅材料", icon:"📄", desc:"将工作亮点整理成专报呈送，让领导看到你的政绩",
+   cost:{健康:1.0, cash:2}, gain:{}, relDelta:3.0, risk:0,
+   log:"你整理的专报被%s批示「思路清晰、成效明显」，在班子中传阅。"},
+  {key:"加班加点", icon:"🌙", desc:"主动承担急难险重任务，用实绩说话",
+   cost:{健康:4.0}, gain:{能力:4, 政绩:8}, relDelta:4.0, risk:0,
+   log:"你连续加班啃下了硬骨头，%s在班子会上点名表扬了你。"},
+  {key:"工作餐叙", icon:"🍚", desc:"工作间隙简餐交流，属正常公务往来",
+   cost:{健康:1.0, cash:3}, gain:{}, relDelta:2.5, risk:1,
+   log:"你与%s在机关食堂边吃边聊，交流了工作，也增进了了解。"},
+  {key:"组织聚餐", icon:"🍽️", desc:"安排饭局款待，需注意公务接待标准",
+   cost:{健康:2.0, cash:15}, gain:{}, relDelta:6.0, risk:5,
+   log:"你安排了一场饭局。酒过三巡，气氛热络，但这样的场合总是有风险的。",
+   warn:"⚠ 公务接待须严格执行标准，超标准接待属违规。"},
+  {key:"登门拜访", icon:"🎁", desc:"逢年过节登门走动，携带礼品",
+   cost:{健康:1.0, cash:30}, gain:{}, relDelta:12.0, risk:15,
+   log:"你提着礼物敲开了%s的家门。这一次走动，效果立竿见影，但你心里清楚这意味着什么。",
+   warn:"⛔ 向领导干部赠送礼品礼金属违反中央八项规定精神，是违纪行为。"},
+];
+
+/* 执行与领导的互动 */
+function interactLeader(idx, ikey){
+  const L = getLeadership();
+  const m = L.members[idx];
+  if(!m) return;
+  const act = LEADER_INTERACTIONS.find(a=>a.key===ikey);
+  if(!act) return;
+
+  // 资源检查
+  if(act.cost.cash && (S.cash||0) < act.cost.cash){ addToast("资源点不足"); return; }
+  if(act.cost.cash) S.cash -= act.cost.cash;
+  if(act.cost.健康) S.健康 = clamp(S.健康 - act.cost.健康, 0, 100);
+  Object.keys(act.gain||{}).forEach(k=>{
+    if(k==="能力") S.能力 = clamp(S.能力+act.gain[k],0,100);
+    if(k==="政绩") S.政绩 = (S.政绩||0)+act.gain[k];
+  });
+
+  // 关系变化：受领导类型影响
+  const react = (m.type && m.type.react) ? m.type.react : {};
+  let delta = act.relDelta;
+  if(ikey==="组织聚餐") delta = act.relDelta * (react.宴请!==undefined?(react.宴请/2+0.5):1);
+  if(ikey==="登门拜访") delta = act.relDelta * (react.送礼!==undefined?(1 + react.送礼/10):1);
+  if(ikey==="请示汇报"||ikey==="送阅材料") delta = act.relDelta * (react.汇报!==undefined?react.汇报:1);
+  if(ikey==="加班加点") delta = act.relDelta * (react.汇报!==undefined?react.汇报:1);
+
+  // 纪检干部对违规行为反应更强烈
+  if(m.isDiscipline && act.risk>0) delta = -Math.abs(delta)*2;
+
+  m.relation = Math.round(clamp((m.relation||50) + delta, 0, 100));
+
+  // 道德风险
+  if(act.risk>0){
+    S.道德 = clamp(S.道德 - act.risk, 0, 100);
+    S.廉政风险暴露 = (S.廉政风险暴露||0) + act.risk;
+    if(m.isDiscipline){
+      pushLog(`⛔ 你向纪检监察干部${m.name}示好，这是极其危险的做法——监督者最忌讳被打招呼。`);
+      addToast("⛔ 纪检干部不吃这一套");
+    }
+    // 被查处风险
+    if(act.risk>=15 && Math.random() < 0.12){
+      S.道德 = clamp(S.道德 - 25, 0, 100);
+      pushLog(`🚨 你向${m.name}${m.title}赠送礼品礼金的行为被反映到纪检监察机关，受到组织处理。道德大幅下降。`);
+      addToast("🚨 违纪行为被查处！");
+    }
+  }
+
+  // 直接上司影响上司好感
+  if(m.isDirectBoss) S.上司好感 = clamp((S.上司好感||0) + delta*0.35, 0, 100);
+  if(m.isBoss) S.上司好感 = clamp((S.上司好感||0) + delta*0.25, 0, 100);
+
+  pushLog(`【${act.key}】${act.log.replace(/%s/g, m.name+m.title)}`);
+  if(act.warn) pushLog(`　　${act.warn}`);
+  addToast(`${act.icon} ${act.key}：${m.name}关系 ${delta>0?"+":""}${Math.round(delta)}`);
+  save(); renderTopbar(); renderMain(curTab);
+}
+
+/* 班子会（三重一大集体决策） */
+const TRIPLE_ONE = {
+  name:"「三重一大」事项",
+  items:[
+    {key:"重大事项决策", desc:"贯彻落实上级决策部署、重要工作部署等重大事项"},
+    {key:"重要干部任免", desc:"干部的推荐、提名、任免、奖惩等"},
+    {key:"重大项目安排", desc:"重大工程和重要项目安排、大额度资金使用情况"},
+    {key:"大额资金使用", desc:"超过规定限额的资金调动和使用"},
+  ],
+  rule:"凡属重大事项，须经领导班子集体讨论决定，不得以个别征求意见等方式替代集体决策。",
+};
+
+
 /* ================= 一、现实任职地（按行政层级的真实地名）================= */
 const LOCATIONS = {
   // 乡镇 / 街道级（乡科级干部任职地）
@@ -3168,6 +3860,15 @@ function newGame(opts){
     处置得当:0,             // 突发事件处置得当次数
     处置失当:0,             // 突发事件处置失当次数
     一票否决次数:0,         // 触及一票否决事项累计次数
+    财政数据:null,          // 城市财政数据
+    管辖区域:null,          // 管辖区域数据
+    在建项目:[],            // 在建城市建设项目
+    完工项目:0,             // 累计完工项目数
+    领导班子:null,          // 部门同事+上司（领导班子）
+    直接上司:null,          // 分管你的副职
+    一把手:null,            // 单位正职
+    纪检负责人:null,        // 派驻纪检监察组长/纪委书记
+    廉政风险暴露:0,         // 违规往来累计暴露度
     兼任:[],                // 兼任职务：[{id,post,organ,organLevel,personLevel,highProfile,by}]
     地域回避提示:false,      // 是否已就地域回避作出处理
     natPath:{},              // 国家级方向：{vice:'power|honor|judicial|military', top:'...'}
@@ -3197,8 +3898,22 @@ function newGame(opts){
   // 分配初始所属部门
   S.部门履历 = [];
   assignDepartment(false);
+  // 初始化城市财政、管辖区域
+  refreshFiscal();
+  refreshJurisdiction();
   if(S.部门){
     pushLog(`你被安排到 <b>${S.部门.name}</b> 工作。${S.部门.func}`);
+  }
+  // 生成领导班子（同事 + 上司）
+  generateLeadership();
+  if(S.一把手){
+    pushLog(`单位正职是 <b>${S.一把手.name}${S.一把手.title}</b>（${S.一把手.type.key}）；`
+      + `你的直接上司是 <b>${S.直接上司?S.直接上司.name+S.直接上司.title:"—"}</b>。`);
+  }
+  if(S.管辖区域){
+    pushLog(`辖区：下辖 <b>${S.管辖区域.下辖数量}</b> ${S.管辖区域.下辖单位}，`
+      + `面积约 <b>${S.管辖区域.面积}</b> ${S.管辖区域.面积单位}，`
+      + `人口约 <b>${S.管辖区域.人口}</b> ${S.管辖区域.人口单位}。`);
   }
   if(S.任职地){
     const L = S.任职地;
@@ -3251,6 +3966,10 @@ function load(){
     if(S.兼任===undefined) S.兼任 = [];
     if(S.部门履历===undefined) S.部门履历 = [];
     if(!S.部门){ try{ assignDepartment(false); }catch(e){} }
+    if(!S.财政数据){ try{ refreshFiscal(); }catch(e){} }
+    if(!S.管辖区域){ try{ refreshJurisdiction(); }catch(e){} }
+    if(S.在建项目===undefined) S.在建项目 = [];
+    if(!S.领导班子){ try{ generateLeadership(); }catch(e){} }
     if(S.地域回避提示===undefined) S.地域回避提示 = false;
     if(S.基层月数===undefined) S.基层月数 = 0;
     if(!S.任职地){ try{ assignLocation(false); }catch(e){} }
@@ -3327,6 +4046,30 @@ function monthlySettlement(){
     S.民生 = clamp(S.民生 + 0.5, 0, 100);
     S.治安 = clamp(S.治安 + 0.5, 0, 100);
   }
+  // 领导班子影响：直接上司关系度影响月度人际评价
+  {
+    const L = S.领导班子;
+    if(L && L.members && L.members.length){
+      const boss = S.一把手, direct = S.直接上司;
+      if(direct && typeof direct.relation === "number"){
+        // 直接上司关系每偏离50点1度，影响好感0.03
+        S.上司好感 = clamp((S.上司好感||0) + (direct.relation-50)*0.03, 0, 100);
+      }
+      if(boss && typeof boss.relation === "number"){
+        S.上司好感 = clamp((S.上司好感||0) + (boss.relation-50)*0.02, 0, 100);
+      }
+      // 廉政风险暴露度累积：纪检干部会盯上
+      if((S.廉政风险暴露||0) > 0){
+        const disc = S.纪检负责人;
+        if(disc && disc.relation < 40 && Math.random() < 0.08){
+          S.道德 = clamp(S.道德 - 6, 0, 100);
+          pushLog(`⚠ 派驻纪检监察组对你的一些做法提出了提醒，要求你注意廉洁自律。`);
+        }
+        // 每月自然衰减（风头过去）
+        S.廉政风险暴露 = Math.max(0, S.廉政风险暴露 - 1);
+      }
+    }
+  }
   // 部门月度加成（按部门类别影响指标与廉政积分）
   {
     const de = departmentMonthlyEffect();
@@ -3342,6 +4085,8 @@ function monthlySettlement(){
     if(a.政绩产出) S.政绩 = Math.round(S.政绩 * (1 + a.政绩产出));
     if(S.route==='discipline' && de.廉政) S.廉政积分 = (S.廉政积分||0) + de.廉政;
   }
+  // 城市建设项目月度推进
+  advanceProjects();
   // 一票否决事项：触及则政绩与晋升资格受严重影响
   {
     const vs = vetoCheck();
@@ -3503,7 +4248,18 @@ function doPromote(){
   // ==== 部门随层级调整（层级跨档时才换部门层级）====
   {
     const oldDept = S.部门;
+    const oldDeptName = oldDept ? oldDept.name : null;
     assignDepartment(true);
+    // 部门变化 → 领导班子随之调整（现实中"新官上任"面对的班子可能不同）
+    if(S.部门 && oldDeptName !== S.部门.name){
+      const oldBoss = S.一把手 ? S.一把手.name : null;
+      generateLeadership();
+      pushLog(`随着岗位变动，你进入新的领导班子。新的正职是 <b>${S.一把手?S.一把手.name+S.一把手.title:"—"}</b>`
+        + `，直接上司是 <b>${S.直接上司?S.直接上司.name+S.直接上司.title:"—"}</b>。`);
+    }
+    // 财政与管辖区域随层级刷新
+    refreshFiscal();
+    refreshJurisdiction();
     if(S.部门 && (!oldDept || oldDept.name!==S.部门.name)){
       S.部门履历 = S.部门履历 || [];
       S.部门履历.push({name:S.部门.name, cat:S.部门.cat, rank:S.rank});
@@ -4360,6 +5116,215 @@ function openIndicatorDetail(key){
 }
 
 
+/* ---------- 城建页：城市财政 + 管辖区域 + 城市建设 ---------- */
+function pCity(){
+  const f = S.财政数据 || refreshFiscal();
+  const j = S.管辖区域 || refreshJurisdiction();
+  const fh = fiscalHealth();
+  const fg = fiscalGrade();
+  const debt = f.政府债务率;
+  const debtColor = debt>=120?"#b01e23":(debt>=100?"#b8860b":"#2f7d4f");
+  const debtTag  = debt>=120?"红色高风险":(debt>=100?"橙色预警":"绿色可控");
+
+  let html = "";
+
+  /* —— 城市财政 —— */
+  html += `<div class="card">
+    <div class="card-h">💰 城市财政 · ${f.层级}</div>
+    <div class="card-b">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <div style="font-size:26px;font-weight:800;color:${fg.c};line-height:1">${fh}</div>
+        <div>
+          <div style="font-weight:700;color:${fg.c}">${fg.t}</div>
+          <div class="mini muted">财政健康度（自给率50%+债务30%+转移依赖20%）</div>
+        </div>
+      </div>
+      <div class="mini" style="color:#666;line-height:1.6;margin-bottom:8px">${fg.d}</div>
+
+      <div class="stat-grid">
+        <div class="stat" data-fisc="rev"><span class="lbl">一般公共预算收入</span><div class="n">${f.一般公共预算收入}<span style="font-size:11px;color:#888">亿元</span></div></div>
+        <div class="stat" data-fisc="tax"><span class="lbl">税收占比</span><div class="n">${f.税收占比}%</div></div>
+        <div class="stat" data-fisc="self"><span class="lbl">财政自给率</span><div class="n">${f.财政自给率}%</div></div>
+        <div class="stat" data-fisc="trans"><span class="lbl">转移支付依赖度</span><div class="n">${f.转移支付依赖度}%</div></div>
+        <div class="stat" data-fisc="fund"><span class="lbl">政府性基金收入</span><div class="n">${f.政府性基金收入}<span style="font-size:11px;color:#888">亿元</span></div></div>
+        <div class="stat" data-fisc="land"><span class="lbl">土地出让依赖度</span><div class="n">${f.土地出让依赖度}%</div></div>
+        <div class="stat" data-fisc="debt"><span class="lbl">政府债务率</span><div class="n" style="color:${debtColor}">${debt}%</div></div>
+        <div class="stat" data-fisc="sanbao"><span class="lbl">「三保」保障</span><div class="n">${f.三保保障}</div></div>
+      </div>
+      <div class="mini muted" style="margin-top:6px">👆 点任一指标查看财政口径说明</div>
+
+      <div style="margin-top:8px;border:1px solid ${debtColor};border-radius:4px;padding:7px;background:#fafafa">
+        <div class="mini" style="color:${debtColor};font-weight:700">债务风险等级：${debtTag}（${debt}%）</div>
+        <div class="mini muted" style="margin-top:2px">
+          警戒线：债务率100%以下为绿色，100%—120%为橙色，120%以上为红色。
+          ${debt>=120?"⚠ 债务率超警戒线，高依赖类项目不予立项。":""}
+        </div>
+      </div>
+    </div>
+  </div>`;
+
+  /* —— 管辖区域 —— */
+  html += `<div class="card">
+    <div class="card-h">🗺️ 管辖区域</div>
+    <div class="card-b">
+      <div style="font-size:15px;font-weight:700;color:#b01e23">${j.全称}</div>
+      <div class="stat-grid" style="margin-top:8px">
+        <div class="stat"><span class="lbl">下辖${j.下辖单位}</span><div class="n">${j.下辖数量}</div></div>
+        <div class="stat"><span class="lbl">辖区面积</span><div class="n">${j.面积}<span style="font-size:11px;color:#888">${j.面积单位}</span></div></div>
+        <div class="stat"><span class="lbl">辖区人口</span><div class="n">${j.人口}<span style="font-size:11px;color:#888">${j.人口单位}</span></div></div>
+      </div>
+      <div class="mini" style="margin-top:8px;line-height:1.7;color:#555">
+        <b>下级建制</b>：${j.下级建制}<br>
+        <b>下级主官</b>：${j.下级主官}
+      </div>
+      <div class="mini muted" style="margin-top:6px;line-height:1.6">${j.说明}</div>
+    </div>
+  </div>`;
+
+  /* —— 在建项目 —— */
+  if(S.在建项目 && S.在建项目.length){
+    html += `<div class="card">
+      <div class="card-h">🚧 在建项目（${S.在建项目.length}）</div>
+      <div class="card-b">
+        ${S.在建项目.map(p=>`
+          <div style="border-left:3px solid #b01e23;padding-left:8px;margin-bottom:8px">
+            <div style="font-weight:700;font-size:13px">${p.name}</div>
+            <div class="mini muted">${p.cat} · 开工于${p.start} · 剩余 <b>${p.left}</b> 个月</div>
+            <div class="mini" style="color:#35618a">预期收益：${Object.keys(p.gain||{}).map(k=>k+'+'+p.gain[k]).join(' ')}</div>
+            <div class="mini" style="color:#a05">⚠ ${p.risk}</div>
+          </div>`).join('')}
+      </div>
+    </div>`;
+  }
+
+  /* —— 可建设项目 —— */
+  const projects = availableProjects();
+  const canAfford = p => S.cash >= p.cost;
+  const inProgress = pid => (S.在建项目||[]).some(p=>p.id===pid);
+  html += `<div class="card">
+    <div class="card-h">🏗️ 城市建设项目库（${projects.length}个）</div>
+    <div class="card-b">
+      <div class="mini muted" style="margin-bottom:8px">
+        可支配资源点：<b>${S.cash}</b>　·　已完工项目：<b>${S.完工项目||0}</b> 个
+        ${S.cash<15?'<span style="color:#b01e23">（资源点不足，需通过施政积累）</span>':''}
+      </div>
+      ${projects.map(p=>{
+        const afford = canAfford(p), doing = inProgress(p.id);
+        const blocked = !afford || doing || (debt>=120 && p.财政依赖>=0.8);
+        return `<div style="border:1px solid #eee;border-radius:4px;padding:8px;margin-bottom:8px;${blocked?'opacity:0.55':''}">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+            <div style="flex:1">
+              <div style="font-weight:700;font-size:13px">${p.name}</div>
+              <div class="mini muted">${p.cat} · 工期${p.months}个月 · 投入<b>${p.cost}</b>点</div>
+            </div>
+            <button class="btn mini-btn" data-act="build" data-pid="${p.id}" ${blocked?'disabled':''}
+              style="padding:4px 10px;font-size:12px;${blocked?'opacity:0.5':''}">
+              <span class="bt">${doing?'在建':(afford?'立项':'资源不足')}</span>
+            </button>
+          </div>
+          <div class="mini" style="color:#666;line-height:1.6;margin-top:4px">${p.desc}</div>
+          <div class="mini" style="color:#35618a;margin-top:3px">预期：${Object.keys(p.gain||{}).map(k=>k+'+'+p.gain[k]).join(' ')}</div>
+          <div class="mini" style="color:#a05;margin-top:2px">⚠ 风险：${p.risk}</div>
+          <div class="mini muted" style="margin-top:3px;font-size:10px;line-height:1.5">${p.note}</div>
+        </div>`;
+      }).join('')}
+    </div>
+  </div>`;
+
+  return html;
+}
+
+/* 财政指标说明 */
+const FISCAL_TIPS = {
+  rev:"一般公共预算收入：税收收入与非税收入之和，是地方政府可用财力的主体。",
+  tax:"税收占比：税收收入占一般公共预算收入的比重，反映财政收入质量。占比越高，说明对非税收入（罚没、收费）依赖越小。",
+  self:"财政自给率 = 一般公共预算收入 ÷ 一般公共预算支出。70%以上为较好，20%以下属财政困难县。",
+  trans:"转移支付依赖度：上级转移支付占财政支出的比重。西部困难县可达80%以上，东部发达县市可能不足30%。",
+  fund:"政府性基金预算收入：以国有土地使用权出让收入为主体，即常说的「土地财政」。",
+  land:"土地出让依赖度：土地出让收入占政府性基金的比重，反映对土地财政的依赖程度。",
+  debt:"政府债务率 = 政府债务余额 ÷ 综合财力。100%以下绿色，100%—120%橙色，120%以上红色高风险。",
+  sanbao:"「三保」：保基本民生、保工资、保运转，是县级财政的底线任务，必须优先保障。",
+};
+function openFiscalTip(key){
+  const t = FISCAL_TIPS[key];
+  if(!t) return;
+  openModal("💰 财政指标说明", `<div class="result-box" style="border-style:solid">${t}</div>`);
+}
+
+/* ---------- 领导班子（部门同事 + 上司） ---------- */
+function pLeadership(){
+  const L = getLeadership();
+  if(!L || !L.members || !L.members.length) return "";
+  const Q = L.quota || {};
+
+  let html = `<div class="card">
+    <div class="card-h">👥 领导班子 · ${L.单位}</div>
+    <div class="card-b">
+      <div class="mini muted" style="margin-bottom:8px;line-height:1.6">
+        <b>班子类型</b>：${L.type}　·　<b>职数规定</b>：${Q.描述||"—"}<br>
+        <span style="font-size:10px">职数依据：${Q.来源||"机构编制规定"}</span><br>
+        我的职务：<b>${L.我的职务}</b>　·　组建于 ${L.生成时间}
+      </div>`;
+
+  L.members.forEach((m,i)=>{
+    const rel = m.relation||50;
+    const relColor = rel>=70?"#2f7d4f":(rel>=50?"#35618a":(rel>=35?"#8a6a35":"#b01e23"));
+    const relTag = rel>=70?"信任":(rel>=50?"尚可":(rel>=35?"一般":"疏远"));
+    const badge = m.isBoss?`<span style="background:#b01e23;color:#fff;border-radius:3px;padding:1px 6px;font-size:10px">一把手</span>`
+      : m.isDirectBoss?`<span style="background:#35618a;color:#fff;border-radius:3px;padding:1px 6px;font-size:10px">直接上司</span>`
+      : m.isDiscipline?`<span style="background:#8a4a8a;color:#fff;border-radius:3px;padding:1px 6px;font-size:10px">纪检</span>`
+      : m.isPeer?`<span style="background:#8a6a35;color:#fff;border-radius:3px;padding:1px 6px;font-size:10px">同级</span>`:"";
+
+    html += `<div style="border:1px solid #eee;border-radius:4px;padding:8px;margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+        <div style="flex:1">
+          <div style="font-weight:700;font-size:13px">
+            ${m.name}　<span style="color:#b01e23">${m.title}</span>　${badge}
+          </div>
+          <div class="mini muted">${m.age}岁 · ${m.role} · ${m.type.key}</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-weight:800;color:${relColor};font-size:16px">${rel}</div>
+          <div class="mini" style="color:${relColor}">${relTag}</div>
+        </div>
+      </div>
+      <div class="mini" style="color:#555;line-height:1.6;margin-top:4px">
+        <b>分工</b>：${m.duty.desc}
+      </div>
+      <div class="mini" style="color:#666;margin-top:3px;line-height:1.6">
+        <b>风格</b>：${m.type.desc}
+      </div>
+      <div class="mini muted" style="margin-top:3px;line-height:1.6">
+        <b>出身</b>：${m.origin.key}——${m.origin.desc}
+      </div>
+      <div class="mini muted" style="margin-top:3px;font-size:10px">${m.note}</div>
+      <div style="margin-top:6px;border-top:1px dashed #eee;padding-top:6px">
+        <div class="mini muted" style="margin-bottom:4px">与其往来：</div>
+        <div style="display:flex;flex-wrap:wrap;gap:4px">
+          ${LEADER_INTERACTIONS.map(a=>`
+            <button class="btn mini-btn" data-act="leader_act" data-idx="${i}" data-ikey="${a.key}"
+              style="padding:3px 8px;font-size:11px" title="${a.desc}${a.warn?' ⚠ '+a.warn:''}">
+              <span class="bt">${a.icon} ${a.key}</span>
+            </button>`).join('')}
+        </div>
+      </div>
+    </div>`;
+  });
+
+  // 三重一大说明
+  html += `<div style="border-top:1px dashed #ddd;padding-top:8px;margin-top:6px">
+    <div class="mini" style="font-weight:700;color:#b01e23">📜 ${TRIPLE_ONE.name}</div>
+    <div class="mini" style="color:#555;line-height:1.7;margin-top:3px">
+      ${TRIPLE_ONE.items.map(it=>`· <b>${it.key}</b>：${it.desc}`).join('<br>')}
+    </div>
+    <div class="mini muted" style="margin-top:4px;line-height:1.6">${TRIPLE_ONE.rule}</div>
+  </div>`;
+
+  html += `</div></div>`;
+  return html;
+}
+
+
 function pFaction(){
   return `<div class="card">
     <div class="card-h">🤝 派系声望</div>
@@ -4694,8 +5659,10 @@ function renderMain(tab){
     h+=pStats();
   } else if(tab==='action'){
     const {html,acts}=pAction(); _acts=acts; h+=html; h+=pStats();
+  } else if(tab==='city'){
+    h+=pCity();
   } else if(tab==='faction'){
-    h+=pFaction(); h+=pStats();
+    h+=pFaction(); h+=pLeadership(); h+=pStats();
   } else if(tab==='archive'){
     h+=renderArchive();
   }
@@ -4771,6 +5738,48 @@ function renderArchive(){
         deptCard += `<div class="mini" style="margin-top:6px;color:#666">
           <b>部门履历</b>（${uniq.length}个）：${uniq.join(' → ')}</div>`;
       }
+    }
+  }
+
+  // 城市建设与财政卡片
+  let cityCard = "";
+  {
+    const f = S.财政数据, j = S.管辖区域;
+    if(f || j){
+      const fg = fiscalGrade();
+      cityCard = `<div style="border-top:1px dashed #ddd;margin-top:8px;padding-top:8px">
+        <div class="mini"><b>💰 城市财政 · 管辖区域</b></div>
+        ${f?`<div class="mini" style="line-height:1.9;margin-top:3px">
+          财政健康度：<b style="color:${fg.c}">${fiscalHealth()}（${fg.t}）</b> ·
+          自给率 <b>${f.财政自给率}%</b> · 债务率 <b>${f.政府债务率}%</b><br>
+          转移支付依赖：${f.转移支付依赖度}% · 税收占比：${f.税收占比}%
+        </div>`:""}
+        ${j?`<div class="mini" style="line-height:1.9;margin-top:3px">
+          辖区：<b>${j.全称}</b>　下辖 <b>${j.下辖数量}</b> ${j.下辖单位}<br>
+          面积 ${j.面积}${j.面积单位} · 人口 ${j.人口}${j.人口单位}
+        </div>`:""}
+        ${(S.完工项目)?`<div class="mini" style="margin-top:3px">累计完工项目：<b>${S.完工项目}</b> 个${(S.在建项目&&S.在建项目.length)?`（在建 ${S.在建项目.length} 个）`:""}</div>`:""}
+      </div>`;
+    }
+  }
+
+  // 领导班子（同事与上司）卡片
+  let leaderCard = "";
+  {
+    const L = S.领导班子;
+    if(L && L.members && L.members.length){
+      const boss = S.一把手, direct = S.直接上司, disc = S.纪检负责人;
+      const avg = Math.round(L.members.reduce((a,m)=>a+(m.relation||50),0)/L.members.length);
+      leaderCard = `<div style="border-top:1px dashed #ddd;margin-top:8px;padding-top:8px">
+        <div class="mini"><b>👥 领导班子</b>（${L.type} · ${L.members.length}人）</div>
+        <div class="mini" style="line-height:1.9;margin-top:3px">
+          一把手：<b>${boss?boss.name+boss.title:"—"}</b>${boss?`（${boss.type.key}，关系 ${boss.relation}）`:""}<br>
+          直接上司：<b>${direct?direct.name+direct.title:"—"}</b>${direct?`（${direct.type.key}，关系 ${direct.relation}）`:""}<br>
+          纪检负责人：<b>${disc?disc.name+disc.title:"—"}</b>${disc?`（关系 ${disc.relation}）`:""}<br>
+          班子平均关系度：<b>${avg}</b>
+          ${(S.廉政风险暴露>0)?`<br><b style="color:#b01e23">⚠ 廉政风险暴露度：${S.廉政风险暴露}</b>`:""}
+        </div>
+      </div>`;
     }
   }
 
@@ -4870,6 +5879,8 @@ function renderArchive(){
       ${postCard}
       ${locCard}
       ${deptCard}
+      ${cityCard}
+      ${leaderCard}
       ${emergencyCard}
       ${hpCard}
     </div>
@@ -4956,6 +5967,18 @@ function bindActions(){
   // 指标口径详情
   document.querySelectorAll('[data-ind]').forEach(el=>{
     el.onclick=()=>{ openIndicatorDetail(el.dataset.ind); };
+  });
+  // 财政指标说明
+  document.querySelectorAll('[data-fisc]').forEach(el=>{
+    el.onclick=()=>{ openFiscalTip(el.dataset.fisc); };
+  });
+  // 城市建设项目立项
+  document.querySelectorAll('[data-act="build"]').forEach(b=>{
+    b.onclick=()=>{ startProject(b.dataset.pid); };
+  });
+  // 与领导往来
+  document.querySelectorAll('[data-act="leader_act"]').forEach(b=>{
+    b.onclick=()=>{ interactLeader(parseInt(b.dataset.idx), b.dataset.ikey); };
   });
   // 部门岗位交流
   document.querySelectorAll('[data-act="transfer_dept"]').forEach(b=>{
@@ -5631,6 +6654,11 @@ function renderEnding(){
           ${uniqDept.length?`<br>部门履历：${uniqDept.join(' → ')}`:""}
           ${((S.处置得当||0)+(S.处置失当||0))?`<br>突发事件处置：得当 <b>${S.处置得当||0}</b> 次 · 失当 <b>${S.处置失当||0}</b> 次`:""}
           ${S.一票否决次数?`<br><b style="color:#b01e23">⛔ 累计触及一票否决：${S.一票否决次数} 次</b>`:""}
+          ${S.完工项目?`<br>城市建设：累计完工项目 <b>${S.完工项目}</b> 个`:""}
+          ${(S.管辖区域)?`<br>主政辖区：<b>${S.管辖区域.全称}</b>（下辖 ${S.管辖区域.下辖数量} ${S.管辖区域.下辖单位}）`:""}
+          ${(S.财政数据)?`<br>离任时财政状况：<b style="color:${fiscalGrade().c}">${fiscalHealth()}分（${fiscalGrade().t}）</b> · 自给率 ${S.财政数据.财政自给率}% · 债务率 ${S.财政数据.政府债务率}%`:""}
+          ${(S.一把手)?`<br>历任一把手：<b>${S.一把手.name}${S.一把手.title}</b>（${S.一把手.type.key}）`:""}
+          ${(S.廉政风险暴露>0)?`<br><b style="color:#b01e23">⚠ 廉政风险暴露度：${S.廉政风险暴露}</b>`:""}
           ${(S.兼任&&S.兼任.length)?`<br>兼任职务：${S.兼任.map(x=>x.post+(x.highProfile?"（高配）":"")).join('、')}`:""}
           ${S.dept?`<br>所属部委：<b>${DEPARTMENTS[S.dept].name}</b>`:""}
           ${(S.rotation&&S.rotation.count>0)?`<br>轮岗履历：${(S.rotation.history||[]).map(k=>DEPARTMENTS[k]?DEPARTMENTS[k].short:k).join(' → ')}（共${S.rotation.count}次）`:""}
@@ -5653,6 +6681,7 @@ function renderNav(){
   nav.innerHTML=`
     <div class="tab ${curTab==='event'?'active':''}" data-t="event"><span class="ic">📋</span>事件</div>
     <div class="tab ${curTab==='action'?'active':''}" data-t="action"><span class="ic">🗂️</span>施政</div>
+    <div class="tab ${curTab==='city'?'active':''}" data-t="city"><span class="ic">🏗️</span>城建</div>
     <div class="tab ${curTab==='faction'?'active':''}" data-t="faction"><span class="ic">🤝</span>派系</div>
     <div class="tab ${curTab==='archive'?'active':''}" data-t="archive"><span class="ic">📁</span>档案</div>`;
   nav.querySelectorAll('.tab').forEach(t=>{

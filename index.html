@@ -104,6 +104,132 @@
   .cover h1{font-size:28px; color:var(--red); letter-spacing:3px; margin:0;}
   .cover .sub{color:#7a7364; font-size:13px; margin-top:8px;}
   .cover .seal{width:90px; height:90px; border:3px solid var(--red); border-radius:8px; color:var(--red); font-size:40px; line-height:84px; margin:24px auto; font-weight:700;}
+
+/* ============ 干部人事档案建档（注册）· 纸质表格风格 ============ */
+.form-paper{
+  background:#f5ecd9;
+  background-image:
+    linear-gradient(rgba(180,160,120,.16) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(180,160,120,.10) 1px, transparent 1px);
+  background-size:100% 26px, 100% 26px;
+  border:1px solid #c8b48c;
+  border-radius:3px;
+  box-shadow:inset 0 0 28px rgba(160,130,80,.14), 0 2px 10px rgba(0,0,0,.08);
+  padding:16px 14px;
+  font-family:"FangSong","仿宋","STFangsong","SimSun","宋体",serif;
+  position:relative;
+}
+.form-paper::before{
+  content:"";position:absolute;top:0;left:0;right:0;bottom:0;
+  background:radial-gradient(circle at 20% 30%, rgba(200,180,140,.10) 0%, transparent 60%),
+             radial-gradient(circle at 80% 70%, rgba(190,165,120,.10) 0%, transparent 55%);
+  pointer-events:none;border-radius:3px;
+}
+.form-title{
+  text-align:center;font-family:"FangSong","仿宋","STFangsong",serif;
+  font-size:19px;font-weight:700;color:#8a1e23;letter-spacing:4px;
+  padding-bottom:6px;border-bottom:2px double #b01e23;margin-bottom:4px;
+}
+.form-sub{
+  text-align:center;font-size:11px;color:#8a6a35;letter-spacing:2px;margin-bottom:12px;
+  font-family:"FangSong","仿宋",serif;
+}
+.form-seal{
+  position:absolute;right:10px;top:8px;width:56px;height:56px;
+  border:2.5px solid #b01e23;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  color:#b01e23;font-weight:800;font-size:12px;line-height:1.15;text-align:center;
+  transform:rotate(-14deg);opacity:.5;letter-spacing:1px;
+  font-family:"FangSong","仿宋",serif;pointer-events:none;
+}
+.frow{margin-bottom:12px;position:relative;z-index:1}
+.flabel{
+  font-size:12px;color:#5a4a30;margin-bottom:3px;display:block;
+  font-family:"FangSong","仿宋",serif;letter-spacing:1px;
+}
+.flabel .req{color:#b01e23}
+.finput{
+  width:100%;padding:8px 10px;border:1px solid #b8a480;border-radius:2px;
+  background:rgba(255,252,244,.85);font-size:14px;color:#3a2f1f;
+  font-family:"FangSong","仿宋",serif;box-sizing:border-box;
+  border-bottom:1px dashed #b8a480;
+}
+.finput:focus{outline:none;border-color:#b01e23;background:#fffdf6;
+  box-shadow:0 0 0 2px rgba(176,30,35,.08)}
+.finput.err{border-color:#b01e23;background:#fff5f5}
+.fhint{font-size:11px;color:#8a6a35;margin-top:3px;line-height:1.5;
+  font-family:"FangSong","仿宋",serif}
+.ferr{font-size:11px;color:#b01e23;margin-top:3px;line-height:1.5;
+  font-family:"FangSong","仿宋",serif;display:none}
+.ferr.show{display:block}
+.fnote{
+  font-size:11px;color:#6a5a40;line-height:1.7;
+  font-family:"FangSong","仿宋",serif;
+  background:rgba(255,250,238,.7);border-left:3px solid #b01e23;
+  padding:6px 9px;margin-bottom:12px;
+}
+.strength-bar{display:flex;gap:3px;margin-top:5px}
+.strength-bar i{
+  flex:1;height:5px;background:#ddd5c2;border-radius:2px;display:block;
+}
+.strength-bar i.on{background:#2f7d4f}
+.strength-bar i.on.warn{background:#8a6a35}
+.strength-bar i.on.bad{background:#b01e23}
+.strength-txt{font-size:11px;margin-top:3px;font-family:"FangSong","仿宋",serif}
+.steps{display:flex;gap:4px;margin-bottom:12px;position:relative;z-index:1}
+.steps div{
+  flex:1;text-align:center;font-size:10px;padding:4px 2px;
+  border-bottom:2px solid #d5c8ad;color:#9a8a6a;
+  font-family:"FangSong","仿宋",serif;
+}
+.steps div.on{border-bottom-color:#b01e23;color:#b01e23;font-weight:700}
+.steps div.done{border-bottom-color:#8a6a35;color:#8a6a35}
+.avatar-grid{display:flex;flex-wrap:wrap;gap:8px;margin-top:5px}
+.avatar-item{
+  width:56px;height:66px;border:2px solid #d5c8ad;border-radius:3px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  cursor:pointer;background:rgba(255,252,244,.8);transition:all .15s;
+}
+.avatar-item.sel{border-color:#b01e23;background:#fff5f0;
+  box-shadow:0 0 0 2px rgba(176,30,35,.15)}
+.avatar-item .em{font-size:24px;line-height:1}
+.avatar-item .nm{font-size:9px;color:#6a5a40;margin-top:3px;text-align:center;
+  font-family:"FangSong","仿宋",serif}
+.pledge-box{
+  max-height:170px;overflow-y:auto;background:rgba(255,253,246,.9);
+  border:1px solid #c8b48c;padding:10px;font-size:11px;line-height:1.9;
+  color:#4a3f2f;font-family:"FangSong","仿宋",serif;margin-bottom:10px;
+}
+.pledge-box b{color:#8a1e23}
+.pledge-check{
+  display:flex;align-items:flex-start;gap:7px;cursor:pointer;
+  font-family:"FangSong","仿宋",serif;font-size:12px;color:#4a3f2f;
+  padding:6px;border:1px dashed #c8b48c;border-radius:3px;
+  background:rgba(255,250,238,.6);
+}
+.pledge-check input{margin-top:2px;flex-shrink:0}
+.reg-nav{display:flex;gap:8px;margin-top:14px;position:relative;z-index:1}
+.reg-nav .btn{flex:1}
+.seal-stamp{
+  position:absolute;right:14px;bottom:14px;width:76px;height:76px;
+  border:3px solid #b01e23;border-radius:6px;color:#b01e23;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  font-weight:800;font-size:11px;line-height:1.3;transform:rotate(-12deg);
+  opacity:.28;letter-spacing:1px;font-family:"FangSong","仿宋",serif;
+  pointer-events:none;text-align:center;
+}
+.login-quick{display:flex;gap:8px;margin-top:10px}
+.login-quick .btn{flex:1}
+.login-quick .btn .bt{font-size:12px}
+
+/* 盖章/打字机音效按钮反馈 */
+.btn.stamping{animation:stampPulse .18s ease}
+@keyframes stampPulse{
+  0%{transform:scale(1)}
+  40%{transform:scale(.965)}
+  100%{transform:scale(1)}
+}
+
 </style>
 </head>
 <body>
@@ -2070,6 +2196,324 @@ function buildLeaderProfile(){
     履历:career,
     层级分布:byLayer,
   };
+}
+
+
+/* ============================================================
+   干部人事档案建档系统（用户注册）
+   包装：《干部履历表》/《新录用人员信息采集表》风格
+   ------------------------------------------------------------
+   ⚠ 实现说明（重要）：
+   本作为纯前端单文件网页游戏，不具备服务端能力。以下内容为
+   「流程与交互的完整实现 + 本地模拟」，真实上线需配套后端：
+     · 短信/邮箱核验码 —— 需接入短信服务商（阿里云/腾讯云等）
+     · 政务统一身份认证（微信/AppleID）—— 需 OAuth 接入与备案
+     · 防沉迷实名核验 —— 须接入国家新闻出版署防沉迷实名认证系统
+   下方所有涉及上述能力的函数均已预留后端接口位（BACKEND_API），
+   后端就绪后仅需替换调用即可，无需改动流程与界面。
+   ============================================================ */
+
+/* 后端接口位（纯前端模式下为 null，走本地模拟） */
+const BACKEND_API = {
+  enabled: false,                 // ← 后端接入后置为 true
+  sendCode:   null,               // (phone) => Promise<{ok, msg}>
+  verifyCode: null,               // (phone, code) => Promise<{ok, msg}>
+  oauth:      null,               // (provider) => Promise<{ok, openId}>
+  realName:   null,               // (name, idNo) => Promise<{ok, adult:boolean}>
+};
+
+/* 数据库字段（对应文档第五节建议） */
+const USER_FIELDS = ["user_id","phone_number","password_hash","character_name",
+                     "gender","registration_time","account_status","hometown","avatar","realname_verified"];
+
+/* 档案库存储键 */
+const DB_USERS = "qlp_users";        // 用户档案库（多账号）
+const DB_SESSION = "qlp_session";    // 当前登录态
+const DB_LEGACY = "qlp_top";         // 兼容：旧版单存档
+
+/* 密码哈希（本地模拟；后端接入后应由服务端 bcrypt/argon2 处理） */
+async function hashPassword(pwd){
+  const salt = "QLP_GADB_2026";
+  // 优先使用浏览器 SHA-256
+  if(window.crypto && crypto.subtle && crypto.subtle.digest){
+    try{
+      const data = new TextEncoder().encode(salt + pwd + salt);
+      const buf = await crypto.subtle.digest("SHA-256", data);
+      return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("");
+    }catch(e){ /* 降级 */ }
+  }
+  // 降级：FNV-1a 变体（仅用于本地，非安全用途）
+  let h1=0x811c9dc5, h2=0x01000193;
+  const s = salt + pwd + salt;
+  for(let i=0;i<s.length;i++){
+    h1 ^= s.charCodeAt(i); h1 = (h1*0x01000193)>>>0;
+    h2 ^= s.charCodeAt(s.length-1-i); h2 = (h2*0x85ebca6b)>>>0;
+  }
+  return "fnv" + h1.toString(16).padStart(8,"0") + h2.toString(16).padStart(8,"0");
+}
+
+/* 密码强度（"密令安全等级"） */
+function passwordStrength(pwd){
+  let score = 0;
+  const checks = {
+    长度: pwd.length >= 8,
+    小写: /[a-z]/.test(pwd),
+    大写: /[A-Z]/.test(pwd),
+    数字: /[0-9]/.test(pwd),
+    符号: /[^A-Za-z0-9]/.test(pwd),
+  };
+  if(pwd.length>=6) score++;
+  if(pwd.length>=10) score++;
+  if(checks.小写) score++;
+  if(checks.大写) score++;
+  if(checks.数字) score++;
+  if(checks.符号) score++;
+  const levels = [
+    {max:2, t:"不合格", c:"#b01e23", bar:1},
+    {max:3, t:"合格",   c:"#8a6a35", bar:2},
+    {max:4, t:"良好",   c:"#35618a", bar:3},
+    {max:5, t:"优秀",   c:"#2f7d4f", bar:4},
+    {max:99,t:"极佳",   c:"#2f7d4f", bar:5},
+  ];
+  const lv = levels.find(l=>score<=l.max) || levels[levels.length-1];
+  return Object.assign({score, checks}, lv);
+}
+
+/* 手机号/邮箱校验 */
+function validateContact(v){
+  const phone = /^1[3-9]\d{9}$/;
+  const email = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if(phone.test(v)) return {ok:true, type:"手机号"};
+  if(email.test(v)) return {ok:true, type:"邮箱"};
+  return {ok:false, msg:"请录入有效的手机号或邮箱，以便组织进行背景核查与档案绑定。"};
+}
+
+/* 读取档案库 */
+function loadUsers(){
+  try{
+    const raw = localStorage.getItem(DB_USERS);
+    return raw ? JSON.parse(raw) : {};
+  }catch(e){ return {}; }
+}
+function saveUsers(u){
+  try{ localStorage.setItem(DB_USERS, JSON.stringify(u)); }catch(e){}
+}
+
+/* 按联系方式查找档案 */
+function findUser(contact){
+  const users = loadUsers();
+  for(const id in users){
+    if(users[id].phone_number === contact) return Object.assign({user_id:id}, users[id]);
+  }
+  return null;
+}
+
+/* 建档（注册） */
+async function registerUser(form){
+  const users = loadUsers();
+  if(findUser(form.phone)){
+    return {ok:false, msg:"该联系方式已建立人事档案，请直接登录。"};
+  }
+  const uid = "U" + Date.now().toString(36).toUpperCase() + Math.random().toString(36).slice(2,6).toUpperCase();
+  const now = new Date();
+  const rec = {
+    user_id: uid,
+    phone_number: form.phone,
+    password_hash: await hashPassword(form.password),
+    character_name: form.name,
+    gender: form.gender,
+    registration_time: now.toISOString(),
+    registration_time_cn: `${now.getFullYear()}年${now.getMonth()+1}月${now.getDate()}日`,
+    account_status: "正常",
+    hometown: form.hometown || "",
+    avatar: form.avatar || "default",
+    realname_verified: form.realnameVerified || false,
+    login_count: 0,
+    last_login: null,
+  };
+  users[uid] = rec;
+  saveUsers(users);
+  setSession(uid);
+  return {ok:true, user:rec};
+}
+
+/* 登录 */
+async function loginUser(contact, password){
+  const u = findUser(contact);
+  if(!u) return {ok:false, msg:"未查询到该联系方式对应的人事档案，请先完成建档。"};
+  if(u.account_status === "冻结")
+    return {ok:false, msg:"该人事档案已冻结，请联系组织部门处理。"};
+  if(u.account_status === "注销")
+    return {ok:false, msg:"该人事档案已注销，无法登录。"};
+  const h = await hashPassword(password);
+  if(h !== u.password_hash)
+    return {ok:false, msg:"工号或密令有误，请重新录入。"};
+  // 更新登录信息
+  const users = loadUsers();
+  users[u.user_id].login_count = (users[u.user_id].login_count||0) + 1;
+  users[u.user_id].last_login = new Date().toISOString();
+  saveUsers(users);
+  setSession(u.user_id);
+  return {ok:true, user:users[u.user_id]};
+}
+
+/* 密令重置（"密令遗失申诉流程"） */
+async function resetPassword(contact, newPassword){
+  const u = findUser(contact);
+  if(!u) return {ok:false, msg:"未查询到该联系方式对应的人事档案。"};
+  const users = loadUsers();
+  users[u.user_id].password_hash = await hashPassword(newPassword);
+  users[u.user_id].last_reset = new Date().toISOString();
+  saveUsers(users);
+  return {ok:true, msg:"组织身份复核通过，密令已重置，请重新登录。"};
+}
+
+/* 会话 */
+function setSession(uid){
+  try{ localStorage.setItem(DB_SESSION, JSON.stringify({uid, at:Date.now()})); }catch(e){}
+}
+function getSession(){
+  try{
+    const raw = localStorage.getItem(DB_SESSION);
+    if(!raw) return null;
+    const s = JSON.parse(raw);
+    const users = loadUsers();
+    if(!users[s.uid]) return null;
+    return users[s.uid];
+  }catch(e){ return null; }
+}
+function logout(){
+  try{ localStorage.removeItem(DB_SESSION); }catch(e){}
+}
+
+/* 核验码（本地模拟：生成并"发送"；后端接入后走短信服务） */
+let _pendingCode = null;
+async function sendVerifyCode(contact){
+  if(BACKEND_API.enabled && BACKEND_API.sendCode){
+    return await BACKEND_API.sendCode(contact);
+  }
+  const code = String(Math.floor(100000 + Math.random()*900000));
+  _pendingCode = {contact, code, at:Date.now(), ttl:5*60*1000};
+  // 本地模式：直接在界面上"送达"（真实环境应由短信下发到手机）
+  return {ok:true, code, msg:`核验码已发送至 ${maskContact(contact)}（本地演示模式：${code}）`};
+}
+function verifyCodeInput(contact, input){
+  if(BACKEND_API.enabled && BACKEND_API.verifyCode){
+    return BACKEND_API.verifyCode(contact, input);
+  }
+  if(!_pendingCode || _pendingCode.contact!==contact)
+    return {ok:false, msg:"请重新获取核验码。"};
+  if(Date.now() - _pendingCode.at > _pendingCode.ttl)
+    return {ok:false, msg:"核验码已过期，请重新获取。"};
+  if(String(input).trim() !== _pendingCode.code)
+    return {ok:false, msg:"核验码有误，请重新录入。"};
+  return {ok:true, msg:"核验通过。"};
+}
+function maskContact(c){
+  if(!c) return "";
+  if(c.includes("@")){
+    const [n,d] = c.split("@");
+    return n.slice(0,2) + "***@" + d;
+  }
+  return c.slice(0,3) + "****" + c.slice(7);
+}
+
+/* 政务系统统一身份认证（微信/AppleID 包装） */
+const OAUTH_PROVIDERS = [
+  {key:"wechat", name:"微信", icon:"💬", desc:"政务微信统一身份认证"},
+  {key:"apple",  name:"Apple ID", icon:"🍎", desc:"Apple 政务身份令牌"},
+];
+async function oauthLogin(providerKey){
+  if(BACKEND_API.enabled && BACKEND_API.oauth){
+    return await BACKEND_API.oauth(providerKey);
+  }
+  // 本地模拟：生成虚拟绑定账号
+  const p = OAUTH_PROVIDERS.find(x=>x.key===providerKey);
+  const virtualContact = `oauth_${providerKey}_${Math.random().toString(36).slice(2,10)}`;
+  let u = findUser(virtualContact);
+  if(!u){
+    await registerUser({
+      phone:virtualContact, password:"oauth:"+providerKey,
+      name:"—", gender:"—", hometown:"", avatar:"default",
+    });
+    u = findUser(virtualContact);
+  }
+  setSession(u.user_id);
+  return {ok:true, user:u, msg:`已通过「${p?p.desc:providerKey}」完成身份认证（演示模式）`};
+}
+
+/* 实名身份核验（防沉迷） */
+const REALNAME_RULES = {
+  提示:"根据相关规定，请完成实名身份核验。未通过核验的账号将纳入防沉迷管理。",
+  未成年:"根据《关于进一步严格管理 切实防止未成年人沉迷网络游戏的通知》，" +
+         "未成年人仅可在周五、周六、周日及法定节假日每日20时至21时登录1小时。",
+  已核验:"已完成实名身份核验。",
+};
+function validateIdNo(idNo){
+  // 18位身份证格式校验（含校验位）
+  if(!/^\d{17}[\dXx]$/.test(idNo)) return {ok:false, msg:"身份证号码格式有误，请核对后重新录入。"};
+  const w = [7,9,10,5,8,4,2,1,6,3,7,9,10,5,8,4,2];
+  const c = ["1","0","X","9","8","7","6","5","4","3","2"];
+  let sum = 0;
+  for(let i=0;i<17;i++) sum += parseInt(idNo[i]) * w[i];
+  if(c[sum%11] !== idNo[17].toUpperCase())
+    return {ok:false, msg:"身份证号码校验位有误，请核对后重新录入。"};
+  return {ok:true};
+}
+function ageFromIdNo(idNo){
+  const y = parseInt(idNo.slice(6,10));
+  const m = parseInt(idNo.slice(10,12));
+  const d = parseInt(idNo.slice(12,14));
+  const now = new Date();
+  let age = now.getFullYear() - y;
+  if(now.getMonth()+1 < m || (now.getMonth()+1===m && now.getDate()<d)) age--;
+  return age;
+}
+async function submitRealName(name, idNo){
+  if(BACKEND_API.enabled && BACKEND_API.realName){
+    return await BACKEND_API.realName(name, idNo);
+  }
+  const v = validateIdNo(idNo);
+  if(!v.ok) return v;
+  const age = ageFromIdNo(idNo);
+  const adult = age >= 18;
+  const s = getSession();
+  if(s){
+    const users = loadUsers();
+    if(users[s.user_id]){
+      users[s.user_id].realname_verified = true;
+      users[s.user_id].realname_name = name;
+      users[s.user_id].realname_age = age;
+      users[s.user_id].is_adult = adult;
+      saveUsers(users);
+    }
+  }
+  return {
+    ok:true, adult, age,
+    msg: adult ? REALNAME_RULES.已核验 : REALNAME_RULES.未成年,
+  };
+}
+
+/* 存档键：按用户隔离 */
+function saveKeyFor(uid){
+  return uid ? ("qlp_save_" + uid) : DB_LEGACY;
+}
+function currentSaveKey(){
+  const s = getSession();
+  return saveKeyFor(s ? s.user_id : null);
+}
+
+/* 证件照模板（系统预设标准证件照） */
+const AVATAR_TEMPLATES = [
+  {key:"default", name:"标准证件照·男", emoji:"👨‍💼", bg:"#d9e2ec"},
+  {key:"f1",      name:"标准证件照·女", emoji:"👩‍💼", bg:"#ecd9e2"},
+  {key:"m2",      name:"正装半身·男",   emoji:"🧑‍💼", bg:"#d9e2ec"},
+  {key:"f2",      name:"正装半身·女",   emoji:"👩‍💻", bg:"#ecd9e2"},
+  {key:"m3",      name:"制服照·男",     emoji:"👮‍♂️", bg:"#dae5f0"},
+  {key:"f3",      name:"制服照·女",     emoji:"👮‍♀️", bg:"#f0dae5"},
+];
+function avatarOf(key){
+  return AVATAR_TEMPLATES.find(a=>a.key===key) || AVATAR_TEMPLATES[0];
 }
 
 
@@ -4656,10 +5100,19 @@ function _rawDel(k){
   delete MEM[k];
 }
 
-function save(){ _rawSet("qlp_top", JSON.stringify(S)); }
+function save(){
+  // 按登录用户隔离存档；未注册登录则退回旧版单存档键
+  let key = DB_LEGACY;
+  try{ key = (typeof currentSaveKey==="function") ? currentSaveKey() : DB_LEGACY; }catch(e){}
+  _rawSet(key, JSON.stringify(S));
+}
 function load(){
-  const t = _rawGet("qlp_top");
-  if(t){ try{ S = JSON.parse(t); }catch(e){ _rawDel("qlp_top"); } }
+  // 优先读当前用户存档；若无则兼容读取旧版单存档
+  let key = DB_LEGACY;
+  try{ key = (typeof currentSaveKey==="function") ? currentSaveKey() : DB_LEGACY; }catch(e){}
+  let t = _rawGet(key);
+  if(!t && key!==DB_LEGACY){ t = _rawGet(DB_LEGACY); }   // 旧档迁移
+  if(t){ try{ S = JSON.parse(t); }catch(e){ _rawDel(key); } }
   // 旧存档兼容：补齐后续版本新增的字段
   if(S){
     if(S.兼任===undefined) S.兼任 = [];
@@ -4681,8 +5134,16 @@ function load(){
     if(!S.任职地){ try{ assignLocation(false); }catch(e){} }
   }
 }
-function hasSave(){ return !!_rawGet("qlp_top"); }
-function clearSave(){ _rawDel("qlp_top"); }
+function hasSave(){
+  let key = DB_LEGACY;
+  try{ key = (typeof currentSaveKey==="function") ? currentSaveKey() : DB_LEGACY; }catch(e){}
+  return !!(_rawGet(key) || _rawGet(DB_LEGACY));
+}
+function clearSave(){
+  let key = DB_LEGACY;
+  try{ key = (typeof currentSaveKey==="function") ? currentSaveKey() : DB_LEGACY; }catch(e){}
+  _rawDel(key); _rawDel(DB_LEGACY);
+}
 
 
 
@@ -5717,7 +6178,16 @@ function renderTopbar(){
         <div class="tb-title">${titleNow}</div>
         <div class="tb-sub">${layerNow}${gradeNow&&gradeNow!=="—"?` · ${gradeNow}`:""} · 第${S.year}年${S.month}月 · 目标：${next?rankTitle(Math.min(S.rank+1,RANKS.length-1)):"已达巅峰"}</div>
       </div>
-      <div class="mini" style="color:#ffd">政绩 ${S.政绩}</div>
+      <div style="display:flex;align-items:center;gap:6px">
+        ${(()=>{
+          let u=null; try{ u=getSession(); }catch(e){}
+          if(!u) return '';
+          const a=avatarOf(u.avatar);
+          return `<span title="${u.character_name}（工号 ${u.emp_id||'—'}）"
+                        id="tbAvatar" style="cursor:pointer;font-size:18px;line-height:1">${a.emoji}</span>`;
+        })()}
+        <div class="mini" style="color:#ffd">政绩 ${S.政绩}</div>
+      </div>
     </div>
     <div class="bar-wrap" style="width:100%"><div class="bar" style="width:${prog}%"></div></div>
     <div class="attrs">
@@ -6995,7 +7465,41 @@ function renderArchive(){
     }
   }
 
-  let resume = `<div class="card">
+  let resume = `  <div class="card">
+      <div class="card-h">🪪 人事档案信息</div>
+      <div class="card-b">
+        ${(()=>{
+          let u=null; try{ u=getSession(); }catch(e){}
+          if(!u) return `<div class="mini muted">当前为免建档模式（本机存档）。可在封面新建人事档案以启用多档案与进度隔离。</div>`;
+          const a=avatarOf(u.avatar);
+          return `<div style="display:flex;gap:12px;align-items:flex-start">
+            <div style="flex:0 0 auto;text-align:center">
+              <div style="width:74px;height:92px;background:${a.bg};border:2px solid #c8b48c;
+                          border-radius:3px;display:flex;align-items:center;justify-content:center;
+                          font-size:38px;box-shadow:0 1px 4px rgba(0,0,0,.08)">${a.emoji}</div>
+              <div class="mini muted" style="margin-top:3px;font-size:9px">${a.name}</div>
+              <button class="btn mini-btn" id="archAvatar" style="margin-top:4px;padding:2px 8px;font-size:10px">
+                <span class="bt">更换证件照</span>
+              </button>
+            </div>
+            <div style="flex:1" class="mini" style="line-height:1.9">
+              <div style="font-size:14px;font-weight:700;color:#8a1e23;margin-bottom:4px">
+                ${u.character_name!=="—"?u.character_name:"未命名"}
+                <span style="font-size:11px;color:#8a6a35;font-weight:400">（工号 ${u.emp_id||"—"}）</span>
+              </div>
+              档案编号：${u.user_id}<br>
+              性别：${u.gender}　·　籍贯：${u.hometown||"—"}<br>
+              联系方式：${maskContact(u.phone_number)}<br>
+              建档时间：${u.registration_time_cn}<br>
+              档案状态：<b style="color:#2f7d4f">${u.account_status}</b>　·　登录 ${u.login_count||0} 次<br>
+              实名核验：<b style="color:${u.realname_verified?(u.is_adult?'#2f7d4f':'#8a6a35'):'#b01e23'}">
+                ${u.realname_verified?(u.is_adult?'已完成（成年人）':'已完成（未成年，纳入防沉迷）'):'未核验'}</b>
+            </div>
+          </div>`;
+        })()}
+      </div>
+    </div>
+<div class="card">
     <div class="card-h">🪪 干部履历</div>
     <div class="card-b">
       <div class="stat-grid">
@@ -7132,6 +7636,36 @@ function bindActions(){
   document.querySelectorAll('[data-act="leader_act"]').forEach(b=>{
     b.onclick=()=>{ interactLeader(parseInt(b.dataset.idx), b.dataset.ikey); };
   });
+  // 更换证件照
+  const avBtn=document.getElementById("archAvatar");
+  if(avBtn) avBtn.onclick=()=>{
+    let u=null; try{ u=getSession(); }catch(e){}
+    if(!u){ addToast("免建档模式不支持更换证件照"); return; }
+    openModal("🖼️ 更换标准证件照", `
+      <div class="mini muted" style="margin-bottom:8px">
+        请选择系统预设的标准证件照模板。亦可上传正装照（需后端支持）。
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;justify-content:center">
+        ${AVATAR_TEMPLATES.map(a=>`
+          <div data-pick-avatar="${a.key}" style="width:78px;cursor:pointer;text-align:center">
+            <div style="width:70px;height:88px;background:${a.bg};
+                        border:2px solid ${u.avatar===a.key?'#b01e23':'#ddd'};border-radius:3px;
+                        display:flex;align-items:center;justify-content:center;font-size:34px">
+              ${a.emoji}
+            </div>
+            <div class="mini" style="font-size:9px;margin-top:2px">${a.name}</div>
+          </div>`).join('')}
+      </div>`);
+    document.querySelectorAll('[data-pick-avatar]').forEach(el=>{
+      el.onclick=()=>{
+        const users=loadUsers();
+        if(users[u.user_id]){ users[u.user_id].avatar=el.dataset.pickAvatar; saveUsers(users); }
+        document.getElementById("modal").classList.remove("show");
+        addToast("证件照已更新");
+        renderMain(curTab);
+      };
+    });
+  };
   // 打开两份档案
   document.querySelectorAll('[data-act="open_profile"]').forEach(b=>{
     b.onclick=()=>{ openLeaderProfile(); };
@@ -7875,6 +8409,41 @@ function renderEnding(){
     </div>`;
   const a=$("endAgain"); if(a) a.onclick=()=>{ try{ localStorage.removeItem("qlp_top"); }catch(e){} location.reload(); };
   const r=$("endReview"); if(r) r.onclick=()=>{ $("modal").classList.add("show"); };
+
+  // 顶栏头像：点击显示账户信息
+  const av = document.getElementById("tbAvatar");
+  if(av) av.onclick=()=>{
+    let u=null; try{ u=getSession(); }catch(e){}
+    if(!u) return;
+    const a=avatarOf(u.avatar);
+    openModal("🪪 人事档案", `
+      <div style="text-align:center;padding:6px 0">
+        <div style="font-size:40px;line-height:1">${a.emoji}</div>
+        <div style="font-size:16px;font-weight:700;color:#8a1e23;margin-top:6px">
+          ${u.character_name!=="—"?u.character_name:"未命名"}
+        </div>
+      </div>
+      <div class="mini" style="line-height:2;margin-top:8px">
+        档案编号：<b>${u.user_id}</b><br>
+        专属工号：<b>${u.emp_id||"—"}</b><br>
+        联系方式：<b>${maskContact(u.phone_number)}</b><br>
+        性　　别：<b>${u.gender}</b><br>
+        籍　　贯：<b>${u.hometown||"—"}</b><br>
+        建档时间：<b>${u.registration_time_cn}</b><br>
+        档案状态：<b style="color:#2f7d4f">${u.account_status}</b><br>
+        登录次数：<b>${u.login_count||0}</b> 次<br>
+        实名核验：<b style="color:${u.realname_verified?(u.is_adult?'#2f7d4f':'#8a6a35'):'#b01e23'}">
+          ${u.realname_verified?(u.is_adult?'已完成（成年人）':'已完成（未成年，纳入防沉迷）'):'未核验'}</b>
+      </div>
+      <div style="display:flex;gap:6px;margin-top:10px">
+        <button class="btn" id="acctSwitch" style="flex:1"><span class="bt">切换档案</span></button>
+        <button class="btn" id="acctOut" style="flex:1"><span class="bt">退出登录</span></button>
+      </div>`);
+    const sw=document.getElementById("acctSwitch");
+    if(sw) sw.onclick=()=>{ document.getElementById("modal").classList.remove("show"); logout(); startScreen(); };
+    const ao=document.getElementById("acctOut");
+    if(ao) ao.onclick=()=>{ if(confirm("确定退出当前人事档案？")){ document.getElementById("modal").classList.remove("show"); logout(); startScreen(); } };
+  };
 }
 
 /* ---------- 10. 导航 & 启动 ---------- */
@@ -7891,6 +8460,688 @@ function renderNav(){
   });
 }
 let curTab='event';
+
+/* ============================================================
+   干部人事档案建档 · 四步流程 UI
+   ============================================================ */
+
+/* 打字机/盖章音效（Web Audio 合成，无需外部音频文件） */
+let _audioCtx = null;
+function sfxStamp(){
+  try{
+    if(!_audioCtx) _audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+    const ctx=_audioCtx, t=ctx.currentTime;
+    // 低频"咔哒"：盖章感
+    const o=ctx.createOscillator(), g=ctx.createGain();
+    o.type="square"; o.frequency.setValueAtTime(180,t);
+    o.frequency.exponentialRampToValueAtTime(60,t+0.06);
+    g.gain.setValueAtTime(0.14,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.09);
+    o.connect(g); g.connect(ctx.destination); o.start(t); o.stop(t+0.10);
+  }catch(e){}
+}
+function sfxType(){
+  try{
+    if(!_audioCtx) _audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+    const ctx=_audioCtx, t=ctx.currentTime;
+    const o=ctx.createOscillator(), g=ctx.createGain();
+    o.type="triangle"; o.frequency.setValueAtTime(900+Math.random()*180,t);
+    g.gain.setValueAtTime(0.045,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.035);
+    o.connect(g); g.connect(ctx.destination); o.start(t); o.stop(t+0.04);
+  }catch(e){}
+}
+/* 按钮盖章反馈 */
+function bindStampSound(){
+  document.querySelectorAll('.btn').forEach(b=>{
+    if(b.dataset.stamp) return;
+    b.dataset.stamp="1";
+    b.addEventListener('click', ()=>{
+      b.classList.add('stamping');
+      setTimeout(()=>b.classList.remove('stamping'), 190);
+      sfxStamp();
+    }, {passive:true});
+  });
+  // 输入框打字机音
+  document.querySelectorAll('.finput').forEach(inp=>{
+    if(inp.dataset.typeSfx) return;
+    inp.dataset.typeSfx="1";
+    inp.addEventListener('input', ()=>{ if(Math.random()<0.55) sfxType(); }, {passive:true});
+  });
+}
+
+/* 注册流程状态 */
+let REG = {
+  step:1, contact:"", code:"", empId:"", password:"",
+  name:"", gender:"男", prov:"", city:"", avatar:"default",
+  agreed:false, mode:null, realnameDone:false,
+};
+
+function regSteps(cur){
+  const names=["身份验证","账号与密令","基本信息","纪律承诺"];
+  return `<div class="steps">` + names.map((n,i)=>{
+    const idx=i+1;
+    const cls = idx===cur ? "on" : (idx<cur ? "done" : "");
+    return `<div class="${cls}">${idx}. ${n}</div>`;
+  }).join('') + `</div>`;
+}
+
+function regShell(inner){
+  return `<div class="form-paper">
+    <div class="form-seal">干部<br>档案</div>
+    <div class="form-title">新录用人员信息采集表</div>
+    <div class="form-sub">权利的巅峰 · 干部人事档案建档</div>
+    ${inner}
+    <div class="seal-stamp">组织<br>人事<br>专用</div>
+  </div>`;
+}
+
+/* 主入口：打开建档流程 */
+function openRegister(mode){
+  REG = {step:1, contact:"", code:"", empId:"", password:"",
+         name:"", gender:"男", prov:"", city:"", avatar:"default",
+         agreed:false, mode:mode||null, realnameDone:false};
+  renderRegStep();
+}
+
+function renderRegStep(){
+  const main = $("main");
+  main.innerHTML = regShell(regBody());
+  bindRegEvents();
+  bindStampSound();
+  main.scrollTop = 0;
+}
+
+function regBody(){
+  const s = REG.step;
+  let h = regSteps(s);
+  if(s===1)      h += regStep1();
+  else if(s===2) h += regStep2();
+  else if(s===3) h += regStep3();
+  else if(s===4) h += regStep4();
+  return h;
+}
+
+/* —— 第一步：身份验证 —— */
+function regStep1(){
+  return `
+    <div class="fnote">请录入您的有效联系方式，以便组织进行背景核查与档案绑定。</div>
+    <div class="frow">
+      <label class="flabel">联系方式 <span class="req">*</span></label>
+      <input class="finput" id="rg_contact" placeholder="手机号或电子邮箱" value="${REG.contact}">
+      <div class="fhint">用于接收核验码与档案绑定，一个联系方式仅可建立一份人事档案。</div>
+      <div class="ferr" id="rg_c_err"></div>
+    </div>
+    <div class="frow">
+      <label class="flabel">核验码 <span class="req">*</span></label>
+      <div style="display:flex;gap:6px">
+        <input class="finput" id="rg_code" placeholder="6位核验码" style="flex:1" value="${REG.code}">
+        <button class="btn" id="rg_send" style="flex:0 0 auto;padding:8px 12px">
+          <span class="bt" style="font-size:12px">发送核验码</span>
+        </button>
+      </div>
+      <div class="fhint" id="rg_code_hint">核验码5分钟内有效。</div>
+      <div class="ferr" id="rg_code_err"></div>
+    </div>
+    <div class="reg-nav">
+      <button class="btn" id="rg_back"><span class="bt">返回</span></button>
+      <button class="btn primary" id="rg_next1"><span class="bt">下一步</span></button>
+    </div>
+    <div style="margin-top:14px;border-top:1px dashed #c8b48c;padding-top:10px">
+      <div class="fhint" style="text-align:center;margin-bottom:6px">— 或 —</div>
+      <div class="login-quick">
+        ${OAUTH_PROVIDERS.map(p=>`
+          <button class="btn" data-oauth="${p.key}">
+            <span class="bt">${p.icon} ${p.name}</span>
+            <span class="bd" style="font-size:10px">${p.desc}</span>
+          </button>`).join('')}
+      </div>
+      <div class="fhint" style="margin-top:6px;text-align:center">
+        政务系统统一身份认证接入
+      </div>
+      <div style="text-align:center;margin-top:8px">
+        <button class="btn" id="rg_gologin" style="padding:4px 14px;display:inline-block">
+          <span class="bt" style="font-size:12px">已有人事档案？直接登录</span>
+        </button>
+      </div>
+    </div>`;
+}
+
+/* —— 第二步：工号与密令 —— */
+function regStep2(){
+  const st = passwordStrength(REG.password||"");
+  return `
+    <div class="fnote">请设置您的专属工号（账号）与安全密令（密码），请务必妥善保管。</div>
+    <div class="frow">
+      <label class="flabel">专属工号 <span class="req">*</span></label>
+      <input class="finput" id="rg_empid" placeholder="6—16位字母或数字" value="${REG.empId}">
+      <div class="fhint">工号将作为您在系统内的唯一标识，建档后不可修改。</div>
+      <div class="ferr" id="rg_e_err"></div>
+    </div>
+    <div class="frow">
+      <label class="flabel">安全密令 <span class="req">*</span></label>
+      <input class="finput" id="rg_pwd" type="password" placeholder="请设置密令" value="${REG.password}">
+      <div class="strength-bar">
+        ${[1,2,3,4,5].map(i=>`<i class="${i<=st.bar?'on'+(st.score<=2?' bad':(st.score<=3?' warn':'')):''}"></i>`).join('')}
+      </div>
+      <div class="strength-txt" style="color:${st.c}">
+        密令安全等级：<b>${REG.password?st.t:"—"}</b>
+        ${REG.password?`（${Object.keys(st.checks).filter(k=>st.checks[k]).join('·')||'无'}）`:""}
+      </div>
+      <div class="fhint">建议包含大写字母、小写字母与数字，长度不少于8位。</div>
+      <div class="ferr" id="rg_p_err"></div>
+    </div>
+    <div class="frow">
+      <label class="flabel">确认密令 <span class="req">*</span></label>
+      <input class="finput" id="rg_pwd2" type="password" placeholder="请再次录入密令">
+      <div class="ferr" id="rg_p2_err"></div>
+    </div>
+    <div class="reg-nav">
+      <button class="btn" id="rg_back"><span class="bt">上一步</span></button>
+      <button class="btn primary" id="rg_next2"><span class="bt">下一步</span></button>
+    </div>`;
+}
+
+/* —— 第三步：角色初始化 —— */
+function regStep3(){
+  const provs = (typeof HOMETOWNS!=="undefined") ? HOMETOWNS.map(h=>h.name||h) : [];
+  const cities = REG.prov ? (PROVINCE_CITY[REG.prov]||[]) : [];
+  return `
+    <div class="fnote">请确认您的个人基本信息，这将作为您在系统内的初始履历。</div>
+    <div class="frow">
+      <label class="flabel">姓名 <span class="req">*</span></label>
+      <input class="finput" id="rg_name" placeholder="请输入真实姓名（2—8位中文）" value="${REG.name}">
+      <div class="ferr" id="rg_n_err"></div>
+    </div>
+    <div class="frow">
+      <label class="flabel">性别 <span class="req">*</span></label>
+      <div style="display:flex;gap:8px">
+        ${["男","女"].map(g=>`
+          <button class="btn ${REG.gender===g?'primary':''}" data-gender="${g}" style="flex:1">
+            <span class="bt">${g}</span>
+          </button>`).join('')}
+      </div>
+    </div>
+    <div class="frow">
+      <label class="flabel">籍贯 <span class="req">*</span></label>
+      <div style="display:flex;gap:6px">
+        <select class="finput" id="rg_prov" style="flex:1">
+          <option value="">— 选择省/自治区/直辖市 —</option>
+          ${provs.map(p=>`<option ${REG.prov===p?'selected':''}>${p}</option>`).join('')}
+        </select>
+        <select class="finput" id="rg_city" style="flex:1">
+          <option value="">— 选择城市 —</option>
+          ${cities.map(c=>`<option ${REG.city===c?'selected':''}>${c}</option>`).join('')}
+        </select>
+      </div>
+      <div class="fhint">籍贯将影响地域回避与部分剧情，建档后不可修改。</div>
+      <div class="ferr" id="rg_h_err"></div>
+    </div>
+    <div class="frow">
+      <label class="flabel">标准证件照</label>
+      <div class="avatar-grid">
+        ${AVATAR_TEMPLATES.map(a=>`
+          <div class="avatar-item ${REG.avatar===a.key?'sel':''}" data-avatar="${a.key}"
+               style="background:${a.bg}">
+            <span class="em">${a.emoji}</span>
+            <span class="nm">${a.name}</span>
+          </div>`).join('')}
+      </div>
+      <div class="fhint">系统预设标准证件照模板，亦可在建档后于档案页上传正装照。</div>
+    </div>
+    <div class="reg-nav">
+      <button class="btn" id="rg_back"><span class="bt">上一步</span></button>
+      <button class="btn primary" id="rg_next3"><span class="bt">下一步</span></button>
+    </div>`;
+}
+
+/* —— 第四步：纪律承诺 —— */
+function regStep4(){
+  return `
+    <div class="fnote">请仔细阅读并签署《新录用人员纪律与保密承诺书》。</div>
+    <div class="pledge-box">
+      <div style="text-align:center;font-weight:700;color:#8a1e23;margin-bottom:8px">
+        《新录用人员纪律与保密承诺书》
+      </div>
+      <p><b>一、政治纪律</b><br>
+      本人承诺坚决拥护党的领导，严守政治纪律和政治规矩，
+      在思想上政治上行动上同党中央保持高度一致。</p>
+      <p><b>二、廉洁自律</b><br>
+      本人承诺严格遵守中央八项规定精神，不以任何形式收受可能影响公正执行公务的
+      礼品、礼金、消费卡和有价证券；不利用职务便利为本人或他人谋取不正当利益。</p>
+      <p><b>三、保密义务</b><br>
+      本人承诺严格遵守保密法律法规，不泄露在工作中知悉的国家秘密、
+      工作秘密和内部信息，不在互联网及社交媒体传播涉密内容。</p>
+      <p><b>四、组织原则</b><br>
+      本人承诺服从组织安排，严格执行民主集中制，如实报告个人有关事项，
+      不搞非组织活动，不拉帮结派。</p>
+      <p><b>五、实名与合规</b><br>
+      本人知悉并同意：根据国家相关规定，本系统须完成实名身份核验，
+      未通过核验的账号将纳入防沉迷管理。本人承诺提供的身份信息真实有效。</p>
+      <p><b>六、违规处理</b><br>
+      本人知悉：违反上述承诺的，视情节轻重给予提醒、诫勉、组织处理或纪律处分；
+      涉嫌违法犯罪的，移送有关国家机关依法处理。情节严重的，
+      本系统有权冻结或注销本人人事档案。</p>
+      <div style="margin-top:10px;text-align:right;color:#6a5a40">
+        承诺人：____________　　日期：____年____月____日
+      </div>
+    </div>
+    <label class="pledge-check">
+      <input type="checkbox" id="rg_agree" ${REG.agreed?'checked':''}>
+      <span>我已阅读并承诺严格遵守上述纪律</span>
+    </label>
+    <div class="ferr" id="rg_a_err"></div>
+
+    <div style="margin-top:12px;border-top:1px dashed #c8b48c;padding-top:10px">
+      <div class="fhint" style="margin-bottom:6px">${REALNAME_RULES.提示}</div>
+      <div style="display:flex;gap:6px;margin-bottom:6px">
+        <input class="finput" id="rg_rn" placeholder="真实姓名" style="flex:1">
+        <input class="finput" id="rg_idno" placeholder="身份证号" style="flex:1.4">
+      </div>
+      <button class="btn" id="rg_realname" style="width:100%">
+        <span class="bt">完成实名身份核验</span>
+      </button>
+      <div class="fhint" id="rg_rn_hint" style="margin-top:4px"></div>
+    </div>
+
+    <div class="reg-nav">
+      <button class="btn" id="rg_back"><span class="bt">上一步</span></button>
+      <button class="btn primary" id="rg_submit"><span class="bt">盖章建档</span></button>
+    </div>`;
+}
+
+/* —— 事件绑定 —— */
+function bindRegEvents(){
+  const $ = id=>document.getElementById(id);
+
+  // 第三步：省联动
+  const pv=$("rg_prov");
+  if(pv) pv.onchange=()=>{
+    REG.prov = pv.value; REG.city = "";
+    const ct=$("rg_city");
+    if(ct) ct.innerHTML = `<option value="">— 选择城市 —</option>` +
+      (PROVINCE_CITY[REG.prov]||[]).map(c=>`<option>${c}</option>`).join("");
+  };
+  const ct=$("rg_city"); if(ct) ct.onchange=()=>{ REG.city = ct.value; };
+
+  // 性别
+  document.querySelectorAll('[data-gender]').forEach(b=>{
+    b.onclick=()=>{
+      REG.gender = b.dataset.gender;
+      document.querySelectorAll('[data-gender]').forEach(x=>x.classList.remove('primary'));
+      b.classList.add('primary');
+    };
+  });
+  // 证件照
+  document.querySelectorAll('[data-avatar]').forEach(el=>{
+    el.onclick=()=>{
+      REG.avatar = el.dataset.avatar;
+      document.querySelectorAll('[data-avatar]').forEach(x=>x.classList.remove('sel'));
+      el.classList.add('sel');
+    };
+  });
+  // 密码强度实时显示
+  const pwd=$("rg_pwd");
+  if(pwd) pwd.oninput=()=>{
+    REG.password = pwd.value;
+    const st = passwordStrength(REG.password);
+    const bar = document.querySelector('.strength-bar');
+    const txt = document.querySelector('.strength-txt');
+    if(bar) bar.innerHTML = [1,2,3,4,5].map(i=>
+      `<i class="${i<=st.bar?'on'+(st.score<=2?' bad':(st.score<=3?' warn':'')):''}"></i>`).join('');
+    if(txt) txt.innerHTML = `密令安全等级：<b style="color:${st.c}">${REG.password?st.t:"—"}</b>`;
+  };
+
+  // 发送核验码
+  const send=$("rg_send");
+  if(send) send.onclick=async ()=>{
+    const contact = ($("rg_contact").value||"").trim();
+    REG.contact = contact;
+    const v = validateContact(contact);
+    const errEl=$("rg_c_err"), hintEl=$("rg_code_hint");
+    if(!v.ok){ errEl.textContent=v.msg; errEl.classList.add("show"); $("rg_contact").classList.add("err"); return; }
+    errEl.classList.remove("show"); $("rg_contact").classList.remove("err");
+    if(findUser(contact)){
+      errEl.textContent="该联系方式已建立人事档案，请直接登录。";
+      errEl.classList.add("show"); $("rg_contact").classList.add("err"); return;
+    }
+    send.disabled=true; let left=60;
+    const tick=()=>{ send.querySelector('.bt').textContent = `重新发送(${left}s)`; };
+    tick();
+    const timer=setInterval(()=>{ left--; tick(); if(left<=0){ clearInterval(timer);
+      send.disabled=false; send.querySelector('.bt').textContent="发送核验码"; } },1000);
+    const r = await sendVerifyCode(contact);
+    hintEl.innerHTML = r.msg;
+    hintEl.style.color = "#2f7d4f";
+  };
+
+  // OAuth
+  document.querySelectorAll('[data-oauth]').forEach(b=>{
+    b.onclick=async ()=>{
+      const r = await oauthLogin(b.dataset.oauth);
+      if(r.ok){
+        addToast(r.msg);
+        afterLogin(r.user);
+      } else addToast(r.msg||"认证失败");
+    };
+  });
+
+  // 去登录
+  const gl=$("rg_gologin"); if(gl) gl.onclick=()=>{ openLogin(REG.mode); };
+
+  // 返回
+  const back=$("rg_back");
+  if(back) back.onclick=()=>{
+    if(REG.step>1){ REG.step--; renderRegStep(); }
+    else startScreen();
+  };
+
+  // 第一步下一步
+  const n1=$("rg_next1");
+  if(n1) n1.onclick=async ()=>{
+    const contact=($("rg_contact").value||"").trim();
+    const code=($("rg_code").value||"").trim();
+    REG.contact=contact; REG.code=code;
+    const errEl=$("rg_c_err"), codeErr=$("rg_code_err");
+    const v=validateContact(contact);
+    if(!v.ok){ errEl.textContent=v.msg; errEl.classList.add("show"); return; }
+    errEl.classList.remove("show");
+    if(findUser(contact)){
+      errEl.textContent="该联系方式已建立人事档案，请直接登录。";
+      errEl.classList.add("show"); return;
+    }
+    const cv=verifyCodeInput(contact, code);
+    if(!cv.ok){ codeErr.textContent=cv.msg; codeErr.classList.add("show"); return; }
+    codeErr.classList.remove("show");
+    REG.step=2; renderRegStep();
+  };
+
+  // 第二步下一步
+  const n2=$("rg_next2");
+  if(n2) n2.onclick=()=>{
+    const emp=($("rg_empid").value||"").trim();
+    const p1=($("rg_pwd").value||"");
+    const p2=($("rg_pwd2").value||"");
+    REG.empId=emp; REG.password=p1;
+    const eErr=$("rg_e_err"), pErr=$("rg_p_err"), p2Err=$("rg_p2_err");
+    let ok=true;
+    if(!/^[A-Za-z0-9]{6,16}$/.test(emp)){
+      eErr.textContent="工号须为6—16位字母或数字。"; eErr.classList.add("show");
+      $("rg_empid").classList.add("err"); ok=false;
+    } else { eErr.classList.remove("show"); $("rg_empid").classList.remove("err"); }
+    if(p1.length<6){
+      pErr.textContent="密令复杂度不足，请包含大小写字母及数字。"; pErr.classList.add("show");
+      $("rg_pwd").classList.add("err"); ok=false;
+    } else if(!/[a-z]/.test(p1) || !/[A-Z]/.test(p1) || !/[0-9]/.test(p1)){
+      pErr.textContent="密令复杂度不足，请包含大小写字母及数字。"; pErr.classList.add("show");
+      $("rg_pwd").classList.add("err"); ok=false;
+    } else { pErr.classList.remove("show"); $("rg_pwd").classList.remove("err"); }
+    if(p1!==p2){
+      p2Err.textContent="两次录入的密令不一致，请重新录入。"; p2Err.classList.add("show");
+      $("rg_pwd2").classList.add("err"); ok=false;
+    } else { p2Err.classList.remove("show"); $("rg_pwd2").classList.remove("err"); }
+    if(ok){ REG.step=3; renderRegStep(); }
+  };
+
+  // 第三步下一步
+  const n3=$("rg_next3");
+  if(n3) n3.onclick=()=>{
+    const name=($("rg_name").value||"").trim();
+    REG.name=name;
+    const nErr=$("rg_n_err"), hErr=$("rg_h_err");
+    let ok=true;
+    if(!/^[\u4e00-\u9fa5]{2,8}$/.test(name)){
+      nErr.textContent="请输入2—8位中文真实姓名。"; nErr.classList.add("show");
+      $("rg_name").classList.add("err"); ok=false;
+    } else { nErr.classList.remove("show"); $("rg_name").classList.remove("err"); }
+    if(!REG.prov){
+      hErr.textContent="请选择籍贯所在省（自治区、直辖市）。"; hErr.classList.add("show"); ok=false;
+    } else { hErr.classList.remove("show"); }
+    if(ok){ REG.step=4; renderRegStep(); }
+  };
+
+  // 承诺书勾选
+  const ag=$("rg_agree");
+  if(ag) ag.onchange=()=>{ REG.agreed=ag.checked; if(ag.checked) $("rg_a_err").classList.remove("show"); };
+
+  // 实名核验
+  const rn=$("rg_realname");
+  if(rn) rn.onclick=async ()=>{
+    const nm=($("rg_rn").value||"").trim();
+    const idno=($("rg_idno").value||"").trim();
+    const hint=$("rg_rn_hint");
+    if(!nm || !idno){ hint.textContent="请完整录入姓名与身份证号。"; hint.style.color="#b01e23"; return; }
+    const r = await submitRealName(nm, idno);
+    hint.textContent = r.msg || "核验完成";
+    hint.style.color = r.ok ? (r.adult ? "#2f7d4f" : "#8a6a35") : "#b01e23";
+    if(r.ok) REG.realnameDone = true;
+  };
+
+  // 提交建档
+  const sub=$("rg_submit");
+  if(sub) sub.onclick=async ()=>{
+    if(!REG.agreed){
+      const e=$("rg_a_err");
+      e.textContent="请阅读并勾选「我已阅读并承诺严格遵守上述纪律」后方可建档。";
+      e.classList.add("show"); return;
+    }
+    const r = await registerUser({
+      phone:REG.contact, password:REG.password, name:REG.name,
+      gender:REG.gender, hometown:hometownFull(REG.prov, REG.city),
+      avatar:REG.avatar, realnameVerified:REG.realnameDone,
+    });
+    if(!r.ok){ addToast(r.msg); return; }
+    // 记录工号
+    try{
+      const users=loadUsers();
+      users[r.user.user_id].emp_id = REG.empId;
+      users[r.user.user_id].avatar = REG.avatar;
+      saveUsers(users);
+    }catch(e){}
+    sfxStamp();
+    addToast("🎉 干部人事档案建档成功");
+    showRegSuccess(r.user);
+  };
+}
+
+/* 建档成功页 */
+function showRegSuccess(user){
+  const a = avatarOf(user.avatar);
+  $("main").innerHTML = regShell(`
+    <div style="text-align:center;padding:10px 0">
+      <div style="font-size:44px;line-height:1">${a.emoji}</div>
+      <div style="font-size:17px;font-weight:700;color:#8a1e23;margin-top:8px">
+        ${user.character_name} 同志
+      </div>
+      <div class="fhint" style="margin-top:4px">干部人事档案建档成功</div>
+    </div>
+    <div class="pledge-box" style="max-height:none">
+      <div class="flabel">档案编号</div><div style="margin-bottom:8px">${user.user_id}</div>
+      <div class="flabel">专属工号</div><div style="margin-bottom:8px">${user.emp_id||"—"}</div>
+      <div class="flabel">联系方式</div><div style="margin-bottom:8px">${maskContact(user.phone_number)}</div>
+      <div class="flabel">性　别</div><div style="margin-bottom:8px">${user.gender}</div>
+      <div class="flabel">籍　贯</div><div style="margin-bottom:8px">${user.hometown||"—"}</div>
+      <div class="flabel">建档时间</div><div style="margin-bottom:8px">${user.registration_time_cn}</div>
+      <div class="flabel">档案状态</div><div style="color:#2f7d4f">${user.account_status}</div>
+      <div class="flabel" style="margin-top:8px">实名核验</div>
+      <div style="color:${user.realname_verified?'#2f7d4f':'#8a6a35'}">
+        ${user.realname_verified?('已完成'+(user.is_adult?'（成年人）':'（未成年人，纳入防沉迷管理）')):'未核验（建议尽快完成）'}
+      </div>
+    </div>
+    <div class="reg-nav">
+      <button class="btn primary" id="rg_go"><span class="bt">进入游戏</span></button>
+    </div>`);
+  bindStampSound();
+  const g=$("rg_go");
+  if(g) g.onclick=()=>{ afterLogin(user); };
+}
+
+/* ============================================================
+   登录 / 密令重置
+   ============================================================ */
+function openLogin(mode){
+  $("main").innerHTML = regShell(`
+    <div class="fnote">请录入您的联系方式与安全密令，系统将核验您的组织身份。</div>
+    <div class="frow">
+      <label class="flabel">联系方式 <span class="req">*</span></label>
+      <input class="finput" id="lg_contact" placeholder="手机号或电子邮箱">
+      <div class="ferr" id="lg_c_err"></div>
+    </div>
+    <div class="frow">
+      <label class="flabel">安全密令 <span class="req">*</span></label>
+      <input class="finput" id="lg_pwd" type="password" placeholder="请输入安全密令">
+      <div class="ferr" id="lg_p_err"></div>
+    </div>
+    <div class="reg-nav">
+      <button class="btn" id="lg_back"><span class="bt">返回</span></button>
+      <button class="btn primary" id="lg_go"><span class="bt">登录</span></button>
+    </div>
+    <div style="margin-top:14px;border-top:1px dashed #c8b48c;padding-top:10px">
+      <div class="fhint" style="text-align:center;margin-bottom:6px">政务系统统一身份认证接入</div>
+      <div class="login-quick">
+        ${OAUTH_PROVIDERS.map(p=>`
+          <button class="btn" data-oauth="${p.key}">
+            <span class="bt">${p.icon} ${p.name}</span>
+          </button>`).join('')}
+      </div>
+      <div style="text-align:center;margin-top:10px;display:flex;gap:8px;justify-content:center">
+        <button class="btn" id="lg_reset" style="padding:4px 12px;display:inline-block">
+          <span class="bt" style="font-size:12px">密令遗失申诉</span>
+        </button>
+        <button class="btn" id="lg_reg" style="padding:4px 12px;display:inline-block">
+          <span class="bt" style="font-size:12px">新建人事档案</span>
+        </button>
+      </div>
+    </div>`);
+  bindStampSound();
+  $("lg_back").onclick=()=>startScreen();
+  $("lg_reg").onclick=()=>openRegister(mode);
+  $("lg_reset").onclick=()=>openReset(mode);
+  $("lg_go").onclick=async ()=>{
+    const c=($("lg_contact").value||"").trim();
+    const p=($("lg_pwd").value||"");
+    const ce=$("lg_c_err"), pe=$("lg_p_err");
+    if(!c){ ce.textContent="请录入联系方式。"; ce.classList.add("show"); return; }
+    ce.classList.remove("show");
+    if(!p){ pe.textContent="请录入安全密令。"; pe.classList.add("show"); return; }
+    pe.classList.remove("show");
+    const r = await loginUser(c,p);
+    if(!r.ok){ pe.textContent=r.msg; pe.classList.add("show"); $("lg_pwd").classList.add("err"); return; }
+    sfxStamp(); addToast("身份核验通过，欢迎回来");
+    afterLogin(r.user, mode);
+  };
+  document.querySelectorAll('[data-oauth]').forEach(b=>{
+    b.onclick=async ()=>{
+      const r=await oauthLogin(b.dataset.oauth);
+      if(r.ok){ sfxStamp(); addToast(r.msg); afterLogin(r.user, mode); }
+      else addToast(r.msg||"认证失败");
+    };
+  });
+}
+
+/* 密令遗失申诉流程 */
+function openReset(mode){
+  $("main").innerHTML = regShell(`
+    <div class="fnote">密令遗失申诉流程：须通过联系方式核验完成「组织身份复核」后方可重置。</div>
+    <div class="frow">
+      <label class="flabel">联系方式 <span class="req">*</span></label>
+      <input class="finput" id="rs_contact" placeholder="建档时录入的手机号或邮箱">
+      <div class="ferr" id="rs_c_err"></div>
+    </div>
+    <div class="frow">
+      <label class="flabel">核验码 <span class="req">*</span></label>
+      <div style="display:flex;gap:6px">
+        <input class="finput" id="rs_code" placeholder="6位核验码" style="flex:1">
+        <button class="btn" id="rs_send" style="flex:0 0 auto;padding:8px 12px">
+          <span class="bt" style="font-size:12px">发送核验码</span>
+        </button>
+      </div>
+      <div class="fhint" id="rs_hint"></div>
+      <div class="ferr" id="rs_code_err"></div>
+    </div>
+    <div class="frow">
+      <label class="flabel">新安全密令 <span class="req">*</span></label>
+      <input class="finput" id="rs_pwd" type="password" placeholder="请设置新密令">
+      <div class="ferr" id="rs_p_err"></div>
+    </div>
+    <div class="reg-nav">
+      <button class="btn" id="rs_back"><span class="bt">返回</span></button>
+      <button class="btn primary" id="rs_go"><span class="bt">提交申诉</span></button>
+    </div>`);
+  bindStampSound();
+  $("rs_back").onclick=()=>openLogin(mode);
+  $("rs_send").onclick=async ()=>{
+    const c=($("rs_contact").value||"").trim();
+    const ce=$("rs_c_err");
+    if(!validateContact(c).ok){ ce.textContent="请录入有效的联系方式。"; ce.classList.add("show"); return; }
+    ce.classList.remove("show");
+    if(!findUser(c)){ ce.textContent="未查询到该联系方式对应的人事档案。"; ce.classList.add("show"); return; }
+    const r=await sendVerifyCode(c);
+    $("rs_hint").textContent=r.msg; $("rs_hint").style.color="#2f7d4f";
+  };
+  $("rs_go").onclick=async ()=>{
+    const c=($("rs_contact").value||"").trim();
+    const code=($("rs_code").value||"").trim();
+    const p=($("rs_pwd").value||"");
+    const ce=$("rs_c_err"), ce2=$("rs_code_err"), pe=$("rs_p_err");
+    if(!findUser(c)){ ce.textContent="未查询到该联系方式对应的人事档案。"; ce.classList.add("show"); return; }
+    ce.classList.remove("show");
+    const cv=verifyCodeInput(c,code);
+    if(!cv.ok){ ce2.textContent=cv.msg; ce2.classList.add("show"); return; }
+    ce2.classList.remove("show");
+    if(p.length<6 || !/[a-z]/.test(p) || !/[A-Z]/.test(p) || !/[0-9]/.test(p)){
+      pe.textContent="密令复杂度不足，请包含大小写字母及数字。"; pe.classList.add("show"); return;
+    }
+    pe.classList.remove("show");
+    const r=await resetPassword(c,p);
+    if(!r.ok){ addToast(r.msg); return; }
+    sfxStamp(); addToast(r.msg);
+    openLogin(mode);
+  };
+}
+
+/* 预填角色创建表单（把建档信息带入） */
+function prefillCharCreate(user){
+  const tryFill = (times)=>{
+    if(times<=0) return;
+    const nEl = document.getElementById("ci_name");
+    if(!nEl){ setTimeout(()=>tryFill(times-1), 80); return; }
+    try{
+      if(user.character_name && user.character_name!=="—") nEl.value = user.character_name;
+      const gEl = document.getElementById("ci_gender");
+      if(gEl && user.gender && (user.gender==="男"||user.gender==="女")) gEl.value = user.gender;
+      if(user.hometown){
+        const parts = String(user.hometown).split(" ");
+        const p = parts[0], c = parts[1] || "";
+        const pvEl = document.getElementById("ci_province");
+        if(pvEl && p){
+          pvEl.value = p;
+          if(typeof updateCities==="function") updateCities();
+          const ctEl = document.getElementById("ci_city");
+          if(ctEl && c) ctEl.value = c;
+        }
+      }
+    }catch(e){}
+  };
+  tryFill(12);
+}
+
+/* 登录后：进入角色创建或继续游戏 */
+function afterLogin(user, mode){
+  const hasSaveForUser = (()=>{
+    let k = DB_LEGACY;
+    try{ k = currentSaveKey(); }catch(e){}
+    return !!_rawGet(k);
+  })();
+  if(hasSaveForUser){
+    load(); curTab='event'; renderTopbar(); renderNav(); renderMain();
+    return;
+  }
+  // 新档案：进入角色创建
+  const m = mode || REG.mode || "normal";
+  openCharCreate(m);
+  // 预填注册信息
+  prefillCharCreate(user);
+}
+
 
 /* ---------- 开局：选择模式 ---------- */
 function startScreen(){
@@ -7921,12 +9172,62 @@ function startScreen(){
           <span class="mini">核心机制：六项实绩考核 · 突发事件分级处置 · 派系博弈 · 部门职能 · 多结局分支</span>
         </div>
       </div>
-      ${localStorage.getItem("qlp_top")?'<button class="btn center" id="contGame" style="margin-top:10px;width:80%;border-left-color:#999"><span class="bt">继续上次进度</span></button>':''}
+      ${(typeof hasSave==="function" && hasSave())?'<button class="btn center" id="contGame" style="margin-top:10px;width:80%;border-left-color:#999"><span class="bt">继续上次进度</span></button>':''}
+      <div id="acctBar" style="margin-top:12px"></div>
     </div>`;
+  renderAcctBar();
   document.querySelectorAll('[data-mode]').forEach(b=>{
     b.onclick=()=>{ openCharCreate(b.dataset.mode); };
   });
   const cg=$("contGame"); if(cg){ cg.onclick=()=>{ load(); curTab='event'; renderTopbar(); renderNav(); renderMain(); }; }
+}
+
+/* ---------- 账户栏（封面 / 顶栏通用） ---------- */
+function renderAcctBar(){
+  const bar = document.getElementById("acctBar");
+  if(!bar) return;
+  const u = (typeof getSession==="function") ? getSession() : null;
+  if(u){
+    const a = avatarOf(u.avatar);
+    bar.innerHTML = `
+      <div style="display:flex;align-items:center;gap:8px;justify-content:center;
+                  background:rgba(245,236,217,.7);border:1px solid #c8b48c;border-radius:4px;padding:7px 10px">
+        <span style="font-size:20px">${a.emoji}</span>
+        <div style="text-align:left;font-family:'FangSong','仿宋',serif">
+          <div style="font-size:12px;color:#4a3f2f">
+            <b>${u.character_name!=="—"?u.character_name:"未命名"}</b>
+            <span style="color:#8a6a35">（工号 ${u.emp_id||"—"}）</span>
+          </div>
+          <div style="font-size:10px;color:#8a6a35">
+            档案 ${u.user_id} · ${u.account_status}
+            ${u.realname_verified?(u.is_adult?' · 已实名':' · 未成年'):' · 未实名'}
+          </div>
+        </div>
+        <button class="btn" id="acctLogout" style="padding:3px 9px;margin-left:4px">
+          <span class="bt" style="font-size:11px">退出</span>
+        </button>
+      </div>`;
+    const lo = document.getElementById("acctLogout");
+    if(lo) lo.onclick=()=>{ if(confirm("确定退出当前人事档案？未保存的进度将保留在本机。")){ logout(); startScreen(); } };
+  } else {
+    bar.innerHTML = `
+      <div style="display:flex;gap:8px;justify-content:center">
+        <button class="btn" id="acctReg" style="flex:1">
+          <span class="bt">📋 新建人事档案</span>
+          <span class="bd" style="font-size:10px">填写《新录用人员信息采集表》</span>
+        </button>
+        <button class="btn" id="acctLogin" style="flex:1">
+          <span class="bt">🔑 登录已有档案</span>
+          <span class="bd" style="font-size:10px">核验身份后继续仕途</span>
+        </button>
+      </div>
+      <div class="mini muted" style="text-align:center;margin-top:6px;font-size:10px">
+        建档后可在本机保存专属进度 · 支持多档案切换
+      </div>`;
+    const r=document.getElementById("acctReg"); if(r) r.onclick=()=>openRegister("normal");
+    const l=document.getElementById("acctLogin"); if(l) l.onclick=()=>openLogin("normal");
+  }
+  if(typeof bindStampSound==="function") bindStampSound();
 }
 
 /* ---------- 创建角色 / 资格筛选（选调生走完整门槛） ---------- */

@@ -130,64 +130,127 @@
 
 /* ---------- 1. 数据：晋升路线 ---------- */
 const RANKS = [
-  // [领导职务, 行政层级, 晋升所需政绩, 任职年限(月), 综合管理类职级, 中央部委对应职务]
-  // ===== 乡科级（乡镇/基层）=====
-  ["乡镇党政综合办科员","乡科级",0,0,"一级科员","部委科员"],
-  ["乡镇党政办副主任","乡科级",30,8,"四级主任科员","部委副主任科员"],
-  ["副镇长","乡科级副职",75,18,"三级主任科员","部委副主任科员"],
-  ["乡镇党委副书记","乡科级副职",130,28,"二级主任科员","部委主任科员"],
-  ["乡镇长","乡科级正职",195,38,"一级主任科员","部委主任科员"],
-  ["乡镇党委书记","乡科级正职",270,48,"一级主任科员","部委主任科员"],
-  // ===== 县处级（县域）=====
-  ["副县长","县处级副职",355,58,"四级调研员","副处长"],
-  ["县委常委","县处级副职",450,68,"三级调研员","副处长（处务会成员）"],
-  ["常务副县长","县处级副职",555,78,"二级调研员","副处长（分管日常工作）"],
-  ["县委副书记","县处级副职",670,88,"一级调研员","部委正处级干部"],
-  ["县长","县处级正职",795,98,"一级调研员","处长"],
-  ["县委书记","县处级正职",930,108,"一级调研员","处长（一把手）"],
-  // ===== 厅局级（地市）=====
-  ["副市长","厅局级副职",1075,120,"二级巡视员","副司长"],
-  ["市委常委","厅局级副职",1230,134,"一级巡视员","副司长（司务会成员）"],
-  ["市委副书记","厅局级副职",1395,148,"一级巡视员","部委正司局级干部"],
-  ["市长","厅局级正职",1570,162,"一级巡视员","司长"],
-  ["市委书记","厅局级正职",1755,176,"一级巡视员","司长（一把手）"],
-  // ===== 省部级 =====
-  ["副省长","省部级副职",1950,192,"—","副部长"],
-  ["省委常委","省部级副职",2155,210,"—","副部长（党组成员）"],
-  ["省委副书记","省部级副职",2370,230,"—","副部长（分管日常工作）"],
-  ["省长","省部级正职",2595,252,"—","部长"],
-  ["省委书记","省部级正职",2830,276,"—","部长（一把手）"],
-  // ===== 国家级 =====
-  ["国务委员","国家级副职",3075,302,"—","国务委员兼部长"],
-  ["国务院总理","国家级正职",3330,330,"—","国务院总理"],
+  // [领导职务(实职), 行政层次, 晋升所需政绩, 任职年限(月), 综合管理类职级(虚职), 中央部委对应职务]
+  // ===== 第一级：试用期人员（新手村）=====
+  ["试用期公务员（见习办事员）","试用期",0,0,"未定级","试用期公务员"],
+  // ===== 第二级：科员级（基层办事层）=====
+  ["科员","科员级",20,6,"二级科员 / 一级科员","部委科员"],
+  ["副股长（业务小组负责人）","乡科级副职",50,15,"四级主任科员","部委副主任科员"],
+  ["股长 / 科室负责人","乡科级副职",90,26,"三级主任科员","部委副主任科员"],
+  // ===== 第三级：乡科级副职（副科级·基层实权起点）=====
+  ["乡镇副镇长 / 县局副局长","乡科级副职",140,38,"三级主任科员","部委副主任科员"],
+  ["街道办副主任 / 乡镇党委副书记","乡科级副职",200,50,"二级主任科员","部委主任科员"],
+  // ===== 第四级：乡科级正职（正科级·基层一把手）=====
+  ["乡镇长 / 县局局长","乡科级正职",270,62,"二级主任科员","部委主任科员"],
+  ["乡镇党委书记 / 县局党组书记","乡科级正职",350,74,"一级主任科员","部委主任科员"],
+  // ===== 第五级：县处级副职（副处级·县级实权分水岭）=====
+  ["副县长","县处级副职",440,86,"四级调研员","副处长"],
+  ["县委常委","县处级副职",540,98,"三级调研员","副处长（处务会成员）"],
+  ["县纪委书记 / 县政法委书记","县处级副职",650,110,"三级调研员","副处长（专职常委）"],
+  ["常务副县长 / 县委副书记","县处级副职",770,122,"三级调研员","副处长（分管日常工作）"],
+  // ===== 第六级：县处级正职（正处级·县委书记/县长）=====
+  ["县长","县处级正职",900,134,"二级调研员","处长"],
+  ["县委书记","县处级正职",1040,146,"一级调研员","处长（一把手）"],
+  ["经济开发区管委会主任（正处级）","县处级正职",1190,158,"一级调研员","处长（派出机构）"],
+  // ===== 第七级：厅局级副职（副厅级·地级市领导）=====
+  ["副市长","厅局级副职",1350,170,"二级巡视员","副司长"],
+  ["市委常委","厅局级副职",1520,184,"二级巡视员","副司长（司务会成员）"],
+  ["市纪委书记 / 市委组织部长","厅局级副职",1700,198,"二级巡视员","副司长（专职常委）"],
+  ["常务副市长 / 市委副书记","厅局级副职",1890,212,"二级巡视员","副司长（分管日常工作）"],
+  // ===== 第八级：厅局级正职（正厅级·市委书记/市长）=====
+  ["市长","厅局级正职",2090,226,"一级巡视员","司长"],
+  ["市委书记","厅局级正职",2300,240,"一级巡视员","司长（一把手）"],
+  ["省厅厅长","厅局级正职",2520,256,"一级巡视员","司长（省直部门）"],
+  // ===== 第九级：省部级副职（副省级·省级领导）※无对应职级=====
+  ["副省长","省部级副职",2750,272,"无对应职级","副部长"],
+  ["省委常委","省部级副职",2990,288,"无对应职级","副部长（党组成员）"],
+  ["省委副书记 / 省纪委书记·组织部长","省部级副职",3240,306,"无对应职级","副部长（分管日常工作）"],
+  // ===== 第十级：省部级正职（正省级·封疆大吏）※无对应职级=====
+  ["省长","省部级正职",3500,324,"无对应职级","部长"],
+  ["省委书记 / 中央部委部长","省部级正职",3770,342,"无对应职级","部长（一把手）"],
+  // ===== 第十一级：国家级副职（副国级·党和国家领导人）=====
+  ["国务委员 / 全国政协副主席","国家级副职",4050,362,"无对应职级","国务委员"],
+  ["国务院副总理 / 中共中央政治局委员","国家级副职",4340,382,"无对应职级","国务院副总理"],
+  // ===== 第十二级：国家级正职（正国级·终极巅峰）=====
+  ["中共中央政治局常委","国家级正职",4640,404,"无对应职级","中共中央政治局常委"],
+  ["中共中央总书记 / 国家主席 / 国务院总理","国家级正职",4950,428,"无对应职级","中共中央总书记"],
 ];
 
-/* 行政层级分组（用于界面分组与主题色） */
+/* 行政层次分组（颜色用于界面区分） */
 const LAYER_GROUPS = {
-  "乡科级":{label:"乡科级", color:"#7a8b6f"},
-  "乡科级副职":{label:"乡科级副职", color:"#7a8b6f"},
-  "乡科级正职":{label:"乡科级正职", color:"#5f7a52"},
-  "县处级副职":{label:"县处级副职", color:"#4a6b8a"},
-  "县处级正职":{label:"县处级正职", color:"#35618a"},
-  "厅局级副职":{label:"厅局级副职", color:"#8a6a35"},
-  "厅局级正职":{label:"厅局级正职", color:"#a3762a"},
-  "省部级副职":{label:"省部级副职", color:"#8a4a52"},
-  "省部级正职":{label:"省部级正职", color:"#a03440"},
-  "国家级副职":{label:"国家级副职", color:"#7a2f8a"},
-  "国家级正职":{label:"国家级正职", color:"#6a1f7a"},
+  "试用期":      {label:"试用期",       color:"#8a8a8a"},
+  "科员级":      {label:"科员级",       color:"#7a8b6f"},
+  "乡科级副职":  {label:"乡科级副职",   color:"#6b8a5f"},
+  "乡科级正职":  {label:"乡科级正职",   color:"#4f7a45"},
+  "县处级副职":  {label:"县处级副职",   color:"#4a6b8a"},
+  "县处级正职":  {label:"县处级正职",   color:"#2f5a8a"},
+  "厅局级副职":  {label:"厅局级副职",   color:"#8a6a35"},
+  "厅局级正职":  {label:"厅局级正职",   color:"#a3762a"},
+  "省部级副职":  {label:"省部级副职",   color:"#8a4a52"},
+  "省部级正职":  {label:"省部级正职",   color:"#a03440"},
+  "国家级副职":  {label:"国家级副职",   color:"#7a2f8a"},
+  "国家级正职":  {label:"国家级正职",   color:"#6a1f7a"},
 };
 
-/* 当前职务显示：在中央部委时显示部委对应职务 */
+/* 副国级方向分支（用户表第十一级：实权 / 荣誉 / 监察司法 / 军事） */
+const VICE_NATIONAL_PATHS = {
+  power:{
+    name:"实权副国", icon:"⚡",
+    desc:"进入中共中央政治局或国务院，分管国家某一领域，位高权重，但也深陷派系斗争的漩涡。",
+    titles:["国务委员","中共中央政治局委员","中共中央政治局委员 / 国务院副总理"],
+  },
+  honor:{
+    name:"荣誉副国", icon:"🏛️",
+    desc:"转任全国人大副委员长或全国政协副主席，地位尊崇、进退从容，但实权相对有限。",
+    titles:["全国政协副主席","全国人大副委员长","全国人大副委员长"],
+  },
+  judicial:{
+    name:"监察司法", icon:"⚖️",
+    desc:"出任国家监察委员会主任、最高人民法院院长或最高人民检察院检察长，执掌反腐败与司法最高权柄。",
+    titles:["最高人民检察院检察长","最高人民法院院长","国家监察委员会主任"],
+  },
+  military:{
+    name:"军事系统", icon:"🎖️",
+    desc:"出任中共中央军委副主席，进入军队系统最高层，走的是一条截然不同的晋升路径。",
+    titles:["中共中央军委副主席","中共中央军委副主席","中共中央军委副主席"],
+  },
+};
+
+/* 正国级终极职位（用户表第十二级） */
+const TOP_NATIONAL_POSITIONS = {
+  general_secretary:{name:"中共中央总书记", icon:"🌟", desc:"党的最高领导，全党核心。需历经至少两届政治局常委任期。"},
+  president:        {name:"国家主席",       icon:"🇨🇳", desc:"国家元首，象征国家统一。通常由总书记兼任。"},
+  premier:          {name:"国务院总理",     icon:"🏛️", desc:"行政体系最高长官，需有极强经济治理履历。"},
+  npc_chair:        {name:"全国人大常委会委员长", icon:"📜", desc:"立法体系最高代表，多为资深正国级转任。"},
+  cppcc_chair:      {name:"全国政协主席",   icon:"🤝", desc:"统战最高代表，需有广泛的党派与民族人脉。"},
+  cmc_chair:        {name:"中共中央军委主席", icon:"🎖️", desc:"武装力量最高统帅，必须同时担任总书记。"},
+};
+
+/* 当前职务显示：部委任职显示部委职务；副国级/正国级显示分支职位 */
 function rankTitle(rank){
   const r = RANKS[rank||0]; if(!r) return "—";
+  // 副国级（国家级副职）：按所选方向显示具体职位
+  if(S && S.natPath && S.natPath.vice && r[1]==="国家级副职"){
+    const P = VICE_NATIONAL_PATHS[S.natPath.vice];
+    if(P){
+      const viceIdx = ["国务委员 / 全国政协副主席","国务院副总理 / 中共中央政治局委员"].indexOf(r[0]);
+      if(viceIdx>=0 && P.titles[viceIdx]) return P.titles[viceIdx];
+    }
+  }
+  // 正国级：按终极职位显示
+  if(S && S.natPath && S.natPath.top && r[1]==="国家级正职"){
+    const P = TOP_NATIONAL_POSITIONS[S.natPath.top];
+    if(rank>=RANKS.length-1 && P) return P.name;
+    if(P && rank===RANKS.length-2) return "中共中央政治局常委";
+  }
   if(S && S.dept && r[5] && r[5]!=="—") return r[5];
   return r[0];
 }
-/* 行政层级标签 */
+/* 行政层次标签 */
 function rankLayer(rank){
-  const r = RANKS[rank||0]; return r ? (LAYER_GROUPS[r[1]] ? r[1] : r[1]) : "—";
+  const r = RANKS[rank||0]; return r ? r[1] : "—";
 }
-/* 公务员职级 */
+/* 公务员职级（虚职） */
 function rankGrade(rank){
   const r = RANKS[rank||0]; return r ? r[4] : "—";
 }
@@ -542,10 +605,10 @@ function newGame(opts){
   let startRank = 0, start政绩 = 0, start上司 = 30, start人脉 = 10, start道德 = 60;
   if(mode==="selective"){
     const edu = (opts.edu||"本科");
-    // 按新公务员法：本科=一级科员(0)，硕士=四级主任科员(1)，博士=二级主任科员(3)
-    if(edu==="博士"){ startRank = 3; }        // 二级主任科员（乡科级正职待遇）
-    else if(edu==="硕士"){ startRank = 1; }    // 四级主任科员（乡科级副职待遇）
-    else { startRank = 0; }                    // 一级科员
+    // 按新公务员法转正定级：本科=一级科员，硕士=四级主任科员，博士=二级主任科员
+    if(edu==="博士"){ startRank = 5; }        // 二级主任科员（乡科级正职层次）
+    else if(edu==="硕士"){ startRank = 2; }    // 四级主任科员（乡科级副职层次）
+    else { startRank = 1; }                    // 一级科员（科员级）
     start政绩 = 40; start上司 = 45; start人脉 = 25; start道德 = 65; // 高起点
   } else if(mode==="grassroots"){
     startRank = 0; start政绩 = 0; start上司 = 28; start人脉 = 20; start道德 = 68; // 本地人脉熟、道德口碑好
@@ -577,6 +640,7 @@ function newGame(opts){
     dunmiaoMonths:0,        // 已墩苗月数（满24则触发回流）
     returned:false,         // 是否已回流部委
     archive:false,          // 专项培养档案（选调生）
+    natPath:{},              // 国家级方向：{vice:'power|honor|judicial|military', top:'...'}
     dept:null,              // 所属中央部委（回流后选定）：ndrc/mof/mfa/zzb/miit/mee
     deptCd:{},              // 部委专属技能冷却：{技能id:剩余月数}
     // ==== 轮岗系统 ====
@@ -710,7 +774,7 @@ function monthlySettlement(){
     S.民生 = clamp(S.民生 + 0.5, 0, 100);
     S.治安 = clamp(S.治安 + 0.5, 0, 100);
   }
-  S.健康 = clamp(S.健康 - (S.rank>=12?0:1) - (S.健康>90?0:0), 0, 100);
+  S.健康 = clamp(S.健康 - (S.rank>=15?0:1) - (S.健康>90?0:0), 0, 100);
   // 指标缓慢回归
   const drift=(cur,target)=> cur + (target-cur)*0.03;
   S.生态=clamp(drift(S.生态,65),0,100);
@@ -776,7 +840,7 @@ function checkPromotion(){
   const routeCond = S.route==='discipline' ? (S.廉政积分>=30 || S.上司好感>=40) : true;
   const finalCond4 = S.route==='discipline' ? (S.上司好感>=40 || S.廉政积分>=30) : cond4;
   if(cond1&&cond2&&cond3&&finalCond4){
-    if(S.rank===7 && !S.route){
+    if(S.rank===9 && !S.route){
       // 选调生 / 基层扎根模式：不强制在县委常委节点选传统四路线，各自有专属路径
       if(S.mode==='selective' || S.mode==='grassroots'){
         S.route = (S.mode==='selective') ? 'admin' : 'party'; // 给一个默认归属，不影响玩法
@@ -802,9 +866,22 @@ function doPromote(){
   pushLog(`晋升为【${ttl}】（${lyr}${grd&&grd!=="—"?" · "+grd:""}）`);
   // 晋升奖励
   S.能力+=5; S.政绩点+=3; S.上司好感+=10; S.cash+=60;
-  // 到达顶层？
-  if(S.rank>=RANKS.length-1){ endGame("大国领袖"); return; }
+  // 到达顶层（正国级）：先选择终极职位，再结算结局
+  if(S.rank>=RANKS.length-1){
+    S.natPath = S.natPath || {};
+    if(!S.natPath.top){ save(); setTimeout(()=>{ openTopNationalChoice(); }, 500); return; }
+    endGame("大国领袖"); return;
+  }
   save();
+  // ==== 副国级方向选择（晋升至首个国家级副职时触发）====
+  if(S.rank===27){
+    S.natPath = S.natPath || {};
+    if(!S.natPath.vice){
+      save();
+      setTimeout(()=>{ openViceNationalChoice(); }, 500);
+      return;
+    }
+  }
   // ==== 跨部委轮岗触发（副处级/正处级）====
   if(S.dept && ROTATION_RANKS.includes(S.rank)){
     S.rotation = S.rotation || {};
@@ -1484,7 +1561,7 @@ function pickEvent(){
       else if(S.route==='party' && e.id==='promotion_eval') w=3;
       else if(S.route==='admin' && (e.id==='invest'||e.id==='economic_pressure')) w=3;
       else if(S.route==='youth' && (e.id==='school'||e.id==='promotion_eval')) w=2.5;
-      if(S.rank>=12 && (e.id==='economic_pressure'||e.id==='national_plan'||e.id==='corruption_case')) w=2.5;
+      if(S.rank>=15 && (e.id==='economic_pressure'||e.id==='national_plan'||e.id==='corruption_case')) w=2.5;
       if(S.mode==='selective'){
         if(e.route==='selective') w=(e.weight||3)*2;
         if(S.dunmiao && e.id==='sel_dunmiao') w=8;
@@ -1776,6 +1853,11 @@ function renderArchive(){
         ${deptInfo?` · 所属部委：<b>${deptInfo.name}</b>（${deptInfo.school}流派，核心指标：${deptInfo.core}）`:""}
         ${S.dunmiaoMonths?` · 墩苗 <b>${S.dunmiaoMonths}</b> 个月`:""}
       </div>
+      ${(S.natPath&&(S.natPath.vice||S.natPath.top))?`<div style="border-top:1px dashed #ddd;margin-top:8px;padding-top:8px">
+        <div class="mini"><b>🏛️ 国家级方向</b></div>
+        ${S.natPath.vice?`<div class="mini" style="margin-top:4px">副国级：<b>${VICE_NATIONAL_PATHS[S.natPath.vice].name}</b>${S.natPath.vice==='power'?'（需承担派系斗争风险）':S.natPath.vice==='honor'?'（安全但实权稍弱）':''}</div>`:""}
+        ${S.natPath.top?`<div class="mini" style="margin-top:4px">正国级终极职位：<b>${TOP_NATIONAL_POSITIONS[S.natPath.top].icon} ${TOP_NATIONAL_POSITIONS[S.natPath.top].name}</b></div>`:""}
+      </div>`:""}
       ${(S.tags&&S.tags.length)?`<div class="mini" style="margin-top:6px">人设标签：${S.tags.map(t=>`<span style="display:inline-block;background:#b01e23;color:#fff;border-radius:3px;padding:1px 6px;margin:2px 3px 2px 0;font-size:11px">${t}</span>`).join("")}</div>`:""}
       ${rotCard}
       ${buffCard}
@@ -1906,6 +1988,76 @@ function flavorText(id){
   return m[id]||"你深吸一口气，继续投入工作。";
 }
 
+/* ---------- 7.35 国家级方向选择（副国级分支 / 正国级终极职位）---------- */
+
+/* 副国级方向：实权 / 荣誉 / 监察司法 / 军事（用户表第十一级四大类） */
+function openViceNationalChoice(){
+  let cards = "";
+  Object.keys(VICE_NATIONAL_PATHS).forEach(k=>{
+    const P = VICE_NATIONAL_PATHS[k];
+    const nextTitle = (S.natPath && S.natPath.vice===k) ? "" : "";
+    cards += `<button class="btn" data-vice="${k}">
+      <span class="bt">${P.icon} ${P.name}</span>
+      <span class="bd">${P.desc}
+        <div class="mini" style="margin-top:6px;color:#666">晋升路径：${P.titles.join(' → ')}</div>
+      </span>
+    </button>`;
+  });
+  $("modalTitle").textContent = "🏛️ 晋升副国级：选择你的方向";
+  $("modalBody").innerHTML = `
+    <div class="event-text" style="text-indent:0;font-size:12px;line-height:1.9">
+      恭喜你跨过「高干」门槛，晋升 <b>国家级副职（副国级）</b>。<br>
+      但同样是副国级，道路截然不同——<b>非中共中央政治局委员的副国级，无法参与国家最高决策</b>。<br><br>
+      <b style="color:#b01e23">⚠ 重大分支：此选择将影响你的最终职位与权力感</b>
+      <div class="mini" style="margin-top:10px;color:#666">请选择方向：</div>
+    </div>${cards}`;
+  $("modal").classList.add("show");
+  document.querySelectorAll('[data-vice]').forEach(b=>{
+    b.onclick=()=>{
+      const k = b.dataset.vice;
+      S.natPath = S.natPath || {};
+      S.natPath.vice = k;
+      const P = VICE_NATIONAL_PATHS[k];
+      pushLog(`晋升副国级，方向【${P.name}】：${P.desc}`);
+      addToast(P.icon + " 副国级方向：" + P.name);
+      $("modal").classList.remove("show");
+      save(); renderTopbar(); renderMain(curTab);
+    };
+  });
+}
+
+/* 正国级终极职位（用户表第十二级） */
+function openTopNationalChoice(){
+  let cards = "";
+  Object.keys(TOP_NATIONAL_POSITIONS).forEach(k=>{
+    const P = TOP_NATIONAL_POSITIONS[k];
+    cards += `<button class="btn" data-top="${k}">
+      <span class="bt">${P.icon} ${P.name}</span>
+      <span class="bd">${P.desc}</span>
+    </button>`;
+  });
+  $("modalTitle").textContent = "🌟 问鼎正国级：选择你的终极职位";
+  $("modalBody").innerHTML = `
+    <div class="event-text" style="text-indent:0;font-size:12px;line-height:1.9">
+      你已进入 <b>国家级正职（正国级）</b>——党和国家领导人的最高序列。<br>
+      这是漫长仕途的终点，也是权力巅峰的起点。
+      <div class="mini" style="margin-top:10px;color:#666">选择你最终担任的职位：</div>
+    </div>${cards}`;
+  $("modal").classList.add("show");
+  document.querySelectorAll('[data-top]').forEach(b=>{
+    b.onclick=()=>{
+      const k = b.dataset.top;
+      S.natPath = S.natPath || {};
+      S.natPath.top = k;
+      const P = TOP_NATIONAL_POSITIONS[k];
+      pushLog(`问鼎正国级，就任【${P.name}】：${P.desc}`);
+      $("modal").classList.remove("show");
+      save();
+      endGame("大国领袖");
+    };
+  });
+}
+
 /* ---------- 7.4 部委入职第一天：办公室政治 ---------- */
 function openDeptFirstDay(){
   const k = S.dept; if(!k || !DEPT_FIRSTDAY[k]) return;
@@ -1948,7 +2100,7 @@ function openDeptFirstDay(){
 }
 
 /* ---------- 7.45 部委轮岗系统（副处级/正处级触发）---------- */
-const ROTATION_RANKS = [6, 10];  // 副县长(县处级副职) / 县长(县处级正职)
+const ROTATION_RANKS = [8, 12];  // 副县长(县处级副职) / 县长(县处级正职)
 
 function openRotationChoice(){
   const cur = S.dept; if(!cur) return;
@@ -2142,27 +2294,36 @@ function endGame(type){
   if(type==='大国领袖'){ // 也可根据表现分支
     if(S.道德<50) ending=map["大国领袖"]; // 仍可算，但……
   }
-  if(S.rank>=12 && type!=='积劳成疾' && type!=='身陷囹圄'){
+  if(S.rank>=15 && type!=='积劳成疾' && type!=='身陷囹圄'){
     ending={t:"🏛️ 实干家",d:"虽未走到最高位，但你在省长任上留下极佳口碑，造福一方。"};
   }
   if(type!=='积劳成疾'&&type!=='身陷囹圄'&&S.rank<10&&S.政绩>300){
     // 由结局函数统一管理
   }
+  // ---- 正国级终极职位定制结局 ----
+  if(type==='大国领袖' && S.natPath && S.natPath.top){
+    const P = TOP_NATIONAL_POSITIONS[S.natPath.top];
+    if(P){
+      const viceName = (S.natPath.vice && VICE_NATIONAL_PATHS[S.natPath.vice])
+        ? VICE_NATIONAL_PATHS[S.natPath.vice].name : "—";
+      ending={t:P.icon+" "+P.name, d:`你走完了体制内最长的一条路。自试用期未定级的办事员起，历经科员、乡镇、县处、厅局、省部，直至问鼎【${P.name}】——${P.desc}（副国级阶段方向：${viceName}）。这是权力的巅峰，也是责任的极致。`};
+    }
+  }
   // ---- 开局模式专属结局分支 ----
-  if(S.mode==='selective' && type==='大国领袖'){
+  if(S.mode==='selective' && type==='大国领袖' && !(S.natPath && S.natPath.top)){
     ending={t:"🎖️ 国之栋梁（选调生）",d:"你从中央选调生起步，历经墩苗扎根、部委回流与火箭式轮岗培养，最终成长为国之栋梁。这是精英路线的终极答卷。"};
   }
-  if(S.mode==='selective' && S.returned && S.rank>=12){
+  if(S.mode==='selective' && S.returned && S.rank>=15){
     ending={t:"🚀 中枢干臣",d:"墩苗期满后你100%回流中央部委，凭借宏观政策视野与专项培养档案，在中枢岗位稳步晋升，成为决策核心的重要一员。"};
   }
-  if(S.mode==='grassroots' && S.rank>=10){
+  if(S.mode==='grassroots' && S.rank>=12){
     ending={t:"🌾 百姓的好官（扎根基层）",d:"你一生扎根基层，把一方水土治理得井井有条。虽然没有走上最高位，但群众把你的名字刻在了心坎上。"};
   }
   // ---- 轮岗专属结局分支 ----
   if(S.rotation && S.rotation.count>=2){
     ending={t:"🔄 复合型栋梁",d:`你在${S.rotation.count}个中央部委历练过，兼具宏观视野与专业深度。这种复合型履历，正是新时代领导干部最稀缺的品质。`};
   }
-  if(S.rotation && S.rotation.buffs && S.rotation.buffs.includes('multi_post') && S.rank>=12){
+  if(S.rotation && S.rotation.buffs && S.rotation.buffs.includes('multi_post') && S.rank>=15){
     ending={t:"🏛️ 跨部门统帅",d:"历经三个以上部委的淬炼，你既能看懂经济模型，也读得懂干部档案。站在全局高度统筹协调，这是单一部门出身的干部难以企及的境界。"};
   }
   $("modalTitle").textContent=ending.t;
@@ -2170,13 +2331,14 @@ function endGame(type){
     <div class="result-box" style="border-style:solid">${ending.d}</div>
     <div class="mini center" style="margin-top:12px">
       开局模式：<b>${MODES[S.mode||'normal'].name}</b><br>
-      最终职务：<b>${rankTitle(S.rank)}</b>（${rankLayer(S.rank)}${rankGrade(S.rank)!=="—"?" · "+rankGrade(S.rank):""}）<br>
+      最终职务：<b>${rankTitle(S.rank)}</b>（${rankLayer(S.rank)}${rankGrade(S.rank)!=="—"?" · "+rankGrade(S.rank):" · 省部级以上不套任职级"}）<br>
       政绩：${S.政绩} · 道德：${S.道德} · 健康：${S.健康}<br>
       任期：${S.year}年${S.month}月 · 路线：${S.route?ROUTES[S.route].name:"—"}
       ${S.mode==='selective'?`<br>墩苗：${S.dunmiaoMonths||0}个月 · 已${S.returned?'回流部委':'在基层'}`:""}
       ${S.dept?`<br>所属部委：<b>${DEPARTMENTS[S.dept].name}</b>（${DEPARTMENTS[S.dept].school}）`:""}
       <br>干部：${S.name}（${S.gender}，${S.age}岁，${S.hometownCity||S.hometown}人，${S.edu}）
       ${(S.tags&&S.tags.length)?`<br>人设标签：${S.tags.join(' · ')}`:""}
+      ${(S.natPath&&S.natPath.vice)?`<br>副国级方向：<b>${VICE_NATIONAL_PATHS[S.natPath.vice].name}</b>`:""}
       ${(S.rotation&&S.rotation.count>0)?`<br>轮岗履历：${(S.rotation.history||[]).map(k=>DEPARTMENTS[k]?DEPARTMENTS[k].short:k).join(' → ')} → <b>${S.dept&&DEPARTMENTS[S.dept]?DEPARTMENTS[S.dept].short:'—'}</b>（共${S.rotation.count}次）`:""}
       ${(S.rotation&&S.rotation.buffs&&S.rotation.buffs.length)?`<br>轮岗增益：${S.rotation.buffs.map(b=>ROTATION_BUFFS[b]?ROTATION_BUFFS[b].name:b).join('、')}`:""}
       ${(S.achievements&&S.achievements.length)?`<div style="margin-top:8px;border-top:1px dashed #ccc;padding-top:8px"><b>🏆 解锁成就（${S.achievements.length}）</b><br>${S.achievements.map(a=>`【${a.name}】${a.desc||''}`).join('<br>')}</div>`:""}

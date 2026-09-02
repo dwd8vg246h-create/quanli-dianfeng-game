@@ -3060,6 +3060,339 @@ function refreshAvatarViews(){
 }
 
 
+/* ============================================================
+   竞争对手系统（派系争夺 / 个人争夺岗位）
+   ------------------------------------------------------------
+   设计原则：
+   ① 出现门槛 —— 县处级副职（rank≥11）以上才有"对手"概念。
+      基层阶段是"做事"，到了县处级才是"争位子"。
+   ② 对手是动态的 —— 会成长、会调离、会退休、会落马，
+      不是一成不变的木桩。
+   ③ 争夺有代价 —— 成功上位有收益，失败也有代价（得罪人）。
+   ============================================================ */
+
+/* 竞争对手出现的级别门槛（县处级副职） */
+const RIVAL_MIN_RANK = 11;
+
+/* 对手成长速率（每月） */
+const RIVAL_GROWTH = {
+  政绩:{min:1, max:4},
+  能力:{min:0, max:0.6},
+  人脉:{min:0, max:0.8},
+  道德:{min:-0.3, max:0.4},
+};
+
+/* 对手出身背景（影响其强项） */
+const RIVAL_BACKGROUNDS = [
+  {id:"local",   name:"本土派",     desc:"在本地经营多年，人脉深厚",
+   bonus:{人脉:18, 能力:0},         tag:"地头蛇"},
+  {id:"descend", name:"上级空降",   desc:"由上级机关下派，背景深厚",
+   bonus:{上司好感:22, 政绩:10},    tag:"空降兵"},
+  {id:"tech",    name:"业务骨干",   desc:"专业出身，能力突出",
+   bonus:{能力:14, 政绩:14},        tag:"实干型"},
+  {id:"secretary",name:"领导秘书",  desc:"长期服务领导，深得信任",
+   bonus:{上司好感:26, 人脉:10},    tag:"大秘出身"},
+  {id:"youth",   name:"年轻干部",   desc:"选调生出身，学历高、冲劲足",
+   bonus:{能力:10, 政绩:8, 人脉:-4},tag:"少壮派"},
+  {id:"veteran", name:"资深老臣",   desc:"资历老到，稳扎稳打",
+   bonus:{人脉:14, 道德:10, 能力:-4},tag:"老资格"},
+  {id:"faction", name:"派系子弟",   desc:"背后有人，资源充沛",
+   bonus:{人脉:20, 上司好感:14},    tag:"有靠山"},
+  {id:"returnee",name:"挂职交流",   desc:"多地历练，履历完整",
+   bonus:{能力:8, 人脉:8, 政绩:8},  tag:"复合型"},
+];
+
+/* 对手派系归属 */
+const RIVAL_FACTIONS = [
+  {id:"reform",  name:"改革派", color:"#b01e23"},
+  {id:"pragmat", name:"务实派", color:"#35618a"},
+  {id:"neutral", name:"中立",   color:"#6b6354"},
+];
+
+/* 对手态度（对玩家） */
+const RIVAL_ATTITUDES = [
+  {id:"ally",     name:"盟友",   emoji:"🤝", color:"#2f7d4f",
+   desc:"愿意在关键时刻帮你说话"},
+  {id:"neutral",  name:"中立",   emoji:"😐", color:"#6b6354",
+   desc:"各凭本事，互不干涉"},
+  {id:"rival",    name:"竞争者", emoji:"⚔️", color:"#b8860b",
+   desc:"公开竞争，但保持表面和气"},
+  {id:"hostile",  name:"对手",   emoji:"🔥", color:"#b01e23",
+   desc:"处处与你作对，不择手段"},
+];
+
+/* 中文姓名素材 */
+const RIVAL_SURNAMES = ["王","李","张","刘","陈","杨","黄","赵","周","吴",
+  "徐","孙","马","朱","胡","郭","何","高","林","罗",
+  "郑","梁","谢","宋","唐","许","韩","冯","邓","曹"];
+const RIVAL_GIVEN_M = ["建国","志强","建军","国强","伟民","晓东","文斌","永康",
+  "海涛","德华","瑞明","常德","学文","振华","立新","耀东","成龙","光明",
+  "守义","维民","嘉良","宇轩","子豪","俊杰","泽楷"];
+const RIVAL_GIVEN_F = ["秀英","丽华","玉兰","桂芳","秀珍","凤英","淑芬","慧敏",
+  "雅静","晓红","文娟","美玲","雪梅","春燕","海燕","秀云","丽娜","佳怡",
+  "思远","若涵","雨欣","梓涵","欣怡","子萱"];
+
+/* 生成随机姓名 */
+function randomRivalName(gender){
+  const s = RIVAL_SURNAMES[Math.floor(Math.random()*RIVAL_SURNAMES.length)];
+  const g = gender==="女"
+    ? RIVAL_GIVEN_F[Math.floor(Math.random()*RIVAL_GIVEN_F.length)]
+    : RIVAL_GIVEN_M[Math.floor(Math.random()*RIVAL_GIVEN_M.length)];
+  return s + g;
+}
+
+/* 生成一名竞争对手 */
+function generateRival(rank, opts){
+  opts = opts || {};
+  const gender = Math.random() < 0.35 ? "女" : "男";
+  const bg  = RIVAL_BACKGROUNDS[Math.floor(Math.random()*RIVAL_BACKGROUNDS.length)];
+  const fac = RIVAL_FACTIONS[Math.floor(Math.random()*RIVAL_FACTIONS.length)];
+  // 态度：初期以中立/竞争者为主，敌对需后期出现
+  let attPool = ["neutral","neutral","rival"];
+  if(opts.canHostile) attPool.push("hostile");
+  if(Math.random()<0.22) attPool.push("ally");
+  const att = attPool[Math.floor(Math.random()*attPool.length)];
+
+  // 实力基准：随玩家层级水涨船高
+  const base = 40 + rank*0.8;
+  const rnd  = (a,b)=> a + Math.random()*(b-a);
+
+  const rival = {
+    id: "R" + Date.now().toString(36) + Math.random().toString(36).slice(2,6),
+    name: randomRivalName(gender),
+    gender,
+    age: Math.round(rnd(32, 54)),
+    bg: bg.id,
+    faction: fac.id,
+    attitude: att,
+    // 实力
+    政绩: Math.round(base + rnd(-8, 22) + (bg.bonus.政绩||0)),
+    能力: Math.round(rnd(48, 82) + (bg.bonus.能力||0)),
+    人脉: Math.round(rnd(40, 80) + (bg.bonus.人脉||0)),
+    道德: Math.round(rnd(45, 85) + (bg.bonus.道德||0)),
+    上司好感: Math.round(rnd(40, 78) + (bg.bonus.上司好感||0)),
+    // 对玩家的关系值（-100 敌对 → +100 盟友）
+    relation: att==="ally"?Math.round(rnd(30,70))
+            : att==="hostile"?Math.round(rnd(-70,-30))
+            : att==="rival"?Math.round(rnd(-35,10))
+            : Math.round(rnd(-10,25)),
+    // 履历
+    任职年数: Math.round(rnd(1, 8)),
+    争夺次数: 0,
+    胜出次数: 0,
+    appearRank: rank,
+    appearAt: `${S.year}年${S.month}月`,
+    status: "active",   // active / transferred / retired / fell
+  };
+  // 数值边界
+  ["政绩","能力","人脉","道德","上司好感"].forEach(k=>{
+    rival[k] = Math.max(0, Math.min(100, rival[k]));
+  });
+  rival.政绩 = Math.min(400, rival.政绩);
+  return rival;
+}
+
+/* 刷新竞争对手名单（随层级推进动态增减） */
+function refreshRivals(){
+  if(!S) return;
+  S.竞争对手 = S.竞争对手 || [];
+  // 未到门槛不生成
+  if(S.rank < RIVAL_MIN_RANK) return;
+
+  const canHostile = S.rank >= 22;   // 厅局级以上才出现死对头
+  // 目标人数：随层级递增（县处级2人 → 省部级5人）
+  const target = S.rank < 17 ? 2
+               : S.rank < 22 ? 3
+               : S.rank < 38 ? 4
+               : 5;
+
+  // ① 淘汰：层级提升后跟不上者调离 / 道德过低者落马
+  S.竞争对手.forEach(r=>{
+    if(r.status!=="active") return;
+    if((S.rank - r.appearRank) >= 14 && Math.random()<0.35){
+      r.status = "transferred";
+      r.leaveNote = "交流到其他单位";
+      return;
+    }
+    if(r.道德 < 32 && S.rank>=17 && Math.random()<0.10){
+      r.status = "fell";
+      r.leaveNote = "因违纪违法被查处";
+    }
+  });
+
+  // ② 补充：重新统计活跃人数，补足到目标人数
+  let active = S.竞争对手.filter(r=>r.status==="active");
+  let guard = 0;
+  while(active.length < target && guard < 30){
+    const nr = generateRival(S.rank, {canHostile});
+    S.竞争对手.push(nr);
+    active.push(nr);
+    guard++;
+  }
+
+  // ③ 清理：已离场者只保留最近若干条，避免存档膨胀
+  const gone = S.竞争对手.filter(r=>r.status!=="active");
+  if(gone.length > 12){
+    const keepIds = new Set(gone.slice(-12).map(r=>r.id));
+    S.竞争对手 = S.竞争对手.filter(r=> r.status==="active" || keepIds.has(r.id));
+  }
+  // ④ 排序：活跃者优先，按竞争力降序
+  S.竞争对手.sort((a,b)=>{
+    if((a.status==="active") !== (b.status==="active"))
+      return a.status==="active" ? -1 : 1;
+    return rivalPower(b) - rivalPower(a);
+  });
+}
+
+/* 对手月度成长 */
+function rivalsMonthlyGrowth(){
+  if(!S || !S.竞争对手) return;
+  const g = RIVAL_GROWTH;
+  S.竞争对手.forEach(r=>{
+    if(r.status!=="active") return;
+    r.政绩 += Math.round(g.政绩.min + Math.random()*(g.政绩.max-g.政绩.min));
+    r.能力 = Math.min(100, r.能力 + (g.能力.min + Math.random()*(g.能力.max-g.能力.min)));
+    r.人脉 = Math.min(100, r.人脉 + (g.人脉.min + Math.random()*(g.人脉.max-g.人脉.min)));
+    r.道德 = Math.max(0, Math.min(100, r.道德 + (g.道德.min + Math.random()*(g.道德.max-g.道德.min))));
+    r.任职年数 += 1;
+  });
+  // 每年刷新一次名单（人员流动）
+  if(S.month===1) refreshRivals();
+}
+
+/* 取活跃对手 */
+function activeRivals(){
+  if(!S || !S.竞争对手) return [];
+  return S.竞争对手.filter(r=>r.status==="active");
+}
+
+/* 对手综合竞争力评分（用于争夺判定） */
+function rivalPower(r){
+  return r.政绩*0.30 + r.能力*0.22 + r.人脉*0.24 + r.上司好感*0.16 + r.道德*0.08;
+}
+
+/* 玩家竞争评分 */
+function playerPower(){
+  return S.政绩*0.30 + S.能力*0.22 + S.人脉*0.24 + S.上司好感*0.16 + S.道德*0.08;
+}
+
+/* 对手画像文本 */
+function rivalProfileText(r){
+  const bg  = RIVAL_BACKGROUNDS.find(b=>b.id===r.bg) || RIVAL_BACKGROUNDS[0];
+  const fac = RIVAL_FACTIONS.find(f=>f.id===r.faction) || RIVAL_FACTIONS[2];
+  const att = RIVAL_ATTITUDES.find(a=>a.id===r.attitude) || RIVAL_ATTITUDES[1];
+  return {
+    bgName:bg.name, bgDesc:bg.desc, bgTag:bg.tag,
+    facName:fac.name, facColor:fac.color,
+    attName:att.name, attEmoji:att.emoji, attColor:att.color, attDesc:att.desc,
+  };
+}
+
+/* ============================================================
+   岗位争夺：玩家自主选择要竞争的岗位
+   ============================================================ */
+
+/* 可争夺岗位的难度与回报 */
+function contestedPosts(){
+  if(!S) return [];
+  const layer = rankLayer(S.rank + 1) || rankLayer(S.rank);
+  const pool = POST_LIBRARY[layer] || [];
+  if(!pool.length) return [];
+
+  // 按"系统"分组挑出有代表性的岗位作为争夺目标
+  const picks = [];
+  const seen = new Set();
+  // 优先取与当前部门/层级相关的热门岗位
+  const shuffled = pool.slice().sort(()=>Math.random()-0.5);
+  for(const p of shuffled){
+    if(picks.length>=4) break;
+    if(seen.has(p.sys)) continue;   // 每个系统只出一个，保证多样性
+    seen.add(p.sys);
+    picks.push(p);
+  }
+  if(!picks.length) picks.push(...shuffled.slice(0,3));
+
+  const rivals = activeRivals();
+  return picks.map((p, i)=>{
+    // 竞争强度：与当前对手数量、岗位热度相关
+    const heat = Math.min(3, Math.floor(rivals.length * 0.8) + (i===0?1:0));
+    const competitorCount = Math.min(rivals.length, 1 + heat);
+    // 难度分档
+    const diff = competitorCount<=1 ? "较轻松"
+               : competitorCount===2 ? "有竞争"
+               : competitorCount===3 ? "激烈"
+               : "白热化";
+    const diffColor = competitorCount<=1 ? "#2f7d4f"
+                    : competitorCount===2 ? "#35618a"
+                    : competitorCount===3 ? "#b8860b"
+                    : "#b01e23";
+    // 回报：竞争越激烈，上位后的收益越高
+    const rewardMultiplier = 1 + (competitorCount-1)*0.18;
+    return {
+      post: p.post,
+      sys: p.sys,
+      note: p.note,
+      competitors: competitorCount,
+      diff, diffColor,
+      rewardMultiplier: Math.round(rewardMultiplier*100)/100,
+      // 争夺门槛
+      minScore: Math.round(45 + competitorCount*6),
+    };
+  });
+}
+
+/* 争夺判定 */
+function resolveContest(target){
+  const rivals = activeRivals();
+  const myScore = playerPower();
+  if(!target) return {win:false, myScore:Math.round(myScore), topScore:0, topRival:null, margin:0, participants:[]};
+  // 参与竞争的对手
+  const participants = rivals
+    .slice()
+    .sort((a,b)=> rivalPower(b) - rivalPower(a))
+    .slice(0, Math.max(0, target.competitors - 1));
+
+  // 计算每个对手本轮表现（含随机波动）
+  const rolls = participants.map(r=>{
+    const base = rivalPower(r);
+    const swing = (Math.random()-0.5) * 22;         // ±11 的临场波动
+    const attitudePenalty = r.attitude==="hostile" ? 4 : 0;  // 死对头更拼命
+    return {r, score: base + swing + attitudePenalty};
+  });
+  const myRoll = myScore + (Math.random()-0.5)*20
+               + (S.廉政积分||0)*0.12               // 廉政积分加持
+               + (S.route==='discipline' ? 3 : 0);
+
+  rolls.sort((a,b)=> b.score - a.score);
+  const top = rolls[0];
+  // 无对手参与时（如竞争者仅1人），对手得分按0计
+  const topScore = top ? top.score : 0;
+  const win = myRoll >= topScore;
+
+  // 记录争夺（遍历 rolls，其元素为 {r, score}）
+  rolls.forEach(x=>{
+    if(!x || !x.r) return;
+    x.r.争夺次数 = (x.r.争夺次数||0) + 1;
+    if(!win && top && x.r === top.r) x.r.胜出次数 = (x.r.胜出次数||0) + 1;
+  });
+
+  // 防御：target 无效时直接返回
+  if(!target || target.competitors === undefined){
+    return {win:false, myScore:Math.round(myRoll), topScore:0, topRival:null, margin:0, participants:[]};
+  }
+
+  return {
+    win,
+    myScore: Math.round(myRoll),
+    topScore: Math.round(topScore),
+    topRival: top ? top.r : null,
+    // 保留精度，避免取整导致 0 与负值符号丢失（胜负以 win 字段为准）
+    margin: Math.round((myRoll - topScore) * 100) / 100,
+    participants,
+  };
+}
+
+
 /* ================= 一、现实任职地（按行政层级的真实地名）================= */
 const LOCATIONS = {
   // 乡镇 / 街道级（乡科级干部任职地）
@@ -5751,6 +6084,10 @@ function addToast(msg){
 
 /* 每月结算 */
 function monthlySettlement(){
+  // ===== 突发事件冷却推进 =====
+  try{ tickEmergencyCooldown(); }catch(e){}
+  // ===== 竞争对手月度成长 =====
+  try{ rivalsMonthlyGrowth(); }catch(e){}
   const r=S.rank>=6?0.6:1; // 前期事件密集
   // 自然衰减/增长
   // 轮岗适应期：政绩产出下降50%（政绩真空期）
@@ -5943,9 +6280,23 @@ function checkPromotion(){
       pushLog(`凭借扎实的廉政口碑，你的晋升考核获得额外认可（廉政积分+${Math.floor(bonus/5)}政绩点）。`);
       S.廉政积分-=bonus;
     }
-    doPromote();
+    tryPromoteWithContest();
   }
 }
+
+/* 带岗位争夺的晋升（县处级副职以上才触发） */
+function tryPromoteWithContest(){
+  // 门槛：县处级副职（rank≥11）以上才出现"争位子"的局面
+  if(S.rank + 1 < RIVAL_MIN_RANK){ doPromote(); return; }
+  // 刷新对手名单，确保有竞争者
+  refreshRivals();
+  // 让玩家自主选择要竞争的岗位
+  openPostContest((target)=>{
+    if(!target){ doPromote(); return; }
+    runPostContest(target, ()=>{ doPromote(); });
+  });
+}
+
 function doPromote(){
   const oldRank = S.rank;
   S.rank++;
@@ -5972,6 +6323,8 @@ function doPromote(){
   save();
   // 记录晋升履历
   addCareerRecord("晋升", `由 ${rankTitle(oldRank)} 晋升为 ${rankTitle(S.rank)}（${rankLayer(S.rank)}${rankGrade(S.rank)!=="—"?" · "+rankGrade(S.rank):""}）。`);
+  // 晋升后刷新竞争对手（新的层级会有新的对手）
+  try{ refreshRivals(); }catch(e){}
   // ==== 职级变动后重新分配现实任职地（层级跨档时才换地方）====
   assignLocation(true);
   // ==== 部门随层级调整（层级跨档时才换部门层级）====
@@ -7486,6 +7839,89 @@ function budgetPanel(){
 }
 
 
+/* 常规政务工作（非突发月份）：轻量事件，无奖惩压力 */
+function pRoutineWork(){
+  const w = pickRoutineWork();
+  const cd = S.事件冷却 || 0;
+  const total = S.事件冷却上限 || 1;
+  const passed = Math.max(0, total - cd);
+
+  let html = `<div class="card">
+    <div class="card-h">📋 政务工作办理</div>
+    <div class="card-b">
+
+      <!-- 常规工作标识 -->
+      <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:8px">
+        <span style="background:#eef5ee;color:#3d6b3d;border:1px solid #b8d4b8;
+              border-radius:4px;padding:3px 9px;font-size:12px;font-weight:700">
+          🗓️ 常规工作
+        </span>
+        <span style="background:#f5f5f5;color:#555;border:1px solid #ddd;
+              border-radius:4px;padding:3px 9px;font-size:12px">
+          ${w.icon} 日常政务
+        </span>
+        <span style="background:#faf6e8;color:#8a6a35;border:1px dashed #c9a227;
+              border-radius:4px;padding:3px 9px;font-size:12px">
+          ⏱ 按计划推进
+        </span>
+      </div>
+
+      <!-- 标题 -->
+      <div style="font-size:17px;font-weight:800;color:#4a6a4a;line-height:1.35;margin-bottom:6px">
+        ${w.title}
+      </div>
+
+      <!-- 冷却进度 -->
+      <div style="background:#f7f9fb;border-left:3px solid #8ab4d8;padding:8px 10px;
+                  border-radius:0 4px 4px 0;margin-bottom:10px">
+        <div class="mini" style="line-height:1.9;color:#555">
+          <b>距下次突发事件</b>：约 <b style="color:#b01e23">${cd}</b> 个月
+          <span style="color:#8a8170">（本轮间隔 ${total} 个月，已过 ${passed} 个月）</span>
+        </div>
+        <div style="display:flex;gap:3px;margin-top:6px">
+          ${Array.from({length:total},(_,i)=>
+            `<span style="flex:1;height:5px;border-radius:2px;background:${i<passed?'#8ab4d8':'#e0e0e0'}"></span>`
+          ).join('')}
+        </div>
+        <div class="mini" style="margin-top:5px;color:#8a8170;font-size:10px">
+          突发事件间隔随职级递减：层级越高、管辖范围越大，出事越频繁。
+        </div>
+      </div>
+
+      <!-- 正文 -->
+      <div class="event-text">${w.text}</div>
+
+      <div class="muted" style="font-size:11px;margin-bottom:8px">
+        本月为常规工作期，没有突发事件。请按职责分工研究办理。
+      </div>
+
+      <!-- 当前考核状态 -->
+      <div style="background:#f7f9fb;border-radius:4px;padding:7px 9px;margin-bottom:10px">
+        <div class="mini" style="line-height:1.8;color:#555">
+          当前实绩考核：<b style="color:${performanceGrade().c}">${performanceScore()} 分（${performanceGrade().t}）</b>
+          　当前职务：${rankTitle(S.rank)}
+          ${vetoCheck().length?`<br><b style="color:#b01e23">⛔ 存在一票否决风险</b>`:""}
+        </div>
+      </div>`;
+
+  w.opts.forEach((o,i)=>{
+    html+=`<button class="btn" data-act="routine" data-wid="${w.id}" data-idx="${i}">
+      <span class="bt">${i+1}. ${o.t}</span>
+      <span class="bd">${o.d}</span>
+    </button>`;
+  });
+
+  html += `<div style="margin-top:10px;border-top:1px dashed #ddd;padding-top:8px">
+    <div class="mini" style="color:#888;line-height:1.6">
+      常规工作不计突发事件妥善率，但会影响能力与指标的稳步积累。
+    </div>
+  </div>
+
+    </div>
+  </div>`;
+  return html;
+}
+
 function pFaction(){
   return `<div class="card">
     <div class="card-h">🤝 派系声望</div>
@@ -7508,10 +7944,120 @@ function pFaction(){
       </div>
       <div class="mini" style="margin-top:8px">每点廉政积分在晋升时可折算政绩点；坚守底线、查处腐败可快速积累。积分≥30可突破「上司好感」门槛。</div>
     </div>
-  </div>`:"");
+  </div>`:"") + rivalsPanel();
+}
+
+/* 竞争对手面板 */
+function rivalsPanel(){
+  if(S.rank < RIVAL_MIN_RANK){
+    const needTitle = RANKS[RIVAL_MIN_RANK] ? rankTitle(RIVAL_MIN_RANK) : "县处级副职";
+    return `<div class="card">
+      <div class="card-h">⚔️ 竞争对手</div>
+      <div class="card-b">
+        <div class="mini" style="line-height:1.9;color:#8a8170">
+          基层阶段重在做事，尚未形成明确的岗位竞争。<br>
+          晋升至 <b style="color:#b01e23">${needTitle}</b>（县处级副职）后，
+          同僚之间才会出现真正的"位子之争"。
+        </div>
+      </div>
+    </div>`;
+  }
+  const rivals = activeRivals();
+  const myPower = Math.round(playerPower());
+
+  // 争夺记录
+  let recordHtml = "";
+  if(S.争夺记录 && S.争夺记录.length){
+    const wins = S.争夺记录.filter(x=>x.结果==="胜出").length;
+    recordHtml = `<div style="margin-top:10px;border-top:1px dashed #ddd;padding-top:8px">
+      <div class="mini"><b>📜 争夺记录</b>
+        <span style="color:#2f7d4f">胜 ${wins}</span> ·
+        <span style="color:#b01e23">负 ${S.争夺记录.length-wins}</span>
+      </div>
+      ${S.争夺记录.slice(0,5).map(r=>`
+        <div class="mini" style="margin-top:3px;font-size:10px">
+          ${r.时间}　${r.岗位}
+          <b style="color:${r.结果==='胜出'?'#2f7d4f':'#b01e23'}">${r.结果}</b>
+          <span style="color:#8a8170">（${r.我方} vs ${r.对方} · ${r.对手}）</span>
+        </div>`).join('')}
+    </div>`;
+  }
+
+  // 已离场者
+  const gone = (S.竞争对手||[]).filter(r=>r.status!=="active");
+  const goneHtml = gone.length ? `
+    <div style="margin-top:8px;border-top:1px dashed #ddd;padding-top:8px">
+      <div class="mini" style="color:#8a8170">已离场：${gone.slice(0,6).map(r=>
+        `${r.name}（${r.leaveNote||r.status==='fell'?'被查处':'已离开'}）`).join('、')}</div>
+    </div>` : "";
+
+  return `<div class="card">
+    <div class="card-h">⚔️ 竞争对手（${rivals.length} 人）</div>
+    <div class="card-b">
+      <div style="background:#f7f4ec;border-radius:6px;padding:7px 9px;margin-bottom:10px">
+        <div class="mini"><b>你的竞争力：${myPower}</b>
+          <span style="color:#8a8170">（政绩·能力·人脉·上司好感·道德加权）</span></div>
+      </div>
+      ${rivals.length ? rivals.map(r=>{
+        const P = rivalProfileText(r);
+        const pw = Math.round(rivalPower(r));
+        const gap = pw - myPower;
+        const gapTxt = gap>0 ? `<span style="color:#b01e23">强 ${gap}</span>`
+                     : gap<0 ? `<span style="color:#2f7d4f">弱 ${-gap}</span>`
+                     : `<span style="color:#6b6354">相当</span>`;
+        // 竞争力条
+        const barW = Math.min(100, Math.round(pw));
+        return `<div style="margin-bottom:9px;background:#faf8f2;border-radius:7px;
+                            padding:9px 10px;border-left:3px solid ${P.attColor}">
+          <div style="display:flex;align-items:center;gap:7px">
+            <span style="font-size:15px">${P.attEmoji}</span>
+            <div style="flex:1">
+              <div style="font-size:13px;font-weight:800">${r.name}
+                <span style="font-weight:400;color:#8a8170;font-size:10px">
+                  ${r.gender} · ${r.age}岁
+                </span>
+              </div>
+              <div class="mini" style="font-size:10px;margin-top:1px">
+                <span style="background:${P.facColor};color:#fff;border-radius:3px;
+                              padding:0 4px;margin-right:4px">${P.facName}</span>
+                <span style="color:${P.attColor}">${P.attName}</span>
+                <span style="color:#8a8170">· ${P.bgName}（${P.bgTag}）</span>
+              </div>
+            </div>
+            <div style="text-align:right">
+              <div style="font-size:15px;font-weight:800;color:${gap>0?'#b01e23':'#2f7d4f'}">${pw}</div>
+              <div class="mini" style="font-size:9px">${gapTxt}</div>
+            </div>
+          </div>
+          <div style="height:4px;background:#e8e2d4;border-radius:2px;margin-top:6px;overflow:hidden">
+            <div style="height:100%;width:${barW}%;border-radius:2px;
+                        background:linear-gradient(90deg,${P.facColor},${P.attColor})"></div>
+          </div>
+          <div class="mini" style="font-size:10px;margin-top:4px;color:#8a8170">
+            ${P.bgDesc} · ${P.attDesc}
+            ${r.争夺次数?`　争夺 ${r.争夺次数} 次 / 胜 ${r.胜出次数||0} 次`:""}
+          </div>
+        </div>`;
+      }).join('') : `
+        <div class="mini" style="color:#2f7d4f;line-height:1.8">
+          当前层级暂无明确竞争者。随着职级提升，会出现更多竞争对手。
+        </div>`}
+      ${recordHtml}
+      ${goneHtml}
+      <div class="mini" style="margin-top:8px;color:#8a8170;font-size:10px;line-height:1.6">
+        竞争者会成长、调离、退休，也可能因违纪被查处。
+        晋升至关键岗位时，你可选择想要竞争的岗位。
+      </div>
+    </div>
+  </div>`;
 }
 
 function pEvent(){
+  // ===== 突发事件冷却：非突发月份显示常规政务工作 =====
+  initEmergencyCooldown();
+  if(!isEmergencyMonth()){
+    return pRoutineWork();
+  }
   const e = pickEvent();
   const A = eventAttr(e.id);
   const lv = A.level, cat = A.catInfo;
@@ -8182,6 +8728,21 @@ function renderArchive(){
 
 /* ---------- 7. 交互绑定 ---------- */
 function bindActions(){
+  // 常规政务工作选项（非突发月份）
+  document.querySelectorAll('[data-act="routine"]').forEach(b=>{
+    b.onclick=()=>{
+      const wid=b.dataset.wid, idx=+b.dataset.idx;
+      const w=ROUTINE_WORKS.find(x=>x.id===wid);
+      if(!w) return;
+      const opt=w.opts[idx];
+      opt.fn(S);
+      // 每月结算推进（常规工作同样推进时间）
+      if(typeof monthlySettlement==="function") monthlySettlement();
+      addToast("工作办理完毕");
+      renderMainSync(curTab);
+      save();
+    };
+  });
   document.querySelectorAll('[data-act="choose"]').forEach(b=>{
     b.onclick=()=>{
       const eid=b.dataset.eid, idx=+b.dataset.idx;
@@ -8203,6 +8764,8 @@ function bindActions(){
       }
       // 政绩点奖励
       S.政绩+=8; S.政绩点+=1;
+      // 突发事件处置完毕 → 重置冷却，进入常规工作期
+      try{ resetEmergencyCooldown(); }catch(e){}
       showResult(e,opt);
       save();
     };
@@ -9707,6 +10270,289 @@ function afterLogin(user, mode){
   openCharCreate(m);
   // 预填注册信息
   prefillCharCreate(user);
+}
+
+
+/* ============================================================
+   突发事件冷却机制
+   ------------------------------------------------------------
+   现实中突发事件不会月月有。改为"间隔若干月出现一次"，
+   间隔随层级递减（层级越高、管辖范围越大，出事越频繁）：
+     乡科级及以下  每 5—8 个月
+     县处级        每 4—6 个月
+     厅局级        每 3—5 个月
+     省部级及以上  每 2—4 个月
+   中间月份为"常规政务工作办理"（低强度事件，无奖惩压力）。
+   ============================================================ */
+
+/* 根据层级计算下一次突发事件的间隔（月） */
+function emergencyInterval(){
+  const r = S.rank;
+  let lo, hi;
+  if(r < 8){ lo=5; hi=8; }          // 乡科级
+  else if(r < 17){ lo=4; hi=6; }    // 县处级
+  else if(r < 38){ lo=3; hi=5; }    // 厅局级
+  else { lo=2; hi=4; }              // 省部级及以上
+  return lo + Math.floor(Math.random()*(hi-lo+1));
+}
+
+/* 初始化冷却（首次开局给一个短间隔，避免开局无事件） */
+function initEmergencyCooldown(){
+  if(S.事件冷却 === undefined){
+    S.事件冷却 = 2 + Math.floor(Math.random()*2);   // 首次 2—3 个月
+    S.事件冷却上限 = S.事件冷却;
+  }
+}
+
+/* 推进冷却：返回 true 表示本月应发生突发事件 */
+function tickEmergencyCooldown(){
+  initEmergencyCooldown();
+  if(S.事件冷却 > 0){
+    S.事件冷却 -= 1;
+    return S.事件冷却 === 0;   // 归零的当月触发
+  }
+  // 已归零且未处理，保持触发状态
+  return true;
+}
+
+/* 重置冷却（突发事件处理完毕后调用） */
+function resetEmergencyCooldown(){
+  S.事件冷却 = emergencyInterval();
+  S.事件冷却上限 = S.事件冷却;
+}
+
+/* 本月是否处于突发事件期 */
+function isEmergencyMonth(){
+  initEmergencyCooldown();
+  return S.事件冷却 <= 0;
+}
+
+/* 常规政务（非突发月份）的轻量工作库 */
+const ROUTINE_WORKS = [
+  {id:"rt_doc",   title:"日常公文处理",   icon:"📄",
+   text:"桌上堆着待办的文件：几份请示需要批复，两份通知需要会签，还有一份上级来文需要提出拟办意见。都是例行公事，但要做得稳妥。",
+   opts:[
+     {t:"逐件细看，字斟句酌", d:"细致 · 能力+2 · 耗时",
+      fn:s=>{s.能力+=2; s.健康-=2; pushLog("你逐字推敲每份文件，虽然累，但没出纰漏。");}},
+     {t:"抓大放小，重点文件细办", d:"高效 · 能力+1 · 政绩+3",
+      fn:s=>{s.能力+=1; s.政绩+=3; pushLog("你把精力放在关键文件上，效率不错。");}},
+     {t:"批给科室先提意见", d:"授权 · 人脉+2 · 能力+1",
+      fn:s=>{s.人脉+=2; s.能力+=1; pushLog("你把文件批给科室先研究，既省了力，也给年轻人锻炼机会。");}},
+   ]},
+  {id:"rt_meet",  title:"例行工作会议",   icon:"🪑",
+   text:"周例会照常召开。各科室依次汇报本周进展，气氛不咸不淡。轮到你时，你说点什么好？",
+   opts:[
+     {t:"点出关键问题，提出明确要求", d:"强势 · 能力+2 · 上司好感+3",
+      fn:s=>{s.能力+=2; s.上司好感+=3; pushLog("你一针见血指出问题，领导微微点头。");}},
+     {t:"肯定成绩，温和提出建议", d:"亲和 · 人脉+3",
+      fn:s=>{s.人脉+=3; pushLog("你先肯定再建议，会场上气氛融洽。");}},
+     {t:"少说多听，记录要点", d:"稳健 · 能力+1 · 无过",
+      fn:s=>{s.能力+=1; pushLog("你多数时间在听和记，散会时心里有数了。");}},
+   ]},
+  {id:"rt_study", title:"理论学习与调研", icon:"📚",
+   text:"按计划，本月有一次中心组学习和一次基层调研。两件事都要占时间，你打算怎么安排？",
+   opts:[
+     {t:"认真准备发言材料", d:"理论素养 · 能力+3 · 上司好感+2",
+      fn:s=>{s.能力+=3; s.上司好感+=2; pushLog("你的发言有理论有实际，领导会后特意提了一句。");}},
+     {t:"沉到基层，多看现场", d:"务实 · 民生+4 · 人脉+2",
+      fn:s=>{s.民生=clamp(s.民生+4,0,100); s.人脉+=2; pushLog("你跑了几个点位，摸到了真实情况。");}},
+     {t:"两项都按程序走完", d:"稳妥 · 政绩+2",
+      fn:s=>{s.政绩+=2; pushLog("两项任务都按部就班完成，中规中矩。");}},
+   ]},
+  {id:"rt_train", title:"业务培训与考核", icon:"🎓",
+   text:"上级组织业务培训，结业还有考核。科室里有人想去有人想推，你怎么处理？",
+   opts:[
+     {t:"亲自参加，带头学习", d:"表率 · 能力+3 · 健康-1",
+      fn:s=>{s.能力+=3; s.健康=clamp(s.健康-1,0,100); pushLog("你带头参训，考核成绩不错，下面的人也不好意思偷懒。");}},
+     {t:"派业务骨干参加", d:"培养梯队 · 人脉+3",
+      fn:s=>{s.人脉+=3; pushLog("你把名额给了业务骨干，科室积极性起来了。");}},
+     {t:"按资历轮流派", d:"平衡 · 人脉+1 · 无过",
+      fn:s=>{s.人脉+=1; pushLog("按资历轮流，谁也说不出什么。");}},
+   ]},
+  {id:"rt_inspect",title:"日常检查与督导", icon:"🔍",
+   text:"按年初计划，本月要对你分管的几个单位开展例行检查。查深了得罪人，查浅了走过场。",
+   opts:[
+     {t:"严格检查，如实通报", d:"较真 · 治安+3 · 道德+2 · 人脉-2",
+      fn:s=>{s.治安=clamp(s.治安+3,0,100); s.道德+=2; s.人脉-=2;
+             pushLog("你查出几个真问题并如实通报，有人感激也有人记恨。");}},
+     {t:"重点抽查，给整改机会", d:"务实 · 治安+2 · 人脉+1",
+      fn:s=>{s.治安=clamp(s.治安+2,0,100); s.人脉+=1; pushLog("你抓了几个重点，给了整改期限，各方都能接受。");}},
+     {t:"按程序走完，留好记录", d:"留痕 · 政绩+2",
+      fn:s=>{s.政绩+=2; pushLog("你按程序完成检查，台账齐全，经得起查。");}},
+   ]},
+];
+
+/* 取一项常规政务工作 */
+function pickRoutineWork(){
+  const recent = S.近期常规 || [];
+  let pool = ROUTINE_WORKS.filter(w=>!recent.includes(w.id));
+  if(!pool.length){ pool = ROUTINE_WORKS.slice(); S.近期常规 = []; }
+  const w = pool[Math.floor(Math.random()*pool.length)];
+  S.近期常规 = [w.id].concat(recent).slice(0, 3);
+  return w;
+}
+
+/* ============================================================
+   岗位争夺 UI —— 晋升时自主选择要竞争的岗位
+   ============================================================ */
+
+/* 打开岗位选择界面（晋升前调用） */
+function openPostContest(onPicked){
+  const posts = contestedPosts();
+  if(!posts.length){ onPicked(null); return; }
+
+  const rivals = activeRivals();
+  const myPower = Math.round(playerPower());
+
+  const listHtml = posts.map((p, i)=>`
+    <button class="btn ${i===0?'primary':''}" data-contest="${i}"
+            style="${i===0?'':'border-left-color:#c9a227'}">
+      <span class="bt">${i===0?'⭐ ':''}${p.post}</span>
+      <span class="bd">
+        <span style="display:inline-block;background:#f0f0f0;border-radius:3px;
+                     padding:1px 5px;margin-right:6px;font-size:10px">${p.sys}</span>
+        <b style="color:${p.diffColor}">${p.diff}</b>
+        　竞争者 ${p.competitors} 人
+        ${p.rewardMultiplier>1?`　<span style="color:#2f7d4f">上位收益 ×${p.rewardMultiplier}</span>`:''}
+      </span>
+      <span class="bd" style="color:#8a8170;font-size:10px;margin-top:3px">
+        ${p.note || ''}
+      </span>
+    </button>`).join('');
+
+  const rivalHtml = rivals.length ? `
+    <div style="margin-top:14px;border-top:1px dashed #ddd;padding-top:10px">
+      <div class="mini" style="font-weight:700;color:#b01e23;margin-bottom:6px">
+        主要竞争者（${rivals.length} 人）
+      </div>
+      ${rivals.slice(0,4).map(r=>{
+        const P = rivalProfileText(r);
+        const gap = Math.round(rivalPower(r) - myPower);
+        const gapTxt = gap>0 ? `<span style="color:#b01e23">强于你 ${gap}</span>`
+                     : gap<0 ? `<span style="color:#2f7d4f">弱于你 ${-gap}</span>`
+                     : `<span style="color:#6b6354">与你相当</span>`;
+        return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;
+                            background:#faf8f2;border-radius:6px;padding:6px 8px">
+          <span style="font-size:16px">${P.attEmoji}</span>
+          <div style="flex:1">
+            <div style="font-size:12px;font-weight:700">${r.name}
+              <span style="font-weight:400;color:#8a8170;font-size:10px">
+                ${r.gender}·${r.age}岁 · ${P.bgName}
+              </span>
+            </div>
+            <div class="mini" style="font-size:10px">
+              <span style="color:${P.facColor}">${P.facName}</span> ·
+              <span style="color:${P.attColor}">${P.attName}</span> ·
+              竞争力 ${Math.round(rivalPower(r))}（${gapTxt}）
+            </div>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>` : `
+    <div style="margin-top:14px;border-top:1px dashed #ddd;padding-top:10px">
+      <div class="mini" style="color:#2f7d4f">
+        目前尚无有力的竞争者，此次晋升相对顺利。
+      </div>
+    </div>`;
+
+  openModal("🎯 选择竞争岗位", `
+    <div class="mini" style="line-height:1.8;margin-bottom:10px">
+      晋升在即，组织上将考察你的任职意向。<b>请选择一个想要竞争的岗位</b>——
+      不同岗位的竞争激烈程度不同，上位后的收益也不同。
+    </div>
+    <div style="background:#f7f4ec;border-radius:6px;padding:8px 10px;margin-bottom:12px">
+      <div class="mini"><b>你的竞争力：${myPower}</b>
+        （政绩 ${Math.round(S.政绩*0.30)} · 能力 ${Math.round(S.能力*0.22)}
+        · 人脉 ${Math.round(S.人脉*0.24)} · 上司 ${Math.round(S.上司好感*0.16)}
+        · 道德 ${Math.round(S.道德*0.08)}）</div>
+    </div>
+    ${listHtml}
+    ${rivalHtml}
+    <div class="mini" style="margin-top:10px;color:#8a8170;font-size:10px;line-height:1.6">
+      竞争结果由综合竞争力与临场表现共同决定，存在一定偶然性。
+      落选不会影响本次晋升，但会得罪胜出者。
+    </div>`);
+
+  document.querySelectorAll('[data-contest]').forEach(b=>{
+    b.onclick=()=>{
+      const p = posts[parseInt(b.dataset.contest,10)];
+      document.getElementById("modal").classList.remove("show");
+      onPicked(p);
+    };
+  });
+}
+
+/* 执行岗位争夺并展示结果 */
+function runPostContest(target, onDone){
+  if(!target){ onDone && onDone(); return; }
+  const result = resolveContest(target);
+  const P = result.topRival ? rivalProfileText(result.topRival) : null;
+
+  // 结果影响
+  let effectTxt = "";
+  if(result.win){
+    const bonus = Math.round(6 * target.rewardMultiplier);
+    S.政绩点 += bonus;
+    S.上司好感 += Math.round(4 * target.rewardMultiplier);
+    S.能力 += 2;
+    effectTxt = `你成功胜出，获得 <b>政绩点 +${bonus}</b>、<b>上司好感 +${Math.round(4*target.rewardMultiplier)}</b>、<b>能力 +2</b>。`;
+    pushLog(`🎯 岗位竞争中胜出，拿下【${target.post}】（竞争度：${target.diff}）。`);
+    addToast("🏆 竞争中胜出");
+    // 落败者记恨（participants 为对手对象数组，直接用 r）
+    (result.participants||[]).forEach(r=>{
+      if(!r) return;
+      r.relation = Math.max(-100, (r.relation||0) - 12);
+      if(r.relation < -40) r.attitude = "hostile";
+    });
+  } else {
+    S.人脉 -= 3;
+    effectTxt = `你以 <b>${Math.abs(result.margin)}</b> 分之差落选，<b>人脉 -3</b>。好在组织综合考虑后，仍给了你其他安排。`;
+    pushLog(`⚔️ 岗位竞争中落选：【${target.post}】由 ${result.topRival?result.topRival.name:"他人"} 获得。`);
+    addToast("💧 竞争落选");
+    if(result.topRival){
+      result.topRival.relation = Math.max(-100, (result.topRival.relation||0) - 8);
+    }
+  }
+  S.争夺记录 = S.争夺记录 || [];
+  S.争夺记录.unshift({
+    时间:`${S.year}年${S.month}月`,
+    岗位:target.post,
+    结果:result.win?"胜出":"落选",
+    我方:result.myScore,
+    对方:result.topScore,
+    对手:result.topRival?result.topRival.name:"—",
+  });
+  if(S.争夺记录.length>20) S.争夺记录.length = 20;
+
+  openModal(result.win ? "🏆 竞争结果：胜出" : "💧 竞争结果：落选", `
+    <div style="text-align:center;padding:6px 0">
+      <div style="font-size:34px">${result.win?'🏆':'💧'}</div>
+      <div style="font-size:15px;font-weight:700;color:${result.win?'#2f7d4f':'#b01e23'};margin-top:4px">
+        ${result.win?`拿下「${target.post}」`:`「${target.post}」旁落`}
+      </div>
+    </div>
+    <div style="margin-top:12px;background:#f7f4ec;border-radius:6px;padding:10px">
+      <div class="mini" style="line-height:1.9">
+        竞争岗位：<b>${target.post}</b>（${target.sys}）<br>
+        竞争程度：<b style="color:${target.diffColor}">${target.diff}</b>　竞争者 ${target.competitors} 人<br>
+        <span style="display:inline-block;width:100%;border-top:1px dashed #ddd;margin:6px 0"></span>
+        你的得分：<b>${result.myScore}</b><br>
+        最强对手：<b>${result.topRival?result.topRival.name:"—"}</b>
+        ${P?`（${P.bgName}·${P.facName}·${P.attName}）`:""}　得分 <b>${result.topScore}</b><br>
+        分差：<b style="color:${result.margin>=0?'#2f7d4f':'#b01e23'}">
+          ${result.margin>=0?'+':''}${result.margin}</b>
+      </div>
+    </div>
+    <div class="mini" style="margin-top:10px;line-height:1.8">${effectTxt}</div>
+    <button class="btn primary" id="ctOk" style="margin-top:12px">
+      <span class="bt">继续</span>
+    </button>`);
+  const ok = document.getElementById("ctOk");
+  if(ok) ok.onclick=()=>{
+    document.getElementById("modal").classList.remove("show");
+    onDone && onDone();
+  };
+  save();
 }
 
 

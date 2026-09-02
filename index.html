@@ -141,8 +141,8 @@ const RANKS = [
   ["乡镇副镇长 / 县局副局长","乡科级副职",140,38,"三级主任科员","部委副主任科员"],
   ["街道办副主任 / 乡镇党委副书记","乡科级副职",200,50,"二级主任科员","部委主任科员"],
   // ===== 第四级：乡科级正职（正科级·基层一把手）=====
-  ["乡镇长 / 县局局长","乡科级正职",270,62,"二级主任科员","部委主任科员"],
-  ["乡镇党委书记 / 县局党组书记","乡科级正职",350,74,"一级主任科员","部委主任科员"],
+  ["乡镇长 / 街道办主任 / 县局局长","乡科级正职",270,62,"二级主任科员","部委主任科员"],
+  ["乡镇党委书记 / 街道党工委书记 / 县局党组书记","乡科级正职",350,74,"一级主任科员","部委主任科员"],
   // ===== 第五级：县处级副职（副处级·县级实权分水岭）=====
   ["副县长","县处级副职",440,86,"四级调研员","副处长"],
   ["县委常委","县处级副职",540,98,"三级调研员","副处长（处务会成员）"],
@@ -191,6 +191,185 @@ const LAYER_GROUPS = {
   "省部级正职":  {label:"省部级正职",   color:"#a03440"},
   "国家级副职":  {label:"国家级副职",   color:"#7a2f8a"},
   "国家级正职":  {label:"国家级正职",   color:"#6a1f7a"},
+};
+
+/* ========== 2019年公务员法修订：新旧职级对照 ==========
+   旧「非领导职务」（巡视员/调研员/主任科员等）已废止，
+   统一套转为新的职级序列。 */
+const OLD_NEW_RANK_MAP = [
+  {old:"巡视员",     now:"一级巡视员 / 二级巡视员",   layer:"厅局级"},
+  {old:"副巡视员",   now:"二级巡视员",                 layer:"厅局级副职"},
+  {old:"调研员",     now:"一级调研员 / 二级调研员",   layer:"县处级正职"},
+  {old:"副调研员",   now:"三级调研员 / 四级调研员",   layer:"县处级副职"},
+  {old:"主任科员",   now:"一级主任科员 / 二级主任科员", layer:"乡科级正职"},
+  {old:"副主任科员", now:"三级主任科员 / 四级主任科员", layer:"乡科级副职"},
+  {old:"科员",       now:"一级科员",                   layer:"科员级"},
+  {old:"办事员",     now:"二级科员",                   layer:"科员级"},
+];
+
+/* ========== 职级序列的三大类别 ==========
+   综合管理类是最常见的，此外还有专业技术类与行政执法类。 */
+const RANK_CATEGORIES = {
+  comprehensive:{
+    name:"综合管理类", icon:"📋",
+    desc:"最常见的职级序列，共12级。",
+    seq:["一级巡视员","二级巡视员","一级调研员","二级调研员","三级调研员","四级调研员",
+         "一级主任科员","二级主任科员","三级主任科员","四级主任科员","一级科员","二级科员"],
+  },
+  professional:{
+    name:"专业技术类", icon:"🔬",
+    desc:"面向专业技术岗位，共11级（一级主管最高）。",
+    seq:["一级主管","二级主管","三级主管","四级主管","五级主管","六级主管",
+         "七级主管","八级主管","九级主管","十级主管","专业技术员"],
+  },
+  enforcement:{
+    name:"行政执法类", icon:"🛡️",
+    desc:"面向市场监管、生态环境、文化市场、交通运输、农业等综合执法队伍，共11级。",
+    seq:["一级主办","二级主办","三级主办","四级主办","五级主办","六级主办",
+         "七级主办","八级主办","九级主办","十级主办","一级行政执法员"],
+  },
+};
+
+/* ========== 军地级别对照 ==========
+   地方行政级别与军队级别的对应关系（大致对应，非严格法定换算）。 */
+const MILITARY_MAP = [
+  {local:"国家级正职",   military:"中央军委主席",                 note:"武装力量最高统帅，由总书记兼任"},
+  {local:"国家级副职",   military:"中央军委副主席 / 军委委员",     note:"军队系统最高副职"},
+  {local:"省部级正职",   military:"正军职（战区/军兵种正职）",     note:"如省军区司令员通常为正军职"},
+  {local:"省部级副职",   military:"副军职",                       note:"省军区司令员兼任省委常委时为副军职"},
+  {local:"厅局级正职",   military:"正师职",                       note:"如军分区司令员"},
+  {local:"厅局级副职",   military:"副师职 / 正旅职",               note:"—"},
+  {local:"县处级正职",   military:"正团职 / 副旅职",               note:"如县人武部部长"},
+  {local:"县处级副职",   military:"副团职",                       note:"—"},
+  {local:"乡科级正职",   military:"正营职",                       note:"—"},
+  {local:"乡科级副职",   military:"副营职",                       note:"—"},
+  {local:"科员级",       military:"连职 / 排职",                   note:"—"},
+];
+
+/* ========== 岗位职务全景库：同层级内的其他重要岗位 ==========
+   晋升阶梯只列出主线职务，此库补齐现实中同层级的其他重要岗位，
+   涵盖人大、政协、法检、公安、军队、高校、国企等系统。 */
+const POST_LIBRARY = {
+  "试用期":[
+    {post:"试用期公务员（见习办事员）", note:"刚考入体制，主要做杂务、写材料，无实权。", sys:"综合"},
+  ],
+  "科员级":[
+    {post:"科员", note:"写材料、跑腿、整理档案。", sys:"综合"},
+  ],
+  "股所级":[
+    {post:"副股长", note:"县直机关或乡镇街道内设机构副职，属机关内部管理岗位。", sys:"综合"},
+    {post:"股长 / 科室负责人", note:"县直机关内设股室、乡镇站所负责人。", sys:"综合"},
+    {post:"派出所所长 / 市场监管所所长（股所级）", note:"县局派出机构负责人。", sys:"公安/执法"},
+  ],
+  "乡科级副职":[
+    {post:"乡镇副镇长", note:"分管农业、民政、卫生等。", sys:"政府"},
+    {post:"县局副局长", note:"如县公安局副局长、县教育局副局长。", sys:"政府"},
+    {post:"街道办副主任", note:"城市基层治理。", sys:"政府"},
+    {post:"乡镇党委副书记 / 街道党工委副书记", note:"协助党委书记抓党务。", sys:"党委"},
+    {post:"乡镇纪委书记 / 街道纪工委书记", note:"基层纪检监察。", sys:"纪委"},
+    {post:"乡镇人武部部长", note:"兼任乡镇党委委员，负责武装工作。", sys:"军事"},
+    {post:"乡镇组织委员 / 宣传委员 / 统战委员", note:"基层党委分工委员。", sys:"党委"},
+  ],
+  "乡科级正职":[
+    {post:"乡镇长 / 街道办主任", note:"一乡（街）行政首脑。", sys:"政府"},
+    {post:"乡镇党委书记 / 街道党工委书记", note:"一乡（街）党务首脑，实权高于行政首脑。", sys:"党委"},
+    {post:"乡镇人大主席", note:"主持乡镇人大工作。", sys:"人大"},
+    {post:"县局局长", note:"如县公安局局长、县财政局局长。", sys:"政府"},
+    {post:"县局党组书记", note:"部门党务负责人。", sys:"党委"},
+    {post:"县法院副院长 / 县检察院副检察长", note:"基层法检副职。", sys:"法检"},
+  ],
+  "县处级副职":[
+    {post:"副县长", note:"分管工业、农业、城建等具体领域。", sys:"政府"},
+    {post:"县委常委", note:"进入县级核心决策圈。", sys:"党委"},
+    {post:"县纪委书记 / 县监委主任", note:"党风廉政与监察。⚠高配：机构正科级，个人副处级。", sys:"纪委"},
+    {post:"县委政法委书记", note:"政法、维稳、综治。⚠高配：机构正科级，个人副处级。", sys:"政法"},
+    {post:"县委组织部部长", note:"干部队伍建设与机构编制。", sys:"党委"},
+    {post:"县委宣传部部长", note:"意识形态、宣传文化、精神文明建设。", sys:"党委"},
+    {post:"县委统战部部长", note:"统一战线、民族宗教。", sys:"党委"},
+    {post:"县委办公室主任", note:"机关日常协调运转。", sys:"党委"},
+    {post:"常务副县长", note:"协助县长负责政府日常工作。", sys:"政府"},
+    {post:"县法院院长 / 县检察院检察长", note:"基层法检一把手。", sys:"法检"},
+    {post:"县公安局局长", note:"多由副县长兼任。", sys:"公安"},
+    {post:"县人武部部长 / 政委", note:"兼任县委常委，负责国防动员与民兵预备役。", sys:"军事"},
+  ],
+  "县处级正职":[
+    {post:"县长 / 区长 / 县级市长", note:"县政府首脑，主抓经济与民生。", sys:"政府"},
+    {post:"县委书记 / 区委书记 / 县级市委书记", note:"一县最高决策者。", sys:"党委"},
+    {post:"县人大常委会主任", note:"主持县级人大工作。", sys:"人大"},
+    {post:"县政协主席", note:"主持县级政协工作。", sys:"政协"},
+    {post:"经济开发区管委会主任（正处级）", note:"特殊经济功能区。", sys:"政府"},
+    {post:"省厅处长 / 市局局长", note:"省直部门内设处室或市直部门一把手。", sys:"政府"},
+    {post:"本科高校二级学院院长 / 党委书记", note:"高校中层（正处级）。", sys:"事业"},
+    {post:"市纪委副书记 / 市监委副主任", note:"地市级纪检监察副职。", sys:"纪委"},
+  ],
+  "厅局级副职":[
+    {post:"副市长", note:"分管若干委办局。", sys:"政府"},
+    {post:"市委常委", note:"进入地级市核心决策圈。", sys:"党委"},
+    {post:"市纪委书记 / 市监委主任", note:"地市级纪检监察一把手。", sys:"纪委"},
+    {post:"市委政法委书记", note:"⚠高配：机构按正科级核定，个人副厅级。", sys:"政法"},
+    {post:"市委组织部部长 / 宣传部部长 / 统战部部长", note:"地市级党委分工。", sys:"党委"},
+    {post:"常务副市长", note:"关键跳板，协助市长抓日常工作。", sys:"政府"},
+    {post:"市法院院长 / 市检察院检察长", note:"地市级法检一把手。", sys:"法检"},
+    {post:"市人大常委会副主任 / 市政协副主席", note:"地市级人大政协副职。", sys:"人大/政协"},
+    {post:"市公安局局长", note:"多由副市长兼任。", sys:"公安"},
+    {post:"省厅副厅长", note:"省直部门副职。", sys:"政府"},
+    {post:"本科高校副校长 / 党委副书记", note:"高校副职（副厅级）。", sys:"事业"},
+    {post:"市军分区司令员 / 政委", note:"兼任市委常委。", sys:"军事"},
+  ],
+  "厅局级正职":[
+    {post:"市长 / 区长（地级市辖区）", note:"地级市行政首脑。", sys:"政府"},
+    {post:"市委书记", note:"地级市最高决策者。", sys:"党委"},
+    {post:"市人大常委会主任", note:"主持市级人大工作。", sys:"人大"},
+    {post:"市政协主席", note:"主持市级政协工作。", sys:"政协"},
+    {post:"省厅厅长", note:"省直部门一把手。", sys:"政府"},
+    {post:"本科高校党委书记 / 校长", note:"省属本科高校一把手（正厅级）。", sys:"事业"},
+    {post:"省属国企董事长 / 总经理", note:"省属骨干企业正职。", sys:"国企"},
+    {post:"副部级高校常务副校长", note:"副部级高校的常务副职（正厅级）。", sys:"事业"},
+  ],
+  "省部级副职":[
+    {post:"副省长 / 直辖市副市长 / 自治区副主席", note:"分管若干厅局。", sys:"政府"},
+    {post:"省委常委", note:"进入省级核心决策圈。", sys:"党委"},
+    {post:"省纪委书记 / 省监委主任", note:"⚠高配：机构正厅级，个人副部级。", sys:"纪委"},
+    {post:"省委政法委书记", note:"⚠高配：机构正厅级，个人副部级。", sys:"政法"},
+    {post:"省委组织部部长 / 宣传部部长 / 统战部部长", note:"省级党委分工，均由省委常委兼任。", sys:"党委"},
+    {post:"省委副书记", note:"专职党务，是晋升省长的预备位置。", sys:"党委"},
+    {post:"省高级人民法院院长 / 省人民检察院检察长", note:"省级法检一把手（副省级）。", sys:"法检"},
+    {post:"省人大常委会副主任 / 省政协副主席", note:"省级人大政协副职。", sys:"人大/政协"},
+    {post:"省公安厅厅长", note:"多由副省长兼任。", sys:"公安"},
+    {post:"国务院部委副部长", note:"中央部委副职。", sys:"政府"},
+    {post:"副部级高校党委书记 / 校长", note:"31所中管高校一把手（副部级）。", sys:"事业"},
+    {post:"中管骨干央企董事长 / 总经理", note:"53家副部级央企正职。", sys:"国企"},
+    {post:"省军区司令员 / 政委", note:"兼任省委常委（副军级）。", sys:"军事"},
+  ],
+  "省部级正职":[
+    {post:"省长 / 直辖市市长 / 自治区主席", note:"一省行政首脑。", sys:"政府"},
+    {post:"省委书记 / 直辖市委书记 / 自治区党委书记", note:"一省最高决策者。", sys:"党委"},
+    {post:"省人大常委会主任", note:"主持省级人大工作。", sys:"人大"},
+    {post:"省政协主席", note:"主持省级政协工作。", sys:"政协"},
+    {post:"中央部委部长 / 主任", note:"如国家发改委主任、公安部部长。", sys:"政府"},
+    {post:"国务院部委党组书记", note:"部委党务一把手。", sys:"党委"},
+  ],
+  "国家级副职":[
+    {post:"中共中央政治局委员", note:"党内最高议事机构成员。", sys:"党委"},
+    {post:"中央书记处书记", note:"主持中央书记处工作。", sys:"党委"},
+    {post:"国务委员", note:"分管国家某一领域，协助副总理工作。", sys:"政府"},
+    {post:"国家副主席", note:"协助国家主席工作，代表国家出席重要国际活动。", sys:"国家"},
+    {post:"国务院副总理", note:"协助总理分管若干部委。", sys:"政府"},
+    {post:"国家监察委员会主任", note:"反腐败与监察最高长官。", sys:"监察"},
+    {post:"最高人民法院院长 / 最高人民检察院检察长", note:"司法最高长官。", sys:"法检"},
+    {post:"中共中央军委副主席", note:"军队系统最高副职。", sys:"军事"},
+    {post:"全国人大常委会副委员长", note:"立法系统副职，地位尊崇。", sys:"人大"},
+    {post:"全国政协副主席", note:"协商系统副职，界别广泛。", sys:"政协"},
+  ],
+  "国家级正职":[
+    {post:"中共中央总书记", note:"党的最高领导，全党核心。兼国家主席、中央军委主席。", sys:"党委"},
+    {post:"中华人民共和国主席", note:"国家元首，由总书记兼任。", sys:"国家"},
+    {post:"国务院总理", note:"行政体系最高长官。", sys:"政府"},
+    {post:"全国人大常委会委员长", note:"立法体系最高代表。", sys:"人大"},
+    {post:"全国政协主席", note:"统战最高代表。", sys:"政协"},
+    {post:"中共中央军委主席", note:"武装力量最高统帅，由总书记兼任。", sys:"军事"},
+    {post:"中共中央政治局常委", note:"集体领导核心，每人分管一大领域。", sys:"党委"},
+  ],
 };
 
 /* ========== 机构建制 ≠ 个人级别：现实中的「高配」现象 ==========
@@ -247,27 +426,35 @@ const GRASSROOT_NOTE = "股长、副股长属『股所级』，不是《公务�
 
 /* 副国级方向分支（用户表第十一级：实权 / 荣誉 / 监察司法 / 军事） */
 const VICE_NATIONAL_PATHS = {
-  power:{
-    name:"实权副国", icon:"⚡",
-    desc:"进入中共中央政治局或国务院，分管国家某一领域，位高权重，但也深陷派系斗争的漩涡。",
-    titles:["国务委员","中共中央政治局委员","中共中央政治局委员 / 国务院副总理"],
+  party:{
+    key:"party", name:"党口实权", icon:"🔴",
+    desc:"进入中共中央政治局或中央书记处，参与党中央重大决策，是党内核心圈的成员。",
+    titles:["中央书记处书记","中共中央政治局委员 / 中央书记处书记","中共中央政治局委员"],
   },
-  honor:{
-    name:"荣誉副国", icon:"🏛️",
-    desc:"转任全国人大副委员长或全国政协副主席，地位尊崇、进退从容，但实权相对有限。",
-    titles:["全国政协副主席","全国人大副委员长","全国人大副委员长"],
+  admin:{
+    key:"admin", name:"行政实权", icon:"🏛️",
+    desc:"进入国务院序列，分管国家某一领域（经济、外交、农业等），掌握实际行政权柄。部分资深副国级转任国家副主席，代表国家出席重要国际活动。",
+    titles:["国务委员","国务院副总理","国家副主席"],
   },
   judicial:{
-    name:"监察司法", icon:"⚖️",
+    key:"judicial", name:"监察司法", icon:"⚖️",
     desc:"出任国家监察委员会主任、最高人民法院院长或最高人民检察院检察长，执掌反腐败与司法最高权柄。",
     titles:["最高人民检察院检察长","最高人民法院院长","国家监察委员会主任"],
   },
   military:{
-    name:"军事系统", icon:"🎖️",
+    key:"military", name:"军事系统", icon:"🎖️",
     desc:"出任中共中央军委副主席，进入军队系统最高层，走的是一条截然不同的晋升路径。",
     titles:["中共中央军委副主席","中共中央军委副主席","中共中央军委副主席"],
   },
+  honor:{
+    key:"honor", name:"荣誉监督", icon:"🏛️",
+    desc:"转任全国人大副委员长或全国政协副主席，地位尊崇、进退从容，但实权相对有限——非中共中央政治局委员的副国级，无法参与国家最高决策。",
+    titles:["全国政协副主席","全国人大副委员长","全国人大副委员长"],
+  },
 };
+
+/* 副国级关键提示：非政治局委员的副国级无法参与国家最高决策 */
+const VICE_NATIONAL_NOTE = "同为副国级，是否进入中共中央政治局，决定了能否参与国家最高决策。非政治局委员的副国级（如全国人大副委员长、全国政协副主席）地位尊崇，但不参与最高决策。";
 
 /* 正国级终极职位（用户表第十二级） */
 const TOP_NATIONAL_POSITIONS = {
@@ -1962,6 +2149,28 @@ function renderArchive(){
     </div>`;
   }
 
+  // 岗位全景卡片：显示同层级其他重要岗位
+  let postCard = "";
+  {
+    const curLayer = rankLayer(S.rank);
+    const peers = POST_LIBRARY[curLayer] || [];
+    if(peers.length){
+      postCard = `<div style="border-top:1px dashed #ddd;margin-top:8px;padding-top:8px">
+        <div class="mini"><b>📋 同层级其他重要岗位</b>（${curLayer} · 共${peers.length}个）</div>
+        <div style="margin-top:4px">
+          ${peers.slice(0,6).map(p=>`<div class="mini" style="margin-top:3px">
+            <b>${p.post}</b><span style="color:#888">（${p.sys}）</span>：${p.note}
+          </div>`).join("")}
+          ${peers.length>6?`<div class="mini" style="margin-top:3px;color:#888">……另有 ${peers.length-6} 个岗位</div>`:""}
+        </div>
+        <button class="btn" data-act="postbook" style="margin-top:8px">
+          <span class="bt">📖 查看完整体制内岗位职级手册</span>
+          <span class="bd">含全部层级岗位、新旧职级对照、三大职级类别、军地级别对照</span>
+        </button>
+      </div>`;
+    }
+  }
+
   let resume = `<div class="card">
     <div class="card-h">🪪 干部履历</div>
     <div class="card-b">
@@ -1993,6 +2202,7 @@ function renderArchive(){
       ${rotCard}
       ${buffCard}
       ${achCard}
+      ${postCard}
     </div>
   </div>`;
 
@@ -2000,6 +2210,7 @@ function renderArchive(){
   return resume + `<div class="card">
     <div class="card-h">📁 工作日志</div>
     <div class="card-b">${log||'<div class="muted">暂无记录</div>'}
+    <button class="btn" data-act="postbook" style="margin-top:12px"><span class="bt">📖 体制内岗位职级手册</span></button>
     <button class="btn" data-act="save" style="margin-top:12px"><span class="bt">💾 保存进度</span></button>
     <button class="btn" data-act="restart" style="border-left-color:#999"><span class="bt">🔄 重新开始</span></button>
     </div>
@@ -2065,6 +2276,7 @@ function bindActions(){
     b.onclick=()=>{ monthlySettlement(); renderTopbar(); renderMain('event'); addToast("进入下一个月"); };
   });
   document.querySelectorAll('[data-act="save"]').forEach(b=>{ b.onclick=()=>{save();addToast("进度已保存");};});
+  document.querySelectorAll('[data-act="postbook"]').forEach(b=>{ b.onclick=()=>{ openPostBook(); };});
   document.querySelectorAll('[data-act="restart"]').forEach(b=>{
     b.onclick=()=>{ if(confirm("确定重新开始？当前进度将丢失。")){localStorage.removeItem("qlp_top");location.reload();} }
   });
@@ -2117,6 +2329,80 @@ function flavorText(id){
     basic_science_breakthrough:"功成不必在我，功成必定有我。",
   };
   return m[id]||"你深吸一口气，继续投入工作。";
+}
+
+/* ---------- 7.34 体制内岗位职级手册 ---------- */
+function openPostBook(){
+  // 1) 按层级列出全部岗位
+  let libHtml = "";
+  const LAYER_ORDER = ["试用期","科员级","股所级","乡科级副职","乡科级正职","县处级副职","县处级正职",
+    "厅局级副职","厅局级正职","省部级副职","省部级正职","国家级副职","国家级正职"];
+  const curLayer = rankLayer(S.rank);
+  LAYER_ORDER.forEach(L=>{
+    const arr = POST_LIBRARY[L]; if(!arr || !arr.length) return;
+    const isCur = (L===curLayer);
+    libHtml += `<div style="margin-top:10px;border-left:3px solid ${isCur?'#b01e23':'#ccc'};padding-left:8px">
+      <div style="font-weight:700;color:${isCur?'#b01e23':'#444'}">${L}${isCur?' ← 你当前所在层级':''}</div>`;
+    arr.forEach(p=>{
+      libHtml += `<div class="mini" style="margin-top:3px">
+        <b>${p.post}</b><span style="color:#888">（${p.sys}）</span>：${p.note}</div>`;
+    });
+    libHtml += `</div>`;
+  });
+
+  // 2) 新旧职级对照
+  let mapHtml = OLD_NEW_RANK_MAP.map(m=>
+    `<div class="mini" style="margin-top:3px"><b>${m.old}</b> → <b style="color:#2f5a8a">${m.now}</b><span style="color:#888">　（${m.layer}）</span></div>`
+  ).join("");
+
+  // 3) 三大职级类别
+  let catHtml = Object.keys(RANK_CATEGORIES).map(k=>{
+    const C = RANK_CATEGORIES[k];
+    return `<div style="margin-top:8px">
+      <div><b>${C.icon} ${C.name}</b></div>
+      <div class="mini" style="color:#666">${C.desc}</div>
+      <div class="mini" style="margin-top:3px">${C.seq.join(' · ')}</div>
+    </div>`;
+  }).join("");
+
+  // 4) 军地对照
+  let milHtml = MILITARY_MAP.map(m=>
+    `<div class="mini" style="margin-top:3px"><b>${m.local}</b> ≈ <b style="color:#4a6b8a">${m.military}</b>${m.note&&m.note!=="—"?`<span style="color:#888">　${m.note}</span>`:""}</div>`
+  ).join("");
+
+  $("modalTitle").textContent = "📖 体制内岗位职级手册";
+  $("modalBody").innerHTML = `
+    <div class="event-text" style="text-indent:0;font-size:12px;line-height:1.9">
+      <div style="background:#f7f3e8;border-left:3px solid #b01e23;padding:8px 10px;margin-bottom:10px">
+        本手册按现实体制整理，涵盖<b>全部13个行政层次</b>的重要岗位、
+        <b>2019年公务员法修订前后的新旧职级对照</b>、
+        <b>三大职级类别</b>与<b>军地级别对照</b>。红色标记为你当前所在层级。
+      </div>
+
+      <div style="font-weight:700;margin-top:12px;color:#b01e23">一、各级岗位全景</div>
+      ${libHtml}
+
+      <div style="font-weight:700;margin-top:16px;color:#b01e23">二、新旧职级对照（2019年修订后）</div>
+      <div class="mini" style="color:#666;margin-bottom:4px">
+        旧「非领导职务」（巡视员、调研员、主任科员等）已废止，统一套转为新职级序列。
+      </div>
+      ${mapHtml}
+
+      <div style="font-weight:700;margin-top:16px;color:#b01e23">三、职级序列三大类别</div>
+      ${catHtml}
+
+      <div style="font-weight:700;margin-top:16px;color:#b01e23">四、军地级别对照</div>
+      <div class="mini" style="color:#666;margin-bottom:4px">
+        地方行政级别与军队级别的大致对应关系，非严格法定换算。
+      </div>
+      ${milHtml}
+
+      <div style="font-weight:700;margin-top:16px;color:#b01e23">五、副国级关键提示</div>
+      <div class="mini" style="color:#b01e23">${VICE_NATIONAL_NOTE}</div>
+    </div>
+    <button class="btn primary" id="pbClose" style="margin-top:14px">关闭</button>`;
+  $("modal").classList.add("show");
+  $("pbClose").onclick=()=>{ $("modal").classList.remove("show"); renderMain(curTab); };
 }
 
 /* ---------- 7.35 国家级方向选择（副国级分支 / 正国级终极职位）---------- */

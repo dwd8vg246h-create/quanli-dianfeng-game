@@ -131,50 +131,66 @@
 /* ---------- 1. 数据：晋升路线 ---------- */
 const RANKS = [
   // [领导职务(实职), 行政层次, 晋升所需政绩, 任职年限(月), 综合管理类职级(虚职), 中央部委对应职务]
-  // ===== 第一级：试用期人员（新手村）=====
+  // ===== 第一级：试用期人员 =====
   ["试用期公务员（见习办事员）","试用期",0,0,"未定级","试用期公务员"],
-  // ===== 第二级：科员级（基层办事层）=====
-  ["科员","科员级",20,6,"二级科员 / 一级科员","部委科员"],
-  ["副股长（业务小组负责人）","股所级",50,15,"二级科员 / 一级科员","—"],
-  ["股长 / 科室负责人","股所级",90,26,"一级科员 / 四级主任科员","—"],
-  // ===== 第三级：乡科级副职（副科级·基层实权起点）=====
-  ["乡镇副镇长 / 县局副局长","乡科级副职",140,38,"三级主任科员","部委副主任科员"],
-  ["街道办副主任 / 乡镇党委副书记","乡科级副职",200,50,"二级主任科员","部委主任科员"],
-  // ===== 第四级：乡科级正职（正科级·基层一把手）=====
-  ["乡镇长 / 街道办主任 / 县局局长","乡科级正职",270,62,"二级主任科员","部委主任科员"],
-  ["乡镇党委书记 / 街道党工委书记 / 县局党组书记","乡科级正职",350,74,"一级主任科员","部委主任科员"],
-  // ===== 第五级：县处级副职（副处级·县级实权分水岭）=====
-  ["副县长","县处级副职",440,86,"四级调研员","副处长"],
-  ["县委常委","县处级副职",540,98,"三级调研员","副处长（处务会成员）"],
-  ["县纪委书记 / 县政法委书记 / 县委宣传部长·统战部长","县处级副职",650,110,"三级调研员","副处长（专职常委）"],
-  ["常务副县长 / 县委副书记","县处级副职",770,122,"三级调研员","副处长（分管日常工作）"],
-  // ===== 第六级：县处级正职（正处级·县委书记/县长）=====
-  ["县长","县处级正职",900,134,"二级调研员","处长"],
-  ["县委书记","县处级正职",1040,146,"一级调研员","处长（一把手）"],
-  ["经济开发区管委会主任（正处级）","县处级正职",1190,158,"一级调研员","处长（派出机构）"],
-  // ===== 第七级：厅局级副职（副厅级·地级市领导）=====
-  ["副市长","厅局级副职",1350,170,"二级巡视员","副司长"],
-  ["市委常委","厅局级副职",1520,184,"二级巡视员","副司长（司务会成员）"],
-  ["市纪委书记 / 市委政法委书记 / 市委组织部长","厅局级副职",1700,198,"二级巡视员","副司长（专职常委）"],
-  ["常务副市长 / 市委副书记","厅局级副职",1890,212,"二级巡视员","副司长（分管日常工作）"],
-  // ===== 第八级：厅局级正职（正厅级·市委书记/市长）=====
-  ["市长","厅局级正职",2090,226,"一级巡视员","司长"],
-  ["市委书记","厅局级正职",2300,240,"一级巡视员","司长（一把手）"],
-  ["省厅厅长","厅局级正职",2520,256,"一级巡视员","司长（省直部门）"],
-  // ===== 第九级：省部级副职（副省级·省级领导）※无对应职级=====
-  ["副省长","省部级副职",2750,272,"十级至六级","副部长"],
-  ["省委常委","省部级副职",2990,288,"十级至六级","副部长（党组成员）"],
-  ["省委副书记 / 省纪委书记·政法委书记·组织部长","省部级副职",3240,306,"十级至六级","副部长（分管日常工作）"],
-  // ===== 第十级：省部级正职（正省级·封疆大吏）※无对应职级=====
-  ["省长","省部级正职",3500,324,"八级至四级","部长"],
-  ["省委书记 / 中央部委部长","省部级正职",3770,342,"八级至四级","部长（一把手）"],
-  // ===== 第十一级：国家级副职（副国级·党和国家领导人）=====
-  ["国务委员 / 全国政协副主席","国家级副职",4050,362,"四级至二级","国务委员"],
-  ["国务院副总理 / 中共中央政治局委员","国家级副职",4340,382,"四级至二级","国务院副总理"],
-  // ===== 第十二级：国家级正职（正国级·终极巅峰）=====
-  ["中共中央政治局常委","国家级正职",4640,404,"一级","中共中央政治局常委"],
-  ["中共中央政治局常委（正国级最高领导职务）","国家级正职",4950,428,"一级","中共中央政治局常委（正国级）"],
+  // ===== 第二级：科员级（职级晋升靠年限与资历）=====
+  ["科员","科员级",18,6,"二级科员 / 一级科员","部委科员"],
+  ["四级主任科员（业务骨干）","科员级",40,14,"四级主任科员","部委副主任科员"],
+  // ===== 股所级（非法定领导职务层次，县乡机关内部管理岗位）=====
+  ["副股长（业务小组负责人）","股所级",68,22,"一级科员 / 四级主任科员","—"],
+  ["股长 / 科室负责人","股所级",100,30,"一级科员 / 四级主任科员","—"],
+  // ===== 第三级：乡科级副职（基层实权起点）=====
+  ["乡镇副镇长 / 县局副局长","乡科级副职",138,40,"四级主任科员","部委副主任科员"],
+  ["街道办副主任 / 乡镇党委副书记","乡科级副职",180,50,"三级主任科员","部委副主任科员"],
+  ["乡镇纪委书记 / 组织委员·宣传委员·人武部长","乡科级副职",226,60,"三级主任科员","部委副主任科员"],
+  // ===== 第四级：乡科级正职（基层一把手）=====
+  ["乡镇长 / 街道办主任","乡科级正职",276,70,"二级主任科员","部委主任科员"],
+  ["乡镇党委书记 / 街道党工委书记","乡科级正职",330,80,"一级主任科员","部委主任科员"],
+  ["乡镇人大主席 / 县局局长","乡科级正职",388,90,"一级主任科员","部委主任科员"],
+  // ===== 第五级：县处级副职（县级实权分水岭）=====
+  ["副县长","县处级副职",450,100,"四级调研员","副处长"],
+  ["县委常委 / 县纪委书记·县政法委书记","县处级副职",516,110,"四级调研员","副处长（处务会成员）"],
+  ["县委组织部长 / 宣传部长 / 统战部长","县处级副职",586,120,"三级调研员","副处长（专职常委）"],
+  ["常务副县长","县处级副职",660,130,"三级调研员","副处长（分管日常工作）"],
+  ["县委副书记","县处级副职",738,142,"三级调研员","副处长（分管日常工作）"],
+  // ===== 第六级：县处级正职 =====
+  ["县长","县处级正职",820,154,"二级调研员","处长"],
+  ["县委书记","县处级正职",906,166,"一级调研员","处长（一把手）"],
+  ["县人大常委会主任 / 县政协主席（正处级）","县处级正职",996,178,"一级调研员","处长（一把手）"],
+  ["经济开发区管委会主任（正处级）","县处级正职",1090,190,"一级调研员","处长（派出机构）"],
+  // ===== 第七级：厅局级副职 =====
+  ["副市长","厅局级副职",1190,202,"二级巡视员","副司长"],
+  ["市委常委 / 市纪委书记·市委政法委书记","厅局级副职",1294,214,"二级巡视员","副司长（司务会成员）"],
+  ["市委组织部长 / 宣传部长 / 统战部长","厅局级副职",1402,226,"二级巡视员","副司长（专职常委）"],
+  ["常务副市长","厅局级副职",1514,238,"二级巡视员","副司长（分管日常工作）"],
+  ["市委副书记","厅局级副职",1630,250,"二级巡视员","副司长（分管日常工作）"],
+  ["市人大常委会副主任 / 市政协副主席（副厅级）","厅局级副职",1750,262,"二级巡视员","副司长"],
+  // ===== 第八级：厅局级正职 =====
+  ["市长","厅局级正职",1874,274,"一级巡视员","司长"],
+  ["市委书记","厅局级正职",2002,286,"一级巡视员","司长（一把手）"],
+  ["市人大常委会主任 / 市政协主席（正厅级）","厅局级正职",2134,298,"一级巡视员","司长（一把手）"],
+  ["省厅厅长","厅局级正职",2270,310,"一级巡视员","司长（省直部门）"],
+  // ===== 第九级：省部级副职 =====
+  ["副省长","省部级副职",2410,322,"十级至六级","副部长"],
+  ["省委常委 / 省纪委书记·省委政法委书记","省部级副职",2554,336,"十级至六级","副部长（党组成员）"],
+  ["省委组织部长 / 宣传部长 / 统战部长","省部级副职",2702,350,"十级至六级","副部长（专职常委）"],
+  ["省委副书记","省部级副职",2854,364,"十级至六级","副部长（分管日常工作）"],
+  ["省人大常委会副主任 / 省政协副主席（副省级）","省部级副职",3010,378,"十级至六级","副部长"],
+  // ===== 第十级：省部级正职 =====
+  ["省长","省部级正职",3170,392,"八级至四级","部长"],
+  ["省委书记","省部级正职",3334,408,"八级至四级","部长（一把手）"],
+  ["省人大常委会主任 / 省政协主席（正省级）","省部级正职",3502,424,"八级至四级","部长（一把手）"],
+  ["中央部委部长 / 主任","省部级正职",3674,440,"八级至四级","部长（一把手）"],
+  // ===== 第十一级：国家级副职（副国级）=====
+  ["国务委员 / 全国政协副主席","国家级副职",3850,458,"四级至二级","国务委员"],
+  ["国务院副总理 / 中共中央政治局委员","国家级副职",4030,476,"四级至二级","国务院副总理"],
+  ["国家副主席","国家级副职",4214,496,"四级至二级","国家副主席"],
+  // ===== 第十二级：国家级正职（正国级）=====
+  ["中共中央政治局常委","国家级正职",4402,516,"一级","中共中央政治局常委"],
+  ["中共中央总书记（兼国家主席、中央军委主席）","国家级正职",4594,538,"一级","中共中央总书记"],
 ];
+
+
 
 /* 行政层次分组（颜色用于界面区分） */
 const LAYER_GROUPS = {
@@ -192,6 +208,187 @@ const LAYER_GROUPS = {
   "国家级副职":  {label:"国家级副职",   color:"#7a2f8a"},
   "国家级正职":  {label:"国家级正职",   color:"#6a1f7a"},
 };
+
+/* ========== 一、衔级体系（独立于职级的等级序列）========== */
+
+/* 1. 人民警察警衔：五等十三级（《人民警察警衔条例》第七、八条） */
+const POLICE_RANKS = [
+  {rank:"总警监",   level:"一等一级", post:"部级正职",       grant:"国务院总理批准授予", desc:"授予正部级警官，如公安部部长、国家安全部部长。"},
+  {rank:"副总警监", level:"一等二级", post:"部级副职",       grant:"国务院总理批准授予", desc:"授予副部级警官，如公安部副部长，或由副省长兼任的省公安厅厅长。"},
+  {rank:"一级警监", level:"二等一级", post:"厅（局）级正职", grant:"国务院总理批准授予", desc:"正厅级警官，或专业技术高级。"},
+  {rank:"二级警监", level:"二等二级", post:"厅（局）级正职至副职", grant:"国务院总理批准授予", desc:"正厅级、副厅级警官，或专业技术高级。"},
+  {rank:"三级警监", level:"二等三级", post:"厅（局）级副职至处级正职", grant:"公安部部长批准授予", desc:"副厅级、正处级警官。地市级公安局长多为二级或三级警监。"},
+  {rank:"一级警督", level:"三等一级", post:"处级正职至科级正职", grant:"公安部部长批准授予", desc:"正处级、副处级、正科级警官。"},
+  {rank:"二级警督", level:"三等二级", post:"处级副职至科级副职", grant:"公安部部长批准授予", desc:"正处级至副科级警官。"},
+  {rank:"三级警督", level:"三等三级", post:"科级副职至科员", grant:"公安部部长批准授予", desc:"副处级至科员（警长）职。"},
+  {rank:"一级警司", level:"四等一级", post:"科级正职至办事员", grant:"省厅（局）长批准授予", desc:"正科级至办事员（警员）职。"},
+  {rank:"二级警司", level:"四等二级", post:"科级副职至办事员", grant:"省厅（局）长批准授予", desc:"副科级至办事员（警员）职。"},
+  {rank:"三级警司", level:"四等三级", post:"科员至办事员",   grant:"省厅（局）长批准授予", desc:"科员（警长）职至办事员（警员）职。"},
+  {rank:"一级警员", level:"五等一级", post:"办事员（警员）职", grant:"省厅政治部主任批准授予", desc:"新入职民警起步衔级。"},
+  {rank:"二级警员", level:"五等二级", post:"办事员（警员）职", grant:"省厅政治部主任批准授予", desc:"新入职民警起步衔级。"},
+];
+const POLICE_RANK_NOTE = "人民警察警衔设五等十三级；担任专业技术职务的人民警察，警衔前冠以『专业技术』（肩章版面为蓝灰色）。";
+
+/* 2. 法官等级：四等十二级（《法官法》第二十六条） */
+const JUDGE_RANKS = [
+  {rank:"首席大法官", post:"最高人民法院院长", note:"法定职位，由全国人大选举产生后即为首席大法官，无需另行批准。"},
+  {rank:"一级大法官", post:"最高人民法院副院长", note:"—"},
+  {rank:"二级大法官", post:"高级人民法院院长 / 最高法院审委会委员", note:"—"},
+  {rank:"一级高级法官", post:"高级法院副院长 / 最高法院庭长", note:"—"},
+  {rank:"二级高级法官", post:"中级法院院长 / 高级法院庭长", note:"—"},
+  {rank:"三级高级法官", post:"中级法院副院长 / 基层法院院长", note:"—"},
+  {rank:"四级高级法官", post:"基层法院副院长 / 中级法院庭长", note:"—"},
+  {rank:"一级法官",   post:"基层法院审委会委员 / 庭长", note:"—"},
+  {rank:"二级法官",   post:"基层法院副庭长 / 审判员", note:"—"},
+  {rank:"三级法官",   post:"审判员 / 助理审判员", note:"—"},
+  {rank:"四级法官",   post:"助理审判员", note:"—"},
+  {rank:"五级法官",   post:"初任法官", note:"—"},
+];
+const JUDGE_RANK_NOTE = "法官实行单独职务序列管理，共十二级。晋升采取『按期晋升』与『择优选升』相结合，特别优秀或一线办案岗位法官可『特别选升』。";
+
+/* 3. 检察官等级：与法官对称，四等十二级（《检察官法》） */
+const PROSECUTOR_RANKS = [
+  {rank:"首席大检察官", post:"最高人民检察院检察长", note:"—"},
+  {rank:"一级大检察官", post:"最高人民检察院副检察长", note:"—"},
+  {rank:"二级大检察官", post:"省级人民检察院检察长", note:"—"},
+  {rank:"一级高级检察官", post:"省级检察院副检察长", note:"—"},
+  {rank:"二级高级检察官", post:"市级检察院检察长", note:"—"},
+  {rank:"三级高级检察官", post:"市级检察院副检察长 / 基层检察长", note:"—"},
+  {rank:"四级高级检察官", post:"基层检察院副检察长", note:"—"},
+  {rank:"一级检察官", post:"检察委员会委员 / 检察员", note:"—"},
+  {rank:"二级检察官", post:"检察员", note:"—"},
+  {rank:"三级检察官", post:"检察员 / 助理检察员", note:"—"},
+  {rank:"四级检察官", post:"助理检察员", note:"—"},
+  {rank:"五级检察官", post:"初任检察官", note:"—"},
+];
+
+/* 4. 海关关衔：五等十三级（《海关关衔条例》） */
+const CUSTOMS_RANKS = [
+  {rank:"海关总监",   post:"署级正职"},
+  {rank:"海关副总监", post:"署级副职"},
+  {rank:"一级关务监督", post:"局级正职"},
+  {rank:"二级关务监督", post:"局级副职"},
+  {rank:"三级关务监督", post:"处级正职"},
+  {rank:"一级关务督察", post:"处级副职"},
+  {rank:"二级关务督察", post:"科级正职"},
+  {rank:"三级关务督察", post:"科级副职"},
+  {rank:"一级关务督办", post:"科员职"},
+  {rank:"二级关务督办", post:"科员职"},
+  {rank:"三级关务督办", post:"办事员职"},
+  {rank:"一级关务员", post:"办事员职"},
+  {rank:"二级关务员", post:"办事员职"},
+];
+
+/* ========== 二、民主党派与人民团体 ========== */
+const DEMOCRATIC_PARTIES = [
+  {name:"中国国民党革命委员会（民革）", abbr:"民革"},
+  {name:"中国民主同盟（民盟）", abbr:"民盟"},
+  {name:"中国民主建国会（民建）", abbr:"民建"},
+  {name:"中国民主促进会（民进）", abbr:"民进"},
+  {name:"中国农工民主党（农工党）", abbr:"农工党"},
+  {name:"中国致公党（致公党）", abbr:"致公党"},
+  {name:"九三学社", abbr:"九三学社"},
+  {name:"台湾民主自治同盟（台盟）", abbr:"台盟"},
+];
+const PEOPLE_ORGS = [
+  {name:"中华全国工商业联合会", abbr:"工商联", level:"全国工商联主席多为副国级（全国政协副主席）"},
+  {name:"中华全国总工会", abbr:"全总", level:"党组书记多为副国级"},
+  {name:"中国共产主义青年团中央委员会", abbr:"共青团中央", level:"团中央书记处第一书记为正部级"},
+  {name:"中华全国妇女联合会", abbr:"全国妇联", level:"党组书记多为副国级"},
+  {name:"中国科学技术协会", abbr:"中国科协", level:"党组书记为正部级"},
+  {name:"中华全国归国华侨联合会", abbr:"中国侨联", level:"主席多为副国级"},
+  {name:"中国文学艺术界联合会", abbr:"中国文联", level:"党组书记为正部级"},
+  {name:"中国作家协会", abbr:"中国作协", level:"党组书记为正部级"},
+  {name:"中华全国台湾同胞联谊会", abbr:"全国台联", level:"—"},
+  {name:"中国残疾人联合会", abbr:"中国残联", level:"—"},
+  {name:"中国红十字会", abbr:"红十字会", level:"—"},
+  {name:"中国国际贸易促进委员会", abbr:"贸促会", level:"会长为正部级"},
+];
+const PARTY_ORG_NOTE = "八个民主党派的中央主席，通常由全国人大常委会副委员长或全国政协副主席（副国级）担任；地方组织主委相应由同级人大副主任或政协副主席兼任。";
+
+/* ========== 三、事业单位岗位等级（《事业单位岗位设置管理试行办法》）========== */
+const INSTITUTION_POSTS = {
+  manage:{
+    name:"管理岗位", icon:"🏢", levels:"10个等级（一至十级职员）",
+    desc:"事业单位现行的部级正职、部级副职、厅级正职、厅级副职、处级正职、处级副职、科级正职、科级副职、科员、办事员，依次对应管理岗位一至十级职员。",
+    map:[
+      {grade:"一级职员", post:"部级正职"},
+      {grade:"二级职员", post:"部级副职"},
+      {grade:"三级职员", post:"厅级正职"},
+      {grade:"四级职员", post:"厅级副职"},
+      {grade:"五级职员", post:"处级正职"},
+      {grade:"六级职员", post:"处级副职"},
+      {grade:"七级职员", post:"科级正职"},
+      {grade:"八级职员", post:"科级副职"},
+      {grade:"九级职员", post:"科员"},
+      {grade:"十级职员", post:"办事员"},
+    ],
+  },
+  professional:{
+    name:"专业技术岗位", icon:"🔬", levels:"13个等级",
+    desc:"高级岗位七级（一至七级，其中一至四级为正高级、五至七级为副高级）；中级岗位三级（八至十级）；初级岗位三级（十一至十三级，十三级为员级岗位）。",
+    map:[
+      {grade:"一至四级", post:"正高级（教授、研究员、主任医师等）"},
+      {grade:"五至七级", post:"副高级（副教授、副研究员、副主任医师等）"},
+      {grade:"八至十级", post:"中级（讲师、助理研究员、主治医师等）"},
+      {grade:"十一至十二级", post:"初级·助理级（助教、研究实习员等）"},
+      {grade:"十三级", post:"初级·员级"},
+    ],
+  },
+  skill:{
+    name:"工勤技能岗位", icon:"🔧", levels:"技术工5个等级 + 普通工",
+    desc:"技术工岗位分为一至五级（高级技师、技师、高级工、中级工、初级工）；普通工岗位不分等级。",
+    map:[
+      {grade:"一级", post:"高级技师"},
+      {grade:"二级", post:"技师"},
+      {grade:"三级", post:"高级工"},
+      {grade:"四级", post:"中级工"},
+      {grade:"五级", post:"初级工"},
+      {grade:"普通工", post:"不分等级"},
+    ],
+  },
+};
+
+/* ========== 四、垂直管理系统（中央或省级垂直管理，层级与地方不完全对应）========== */
+const VERTICAL_SYSTEMS = [
+  {
+    name:"税务系统", icon:"💰",
+    desc:"国家税务总局（正部级）→ 省税务局（正厅级）→ 市税务局（正处级）→ 县税务局（正科级）。实行国家税务总局垂直管理。",
+    chain:["国家税务总局局长（正部级）","省税务局局长（正厅级）","市税务局局长（正处级）","县税务局局长（正科级）"],
+    note:"县税务局虽在县域内，但人事财务由上级税务部门垂直管理，与县政府是配合关系而非隶属关系。",
+  },
+  {
+    name:"海关系统", icon:"🚢",
+    desc:"海关总署（正部级）→ 直属海关（正厅级，如广州海关）→ 隶属海关（正处级或副处级）。实行海关总署垂直管理，配关衔。",
+    chain:["海关总署署长（正部级·海关总监）","直属海关关长（正厅级·一级关务监督）","隶属海关关长（处级·关务督察）"],
+    note:"关衔与警衔同属衔级体系，五等十三级。",
+  },
+  {
+    name:"金融监管系统", icon:"🏦",
+    desc:"国家金融监督管理总局（正部级）→ 省监管局（正厅级）→ 市监管分局（正处级）。实行垂直管理。",
+    chain:["总局局长（正部级）","省监管局局长（正厅级）","市监管分局局长（正处级）"],
+    note:"原银保监会体系改革而来，与地方金融监管局分工协作。",
+  },
+  {
+    name:"统计系统", icon:"📊",
+    desc:"国家统计局（正部级）→ 省调查总队（正厅级）→ 市调查队。调查队伍实行垂直管理。",
+    chain:["国家统计局局长（正部级）","省调查总队总队长（正厅级）","市调查队队长（处级）"],
+    note:"统计数据垂直采集，减少地方干预。",
+  },
+  {
+    name:"气象系统", icon:"🌦️",
+    desc:"中国气象局（副部级，国务院直属事业单位）→ 省气象局（正厅级）→ 市气象局（处级）。",
+    chain:["中国气象局局长（副部级）","省气象局局长（正厅级）","市气象局局长（处级）"],
+    note:"气象部门实行中国气象局与地方政府双重领导、以气象局为主的体制。",
+  },
+  {
+    name:"国家安全系统", icon:"🛡️",
+    desc:"国家安全部（正部级）→ 省国家安全厅（正厅级）。实行垂直管理，配警衔。",
+    chain:["国家安全部部长（正部级·总警监）","省国家安全厅厅长（正厅级·一级警监）"],
+    note:"国家安全机关人民警察同样授予警衔，执行《人民警察警衔条例》。",
+  },
+];
+const VERTICAL_NOTE = "垂直管理系统的机构层级与地方同级政府不完全对应：县税务局局长与县教育局局长虽都在县城，但前者由上级税务部门任命，后者由县政府任命。";
 
 /* ========== 2019年公务员法修订：新旧职级对照 ==========
    旧「非领导职务」（巡视员/调研员/主任科员等）已废止，
@@ -456,6 +653,53 @@ const VICE_NATIONAL_PATHS = {
 /* 副国级关键提示：非政治局委员的副国级无法参与国家最高决策 */
 const VICE_NATIONAL_NOTE = "同为副国级，是否进入中共中央政治局，决定了能否参与国家最高决策。非政治局委员的副国级（如全国人大副委员长、全国政协副主席）地位尊崇，但不参与最高决策。";
 
+/* ========== 五、现实中的干部晋升规则（《党政领导干部选拔任用工作条例》）========== */
+const PROMOTION_RULES = {
+  principles:[
+    {t:"逐级提拔", d:"党政领导干部一般应当逐级提拔。越级提拔的，应当报经上级组织（人事）部门同意。"},
+    {t:"破格提拔", d:"特别优秀或者工作特殊需要的干部，可以突破任职资格规定或者越级提拔担任领导职务。破格提拔的特别优秀干部，应当德才素质突出、群众公认度高。"},
+    {t:"党管干部", d:"选拔任用党政领导干部，必须坚持党管干部原则，把政治标准放在首位。"},
+    {t:"凡提四必", d:"干部档案必审、个人有关事项报告必核、纪检监察机关意见必听、线索具体的信访举报必查。"},
+  ],
+  qualifications:[
+    {t:"工龄与基层经历", d:"提任县处级领导职务的，应当具有五年以上工龄和两年以上基层工作经历。"},
+    {t:"下一级职位经历", d:"提任县处级以上领导职务的，一般应当具有在下一级两个以上职位任职的经历。"},
+    {t:"副职提正职", d:"由副职提任正职的，应当在副职岗位工作两年以上。"},
+    {t:"下级正职提上级副职", d:"由下级正职提任上级副职的，应当在下级正职岗位工作三年以上。"},
+    {t:"文化程度", d:"一般应当具有大学专科以上文化程度，其中厅局级以上领导干部一般应当具有大学本科以上文化程度。"},
+    {t:"培训要求", d:"应当经过党校（行政学院）、干部学院或者组织（人事）部门认可的其他培训机构的培训，培训时间应当达到干部教育培训的有关规定要求。"},
+  ],
+  procedures:[
+    {t:"① 分析研判和动议", d:"组织（人事）部门综合分析研判，提出启动干部选拔任用工作意见。"},
+    {t:"② 民主推荐", d:"包括谈话调研推荐和会议推荐，推荐结果作为选拔任用的重要参考。"},
+    {t:"③ 考察", d:"考察拟任人选，全面考察其德、能、勤、绩、廉，注重考察工作实绩。"},
+    {t:"④ 讨论决定", d:"按照干部管理权限由党委（党组）集体讨论作出任免决定。"},
+    {t:"⑤ 任职", d:"实行任职前公示制度（公示期不少于五个工作日）和任职试用期制度。"},
+  ],
+  probation:{
+    t:"任职试用期", d:"提拔担任非选举产生的厅局级以下领导职务的，试用期为一年。试用期满后经考核胜任现职的，正式任职；不胜任的，免去试任职务，一般按试任前职级安排工作。",
+  },
+  avoidance:[
+    {t:"任职回避", d:"党政领导干部有夫妻关系、直系血亲关系、三代以内旁系血亲以及近姻亲关系的，不得在同一机关担任双方直接隶属于同一领导人员的职务或者有直接上下级领导关系的职务。"},
+    {t:"地域回避", d:"担任县（市）委书记、县（市）长职务以及县（市）纪检机关、组织部门、人民法院、人民检察院和公安部门主要领导职务的，一般不得在本人成长地担任。"},
+    {t:"选拔回避", d:"党委（党组）及其组织（人事）部门讨论干部任免，涉及与会人员本人及其亲属的，本人必须回避。"},
+  ],
+  retirement:{
+    t:"退休与任期", d:"党政领导干部职务实行任期制。厅局级以下领导职务一般应当任满一届（五年），任期内应当保持稳定。省部级正职一般不超过65周岁，省部级副职一般不超过60周岁。",
+  },
+};
+
+/* 现实晋升年限门槛（月）——用于游戏内晋升判定的现实校验 */
+const REAL_PROMOTION_YEARS = {
+  viceToZheng:24,        // 副职提任正职：副职岗位工作满2年（24个月）
+  lowerZhengToUpperVice:36, // 下级正职提任上级副职：下级正职岗位满3年（36个月）
+  countyLevel:{
+    工龄:60,             // 提任县处级：5年以上工龄（60个月）
+    基层经历:24,         // 2年以上基层工作经历（24个月）
+  },
+};
+
+
 /* 正国级终极职位（用户表第十二级） */
 const TOP_NATIONAL_POSITIONS = {
   general_secretary:{
@@ -528,7 +772,7 @@ function rankTitle(rank){
   if(S && S.natPath && S.natPath.vice && r[1]==="国家级副职"){
     const P = VICE_NATIONAL_PATHS[S.natPath.vice];
     if(P){
-      const viceIdx = ["国务委员 / 全国政协副主席","国务院副总理 / 中共中央政治局委员"].indexOf(r[0]);
+      const viceIdx = ["国务委员 / 全国政协副主席","国务院副总理 / 中共中央政治局委员","国家副主席"].indexOf(r[0]);
       if(viceIdx>=0 && P.titles[viceIdx]) return P.titles[viceIdx];
     }
   }
@@ -905,8 +1149,8 @@ function newGame(opts){
     // 按《新录用公务员任职定级规定》转正定级：
     // 本科=一级科员 · 硕士=四级主任科员 · 博士=二级主任科员
     // 索引按职级序列准确对应（股所级插入后已重算）
-    if(edu==="博士"){ startRank = 6; }        // 二级主任科员（对应乡科级正职待遇档）
-    else if(edu==="硕士"){ startRank = 3; }    // 四级主任科员（对应股长档）
+    if(edu==="博士"){ startRank = 9; }        // 二级主任科员 → 乡镇党委书记档（正科级）
+    else if(edu==="硕士"){ startRank = 5; }    // 四级主任科员 → 乡镇副镇长档（副科级）
     else { startRank = 1; }                    // 一级科员（科员级）
     start政绩 = 40; start上司 = 45; start人脉 = 25; start道德 = 65; // 高起点
   } else if(mode==="grassroots"){
@@ -939,6 +1183,7 @@ function newGame(opts){
     dunmiaoMonths:0,        // 已墩苗月数（满24则触发回流）
     returned:false,         // 是否已回流部委
     archive:false,          // 专项培养档案（选调生）
+    基层月数:0,              // 基层工作经历（月）提任县处级需满24个月
     natPath:{},              // 国家级方向：{vice:'power|honor|judicial|military', top:'...'}
     dept:null,              // 所属中央部委（回流后选定）：ndrc/mof/mfa/zzb/miit/mee
     deptCd:{},              // 部委专属技能冷却：{技能id:剩余月数}
@@ -1073,7 +1318,10 @@ function monthlySettlement(){
     S.民生 = clamp(S.民生 + 0.5, 0, 100);
     S.治安 = clamp(S.治安 + 0.5, 0, 100);
   }
-  S.健康 = clamp(S.健康 - (S.rank>=15?0:1) - (S.健康>90?0:0), 0, 100);
+  // 基层工作经历累积：县处级副职（索引11）以下岗位计入基层经历
+  if(!S.基层月数) S.基层月数 = 0;
+  if(S.rank < 11){ S.基层月数 += 1; }
+  S.健康 = clamp(S.健康 - (S.rank>=20?0:1) - (S.健康>90?0:0), 0, 100);
   // 指标缓慢回归
   const drift=(cur,target)=> cur + (target-cur)*0.03;
   S.生态=clamp(drift(S.生态,65),0,100);
@@ -1115,6 +1363,19 @@ function promotionStatus(){
   const routeBonus = S.route==='youth'? 0.85 : 1;
   const needMonths = Math.round(need[3] * routeBonus);
   const 廉政达标 = S.route==='discipline' && (S.廉政积分||0)>=30;
+  // ===== 现实规则：破格提拔 =====
+  // 特别优秀（政绩远超标准 + 能力出众 + 道德过硬）可突破任职资格规定
+  const 政绩溢出 = S.政绩 / (need[2]||1);
+  const 破格候选 = 政绩溢出>=1.5 && S.能力>=75 && S.道德>=60;
+  const 年限缺口 = Math.max(0, needMonths - months);
+  // 破格最多可免除 40% 的年限要求
+  const 破格OK = 破格候选 && (months >= Math.ceil(needMonths*0.6));
+  // ===== 现实规则：基层工作经历（提任县处级需2年以上）=====
+  const 目标层次 = need[1];
+  const 需要基层经历 = ["县处级副职","县处级正职","厅局级副职","厅局级正职",
+                     "省部级副职","省部级正职","国家级副职","国家级正职"].includes(目标层次);
+  const 基层月数 = S.基层月数 || 0;
+  const 基层OK = !需要基层经历 || 基层月数>=REAL_PROMOTION_YEARS.countyLevel.基层经历;
   return {
     need, months, needMonths,
     政绩OK: S.政绩>=need[2],
@@ -1122,6 +1383,7 @@ function promotionStatus(){
     道德OK: S.道德>=30,
     上司OK: (S.上司好感>=40) || 廉政达标,
     廉政达标,
+    破格候选, 破格OK, 年限缺口, 需要基层经历, 基层OK, 基层月数,
     nextTitle: rankTitle(Math.min(S.rank+1, RANKS.length-1)),
     nextLayer: rankLayer(Math.min(S.rank+1, RANKS.length-1)),
   };
@@ -1136,10 +1398,19 @@ function checkPromotion(){
   const needMonths = Math.round(req年限 * routeBonus);
   const cond1=S.政绩>=req政绩, cond2=months>=needMonths, cond3=S.道德>=30, cond4=S.上司好感>=40;
   // 纪检政法路线：廉政积分达标可突破"上司好感"门槛（反腐干部口碑加成）
+  const ps = promotionStatus();
+  // 破格提拔：年限未达标但符合条件时，允许放行（现实：特别优秀可突破任职资格规定）
+  const cond2Final = cond2 || (ps && ps.破格OK && ps.基层OK);
   const routeCond = S.route==='discipline' ? (S.廉政积分>=30 || S.上司好感>=40) : true;
   const finalCond4 = S.route==='discipline' ? (S.上司好感>=40 || S.廉政积分>=30) : cond4;
-  if(cond1&&cond2&&cond3&&finalCond4){
-    if(S.rank===9 && !S.route){
+  // 基层工作经历不达标则无法晋升（现实：提任县处级需2年以上基层经历）
+  const finalCond5 = ps ? ps.基层OK : true;
+  if(cond1&&cond2Final&&cond3&&finalCond4&&finalCond5){
+    // 破格提拔提示（现实：特别优秀可突破任职资格规定）
+    if(!cond2 && cond2Final){
+      pushLog(`【破格提拔】你的政绩与能力特别突出，经组织批准突破任职资格年限规定，提前晋升（仍需基层经历达标）。`);
+    }
+    if(S.rank===12 && !S.route){
       // 选调生 / 基层扎根模式：不强制在县委常委节点选传统四路线，各自有专属路径
       if(S.mode==='selective' || S.mode==='grassroots'){
         S.route = (S.mode==='selective') ? 'admin' : 'party'; // 给一个默认归属，不影响玩法
@@ -1182,12 +1453,12 @@ function doPromote(){
   }
   save();
   // ==== 进入政治局常委会（正国级）：由中央委员会全体会议选举产生 ====
-  if(S.rank===29){
+  if(S.rank===42){
     addToast("🌟 当选中共中央政治局常委");
     pushLog("党的全国代表大会闭幕后，中央委员会全体会议选举你为中共中央政治局常务委员会委员——你由此进入党和国家最高领导集体，成为正国级领导人。");
   }
   // ==== 副国级方向选择（晋升至首个国家级副职时触发）====
-  if(S.rank===27){
+  if(S.rank===39){
     S.natPath = S.natPath || {};
     if(!S.natPath.vice){
       save();
@@ -1874,7 +2145,7 @@ function pickEvent(){
       else if(S.route==='party' && e.id==='promotion_eval') w=3;
       else if(S.route==='admin' && (e.id==='invest'||e.id==='economic_pressure')) w=3;
       else if(S.route==='youth' && (e.id==='school'||e.id==='promotion_eval')) w=2.5;
-      if(S.rank>=15 && (e.id==='economic_pressure'||e.id==='national_plan'||e.id==='corruption_case')) w=2.5;
+      if(S.rank>=20 && (e.id==='economic_pressure'||e.id==='national_plan'||e.id==='corruption_case')) w=2.5;
       if(S.mode==='selective'){
         if(e.route==='selective') w=(e.weight||3)*2;
         if(S.dunmiao && e.id==='sel_dunmiao') w=8;
@@ -2047,6 +2318,8 @@ function pAction(){
             现任：${rankTitle(S.rank)}（${rankLayer(S.rank)}${rankGrade(S.rank)!=="—"?" · "+rankGrade(S.rank):""}）
             ${rankLayer(S.rank)==="股所级"?`<div style="color:#8a6a35;margin-top:3px">⚠ 股所级不是《公务员法》规定的领导职务层次，属县乡机关内部管理岗位。</div>`:""}
             ${highProfileNote(rankTitle(S.rank))?`<div style="color:#b01e23;margin-top:3px">⚠ 高配岗位：${highProfileNote(rankTitle(S.rank)).organ}建制为${highProfileNote(rankTitle(S.rank)).organLevel}，因${highProfileNote(rankTitle(S.rank)).reason}，个人为${highProfileNote(rankTitle(S.rank)).personLevel}。</div>`:""}
+            ${(ps&&ps.需要基层经历)?`<div style="color:#35618a;margin-top:3px">🏛 基层工作经历：<b>${ps.基层月数}</b> / ${REAL_PROMOTION_YEARS.countyLevel.基层经历} 个月${ps.基层OK?' ✓':' ✗（提任县处级以上须满2年）'}</div>`:""}
+            ${(ps&&ps.破格候选)?`<div style="color:#b01e23;margin-top:3px">⭐ 符合破格提拔条件（政绩超出标准1.5倍、能力≥75、道德≥60）</div>`:""}
           </div>
         </div>
       </div>`;
@@ -2192,7 +2465,7 @@ function renderArchive(){
       </div>
       ${(S.natPath&&(S.natPath.vice||S.natPath.top))?`<div style="border-top:1px dashed #ddd;margin-top:8px;padding-top:8px">
         <div class="mini"><b>🏛️ 国家级方向</b></div>
-        ${S.natPath.vice?`<div class="mini" style="margin-top:4px">副国级：<b>${VICE_NATIONAL_PATHS[S.natPath.vice].name}</b>${S.natPath.vice==='power'?'（需承担派系斗争风险）':S.natPath.vice==='honor'?'（安全但实权稍弱）':''}</div>`:""}
+        ${S.natPath.vice?`<div class="mini" style="margin-top:4px">副国级：<b>${VICE_NATIONAL_PATHS[S.natPath.vice].name}</b>${(S.natPath.vice==='party'||S.natPath.vice==='admin')?'（实权路径，需承担派系风险）':S.natPath.vice==='honor'?'（安全但实权稍弱）':''}</div>`:""}
         ${S.natPath.top?`<div class="mini" style="margin-top:4px">正国级最高职务（常委第${TOP_NATIONAL_POSITIONS[S.natPath.top].seat}位）：<b>${TOP_NATIONAL_POSITIONS[S.natPath.top].icon} ${TOP_NATIONAL_POSITIONS[S.natPath.top].name}</b></div>
         <div class="mini" style="margin-top:3px;color:#666">完整头衔：${TOP_NATIONAL_POSITIONS[S.natPath.top].fullTitle}</div>
         ${TOP_NATIONAL_POSITIONS[S.natPath.top].concurrent.length?`<div class="mini" style="margin-top:3px;color:#b01e23">兼任：${TOP_NATIONAL_POSITIONS[S.natPath.top].concurrent.join('、')}</div>`:""}
@@ -2374,9 +2647,11 @@ function openPostBook(){
   $("modalBody").innerHTML = `
     <div class="event-text" style="text-indent:0;font-size:12px;line-height:1.9">
       <div style="background:#f7f3e8;border-left:3px solid #b01e23;padding:8px 10px;margin-bottom:10px">
-        本手册按现实体制整理，涵盖<b>全部13个行政层次</b>的重要岗位、
-        <b>2019年公务员法修订前后的新旧职级对照</b>、
-        <b>三大职级类别</b>与<b>军地级别对照</b>。红色标记为你当前所在层级。
+        本手册按现实体制整理，共<b>十个部分</b>：各级岗位全景 · 新旧职级对照 ·
+        职级三大类别 · 军地级别对照 · <b>衔级体系</b>（警衔/法官/检察官/关衔）·
+        <b>民主党派与人民团体</b> · <b>事业单位岗位等级</b> ·
+        <b>垂直管理系统</b> · <b>干部晋升规则</b> · 副国级提示。
+        红色标记为你当前所在层级。
       </div>
 
       <div style="font-weight:700;margin-top:12px;color:#b01e23">一、各级岗位全景</div>
@@ -2397,7 +2672,58 @@ function openPostBook(){
       </div>
       ${milHtml}
 
-      <div style="font-weight:700;margin-top:16px;color:#b01e23">五、副国级关键提示</div>
+      <div style="font-weight:700;margin-top:16px;color:#b01e23">五、衔级体系（独立于职级的等级序列）</div>
+      <div style="margin-top:6px"><b>🛡️ 人民警察警衔（五等十三级）</b></div>
+      <div class="mini" style="color:#666">${POLICE_RANK_NOTE}</div>
+      ${POLICE_RANKS.map(p=>`<div class="mini" style="margin-top:2px"><b>${p.rank}</b>（${p.level}）→ ${p.post}</div>`).join("")}
+      <div style="margin-top:8px"><b>⚖️ 法官等级（四等十二级）</b></div>
+      <div class="mini" style="color:#666">${JUDGE_RANK_NOTE}</div>
+      ${JUDGE_RANKS.map(p=>`<div class="mini" style="margin-top:2px"><b>${p.rank}</b> → ${p.post}</div>`).join("")}
+      <div style="margin-top:8px"><b>🔍 检察官等级（四等十二级）</b></div>
+      ${PROSECUTOR_RANKS.map(p=>`<div class="mini" style="margin-top:2px"><b>${p.rank}</b> → ${p.post}</div>`).join("")}
+      <div style="margin-top:8px"><b>🚢 海关关衔（五等十三级）</b></div>
+      ${CUSTOMS_RANKS.map(p=>`<div class="mini" style="margin-top:2px"><b>${p.rank}</b> → ${p.post}</div>`).join("")}
+
+      <div style="font-weight:700;margin-top:16px;color:#b01e23">六、民主党派与人民团体</div>
+      <div class="mini" style="color:#666">${PARTY_ORG_NOTE}</div>
+      <div style="margin-top:4px"><b>八个民主党派</b></div>
+      <div class="mini" style="margin-top:2px">${DEMOCRATIC_PARTIES.map(p=>p.abbr).join(' · ')}</div>
+      <div style="margin-top:6px"><b>主要人民团体</b></div>
+      ${PEOPLE_ORGS.map(o=>`<div class="mini" style="margin-top:2px"><b>${o.abbr}</b>（${o.name}）：${o.level}</div>`).join("")}
+
+      <div style="font-weight:700;margin-top:16px;color:#b01e23">七、事业单位岗位等级</div>
+      ${Object.keys(INSTITUTION_POSTS).map(k=>{
+        const C = INSTITUTION_POSTS[k];
+        return `<div style="margin-top:8px"><b>${C.icon} ${C.name}（${C.levels}）</b>
+          <div class="mini" style="color:#666">${C.desc}</div>
+          ${C.map.map(m=>`<div class="mini" style="margin-top:2px"><b>${m.grade}</b> → ${m.post}</div>`).join("")}
+        </div>`;
+      }).join("")}
+
+      <div style="font-weight:700;margin-top:16px;color:#b01e23">八、垂直管理系统</div>
+      <div class="mini" style="color:#b01e23">${VERTICAL_NOTE}</div>
+      ${VERTICAL_SYSTEMS.map(v=>`<div style="margin-top:8px">
+        <div><b>${v.icon} ${v.name}</b></div>
+        <div class="mini" style="color:#666">${v.desc}</div>
+        <div class="mini" style="margin-top:2px">${v.chain.join(' → ')}</div>
+        <div class="mini" style="color:#888">${v.note}</div>
+      </div>`).join("")}
+
+      <div style="font-weight:700;margin-top:16px;color:#b01e23">九、干部晋升规则（选拔任用工作条例）</div>
+      <div style="margin-top:4px"><b>基本原则</b></div>
+      ${PROMOTION_RULES.principles.map(p=>`<div class="mini" style="margin-top:2px"><b>${p.t}</b>：${p.d}</div>`).join("")}
+      <div style="margin-top:6px"><b>任职资格</b></div>
+      ${PROMOTION_RULES.qualifications.map(p=>`<div class="mini" style="margin-top:2px"><b>${p.t}</b>：${p.d}</div>`).join("")}
+      <div style="margin-top:6px"><b>选拔任用程序</b></div>
+      ${PROMOTION_RULES.procedures.map(p=>`<div class="mini" style="margin-top:2px">${p.t}：${p.d}</div>`).join("")}
+      <div style="margin-top:6px"><b>试用期</b></div>
+      <div class="mini" style="margin-top:2px"><b>${PROMOTION_RULES.probation.t}</b>：${PROMOTION_RULES.probation.d}</div>
+      <div style="margin-top:6px"><b>回避制度</b></div>
+      ${PROMOTION_RULES.avoidance.map(p=>`<div class="mini" style="margin-top:2px"><b>${p.t}</b>：${p.d}</div>`).join("")}
+      <div style="margin-top:6px"><b>任期与退休</b></div>
+      <div class="mini" style="margin-top:2px"><b>${PROMOTION_RULES.retirement.t}</b>：${PROMOTION_RULES.retirement.d}</div>
+
+      <div style="font-weight:700;margin-top:16px;color:#b01e23">十、副国级关键提示</div>
       <div class="mini" style="color:#b01e23">${VICE_NATIONAL_NOTE}</div>
     </div>
     <button class="btn primary" id="pbClose" style="margin-top:14px">关闭</button>`;
@@ -2533,7 +2859,7 @@ function openDeptFirstDay(){
 }
 
 /* ---------- 7.45 部委轮岗系统（副处级/正处级触发）---------- */
-const ROTATION_RANKS = [8, 12];  // 副县长(县处级副职) / 县长(县处级正职)
+const ROTATION_RANKS = [11, 16];  // 副县长(县处级副职) / 县长(县处级正职)
 
 function openRotationChoice(){
   const cur = S.dept; if(!cur) return;
@@ -2727,7 +3053,7 @@ function endGame(type){
   if(type==='大国领袖'){ // 也可根据表现分支
     if(S.道德<50) ending=map["大国领袖"]; // 仍可算，但……
   }
-  if(S.rank>=15 && type!=='积劳成疾' && type!=='身陷囹圄'){
+  if(S.rank>=20 && type!=='积劳成疾' && type!=='身陷囹圄'){
     ending={t:"🏛️ 实干家",d:"虽未走到最高位，但你在省长任上留下极佳口碑，造福一方。"};
   }
   if(type!=='积劳成疾'&&type!=='身陷囹圄'&&S.rank<10&&S.政绩>300){
@@ -2755,17 +3081,17 @@ function endGame(type){
   if(S.mode==='selective' && type==='大国领袖' && !(S.natPath && S.natPath.top)){
     ending={t:"🎖️ 国之栋梁（选调生）",d:"你从中央选调生起步，历经墩苗扎根、部委回流与火箭式轮岗培养，最终成长为国之栋梁。这是精英路线的终极答卷。"};
   }
-  if(S.mode==='selective' && S.returned && S.rank>=15){
+  if(S.mode==='selective' && S.returned && S.rank>=20){
     ending={t:"🚀 中枢干臣",d:"墩苗期满后你100%回流中央部委，凭借宏观政策视野与专项培养档案，在中枢岗位稳步晋升，成为决策核心的重要一员。"};
   }
-  if(S.mode==='grassroots' && S.rank>=12){
+  if(S.mode==='grassroots' && S.rank>=16){
     ending={t:"🌾 百姓的好官（扎根基层）",d:"你一生扎根基层，把一方水土治理得井井有条。虽然没有走上最高位，但群众把你的名字刻在了心坎上。"};
   }
   // ---- 轮岗专属结局分支 ----
   if(S.rotation && S.rotation.count>=2){
     ending={t:"🔄 复合型栋梁",d:`你在${S.rotation.count}个中央部委历练过，兼具宏观视野与专业深度。这种复合型履历，正是新时代领导干部最稀缺的品质。`};
   }
-  if(S.rotation && S.rotation.buffs && S.rotation.buffs.includes('multi_post') && S.rank>=15){
+  if(S.rotation && S.rotation.buffs && S.rotation.buffs.includes('multi_post') && S.rank>=20){
     ending={t:"🏛️ 跨部门统帅",d:"历经三个以上部委的淬炼，你既能看懂经济模型，也读得懂干部档案。站在全局高度统筹协调，这是单一部门出身的干部难以企及的境界。"};
   }
   $("modalTitle").textContent=ending.t;

@@ -209,6 +209,272 @@ const LAYER_GROUPS = {
   "国家级正职":  {label:"国家级正职",   color:"#6a1f7a"},
 };
 
+/* ================= 一、现实任职地（按行政层级的真实地名）================= */
+const LOCATIONS = {
+  // 乡镇 / 街道级（乡科级干部任职地）
+  "乡镇级":[
+    {name:"华士镇",      city:"江阴市",   prov:"江苏省", tag:"乡镇经济标杆",
+     desc:"中国乡镇企业发源地之一，华西村所在镇，工业强镇。"},
+    {name:"小溪河镇",    city:"凤阳县",   prov:"安徽省", tag:"改革原点",
+     desc:"小岗村所在地，农村改革的起点。"},
+    {name:"坂田街道",    city:"龙岗区",   prov:"广东省", tag:"科创走廊",
+     desc:"深圳东北部门户，高新技术企业密集。"},
+    {name:"宁围街道",    city:"萧山区",   prov:"浙江省", tag:"民营经济",
+     desc:"杭州钱江南岸，民营经济与数字经济活跃。"},
+    {name:"唐昌镇",      city:"郫都区",   prov:"四川省", tag:"川西林盘",
+     desc:"成都平原传统场镇，乡村振兴示范。"},
+    {name:"孙家集街道",  city:"寿光市",   prov:"山东省", tag:"蔬菜之乡",
+     desc:"全国蔬菜集散中心，设施农业发达。"},
+    {name:"韶山乡",      city:"韶山市",   prov:"湖南省", tag:"红色故里",
+     desc:"红色旅游名镇，生态保护与文旅并重。"},
+    {name:"枣园街道",    city:"宝塔区",   prov:"陕西省", tag:"革命旧址",
+     desc:"延安革命纪念地核心区。"},
+    {name:"陈埭镇",      city:"晋江市",   prov:"福建省", tag:"鞋都名镇",
+     desc:"中国鞋都，外向型经济重镇。"},
+    {name:"正定镇",      city:"正定县",   prov:"河北省", tag:"古城新貌",
+     desc:"国家历史文化名城，古城保护与新区开发并行。"},
+    {name:"木兰乡",      city:"黄陂区",   prov:"湖北省", tag:"生态文旅",
+     desc:"木兰文化生态旅游区所在地。"},
+    {name:"海雀村所在镇",  city:"赫章县",   prov:"贵州省", tag:"脱贫攻坚",
+     desc:"喀斯特石漠化山区，脱贫攻坚主战场。"},
+  ],
+  // 县 / 区 / 县级市（县处级干部任职地）
+  "县区级":[
+    {name:"兰考县",    city:"开封市",   prov:"河南省", tag:"焦裕禄精神",
+     desc:"焦裕禄精神的发源地，从风沙盐碱到平原粮仓。"},
+    {name:"昆山市",    city:"苏州市",   prov:"江苏省", tag:"百强县之首",
+     desc:"连续多年位居全国百强县首位，外向型经济高地。"},
+    {name:"义乌市",    city:"金华市",   prov:"浙江省", tag:"世界小商品之都",
+     desc:"全球最大的小商品集散地，国际贸易综合改革试验区。"},
+    {name:"晋江市",    city:"泉州市",   prov:"福建省", tag:"晋江经验",
+     desc:"民营经济与实体经济重镇，『晋江经验』发祥地。"},
+    {name:"韶山市",    city:"湘潭市",   prov:"湖南省", tag:"红色圣地",
+     desc:"红色旅游与理想信念教育基地。"},
+    {name:"寿光市",    city:"潍坊市",   prov:"山东省", tag:"中国蔬菜之乡",
+     desc:"全国蔬菜产业中心，农业产业化标杆。"},
+    {name:"郫都区",    city:"成都市",   prov:"四川省", tag:"城乡融合",
+     desc:"成都中心城市西北片区，城乡融合发展试验区。"},
+    {name:"延川县",    city:"延安市",   prov:"陕西省", tag:"黄土高原",
+     desc:"黄河沿岸土石山区，梁家河知青岁月所在地。"},
+    {name:"赫章县",    city:"毕节市",   prov:"贵州省", tag:"乌蒙山区",
+     desc:"乌蒙山集中连片特困地区，脱贫攻坚主战场。"},
+    {name:"正定县",    city:"石家庄市", prov:"河北省", tag:"古城新姿",
+     desc:"国家历史文化名城，滹沱河畔的发展热土。"},
+    {name:"凤阳县",    city:"滁州市",   prov:"安徽省", tag:"改革发端",
+     desc:"明中都故里，农村改革发源地。"},
+    {name:"顺德区",    city:"佛山市",   prov:"广东省", tag:"制造业重镇",
+     desc:"珠江西岸先进装备制造产业带核心区。"},
+    {name:"井冈山市",  city:"吉安市",   prov:"江西省", tag:"革命摇篮",
+     desc:"中国革命摇篮，红色文旅与生态经济并重。"},
+    {name:"平遥县",    city:"晋中市",   prov:"山西省", tag:"世界遗产",
+     desc:"平遥古城所在地，世界文化遗产。"},
+    {name:"海城市",    city:"鞍山市",   prov:"辽宁省", tag:"东北振兴",
+     desc:"辽宁县域经济龙头，菱镁产业基地。"},
+    {name:"腾冲市",    city:"保山市",   prov:"云南省", tag:"边境口岸",
+     desc:"西南边陲重镇，珠宝集散与生态旅游名城。"},
+    {name:"会宁县",    city:"白银市",   prov:"甘肃省", tag:"红色会师",
+     desc:"红军会师圣地，西北教育名县。"},
+    {name:"神农架林区", city:"神农架林区", prov:"湖北省", tag:"生态屏障",
+     desc:"中国唯一以『林区』命名的行政区，生态保护区。"},
+    {name:"浏阳市",    city:"长沙市",   prov:"湖南省", tag:"百强县",
+     desc:"花炮之乡，全国百强县，浏阳河上游。"},
+    {name:"慈溪市",    city:"宁波市",   prov:"浙江省", tag:"家电之都",
+     desc:"长三角南翼制造业重镇，小家电产业集群。"},
+    {name:"迁安市",    city:"唐山市",   prov:"河北省", tag:"钢铁转型",
+     desc:"钢铁重镇，资源型城市转型试点。"},
+    {name:"龙口市",    city:"烟台市",   prov:"山东省", tag:"港城一体",
+     desc:"环渤海港口城市，能源与有色产业基地。"},
+    {name:"泰兴市",    city:"泰州市",   prov:"江苏省", tag:"沿江开发",
+     desc:"长江北岸化工与装备制造基地。"},
+  ],
+  // 地级市（厅局级干部任职地）
+  "地市级":[
+    {name:"开封市",    prov:"河南省", tag:"八朝古都"},
+    {name:"苏州市",    prov:"江苏省", tag:"最强地级市"},
+    {name:"杭州市",    prov:"浙江省", tag:"数字之城"},
+    {name:"泉州市",    prov:"福建省", tag:"民营经济"},
+    {name:"湘潭市",    prov:"湖南省", tag:"伟人故里"},
+    {name:"潍坊市",    prov:"山东省", tag:"现代农业"},
+    {name:"成都市",    prov:"四川省", tag:"公园城市"},
+    {name:"延安市",    prov:"陕西省", tag:"革命圣地"},
+    {name:"毕节市",    prov:"贵州省", tag:"试验区"},
+    {name:"石家庄市",  prov:"河北省", tag:"省会枢纽"},
+    {name:"滁州市",    prov:"安徽省", tag:"融入长三角"},
+    {name:"佛山市",    prov:"广东省", tag:"制造业名城"},
+    {name:"武汉市",    prov:"湖北省", tag:"九省通衢"},
+    {name:"吉安市",    prov:"江西省", tag:"红色摇篮"},
+    {name:"晋中市",    prov:"山西省", tag:"晋商故里"},
+    {name:"鞍山市",    prov:"辽宁省", tag:"钢都"},
+    {name:"保山市",    prov:"云南省", tag:"边境枢纽"},
+    {name:"白银市",    prov:"甘肃省", tag:"资源转型"},
+    {name:"大庆市",    prov:"黑龙江省", tag:"油城转型"},
+    {name:"喀什地区",  prov:"新疆维吾尔自治区", tag:"向西开放"},
+    {name:"三亚市",    prov:"海南省", tag:"热带滨海"},
+    {name:"包头市",    prov:"内蒙古自治区", tag:"草原钢城"},
+    {name:"柳州市",    prov:"广西壮族自治区", tag:"工业重镇"},
+    {name:"拉萨市",    prov:"西藏自治区", tag:"高原古城"},
+    {name:"西宁市",    prov:"青海省", tag:"湟水谷地"},
+    {name:"银川市",    prov:"宁夏回族自治区", tag:"塞上江南"},
+    {name:"吉林市",    prov:"吉林省", tag:"化工基地"},
+    {name:"洛阳市",    prov:"河南省", tag:"十三朝古都"},
+    {name:"宜昌市",    prov:"湖北省", tag:"三峡门户"},
+    {name:"徐州市",    prov:"江苏省", tag:"淮海枢纽"},
+    {name:"烟台市",    prov:"山东省", tag:"蓝海经济"},
+    {name:"宁波市",    prov:"浙江省", tag:"港口城市"},
+  ],
+  // 省 / 自治区 / 直辖市（省部级干部任职地）
+  "省级":[
+    {name:"河南省",   tag:"中原粮仓", desc:"粮食主产区与人口大省，中原经济区核心。"},
+    {name:"江苏省",   tag:"经济强省", desc:"制造业与开放型经济高地，长三角引擎。"},
+    {name:"浙江省",   tag:"共同富裕", desc:"民营经济与数字经济先发地，共同富裕示范区。"},
+    {name:"福建省",   tag:"山海协作", desc:"21世纪海上丝绸之路核心区。"},
+    {name:"湖南省",   tag:"中部崛起", desc:"先进制造与文创产业重镇。"},
+    {name:"山东省",   tag:"农业龙头", desc:"农业总产值全国首位，新旧动能转换综合试验区。"},
+    {name:"四川省",   tag:"战略腹地", desc:"西部经济中心，成渝双城经济圈。"},
+    {name:"陕西省",   tag:"科教大省", desc:"丝绸之路起点，科教与能源基地。"},
+    {name:"贵州省",   tag:"大数据省", desc:"脱贫攻坚主战场，国家大数据综合试验区。"},
+    {name:"河北省",   tag:"京畿重地", desc:"京津冀协同发展关键区。"},
+    {name:"安徽省",   tag:"创新高地", desc:"长三角一体化成员，综合性国家科学中心。"},
+    {name:"广东省",   tag:"开放前沿", desc:"经济第一大省，粤港澳大湾区主体。"},
+    {name:"湖北省",   tag:"中部支点", desc:"长江中游城市群核心，光谷科创。"},
+    {name:"江西省",   tag:"红色沃土", desc:"革命老区，有色金属与航空产业。"},
+    {name:"山西省",   tag:"能源革命", desc:"煤炭基地，能源革命综合改革试点。"},
+    {name:"辽宁省",   tag:"老工业基地", desc:"东北振兴龙头，装备制造基地。"},
+    {name:"云南省",   tag:"面向南亚东南亚", desc:"生物多样性宝库，辐射中心。"},
+    {name:"甘肃省",   tag:"丝路通道", desc:"西北生态屏障，新能源基地。"},
+    {name:"黑龙江省", tag:"北大仓", desc:"国家粮食压舱石，对俄合作前沿。"},
+    {name:"新疆维吾尔自治区", tag:"向西开放", desc:"丝绸之路经济带核心区。"},
+  ],
+  // 中央（国家级领导人办公地）
+  "中央级":[
+    {name:"北京市", tag:"首都", desc:"党和国家中央机关所在地。中南海、人民大会堂、京西宾馆。"},
+  ],
+};
+
+/* 按职级返回任职地层级 */
+function locationTierFor(layer){
+  if(layer==="试用期") return "乡镇级";
+  if(layer==="科员级"||layer==="股所级") return "乡镇级";
+  if(layer==="乡科级副职"||layer==="乡科级正职") return "乡镇级";
+  if(layer==="县处级副职"||layer==="县处级正职") return "县区级";
+  if(layer==="厅局级副职"||layer==="厅局级正职") return "地市级";
+  if(layer==="省部级副职"||layer==="省部级正职") return "省级";
+  return "中央级";
+}
+
+/* 为当前职级随机分配一个现实任职地（避开籍贯省，落实地域回避） */
+function pickLocation(rank, avoidProv){
+  const layer = rankLayer(rank);
+  const tier = locationTierFor(layer);
+  const pool = LOCATIONS[tier] || LOCATIONS["乡镇级"];
+  if(!pool || !pool.length) return null;
+  // 先尝试避开籍贯省
+  if(avoidProv){
+    const other = pool.filter(l=>l.prov && l.prov!==avoidProv && !avoidProv.startsWith(l.prov.slice(0,2)));
+    if(other.length) return other[Math.floor(Math.random()*other.length)];
+  }
+  return pool[Math.floor(Math.random()*pool.length)];
+}
+
+/* ================= 二、兼任与高配（玩家可主动争取）=================
+   现实中的两种典型情形：
+   ① 兼任：一人同时担任两个职务（如副县长兼任公安局长）
+   ② 高配：所兼职务的机构建制低于本人级别（如副省长兼省公安厅长，
+            公安厅是正厅级建制，厅长个人为副省级）
+   兼任带来额外权力与政绩，但消耗精力（健康）与时间。 */
+const CONCURRENT_POSTS = [
+  // ---- 县处级副职 ----
+  {id:"c_psb_county", layer:"县处级副职", post:"县公安局局长", by:"副县长",
+   organ:"县公安局", organLevel:"正科级", personLevel:"副处级", highProfile:true,
+   desc:"由副县长兼任县公安局局长。县公安局本身是正科级建制，因由副县长兼任，个人为副处级——典型的高配。",
+   gain:{治安:10, 能力:3, 政绩产出:0.12}, cost:{健康:1.2}, req:{道德:40, 能力:50}},
+
+  {id:"c_political_county", layer:"县处级副职", post:"县委政法委书记", by:"县委常委",
+   organ:"县委政法委", organLevel:"正科级", personLevel:"副处级", highProfile:true,
+   desc:"县委常委兼任政法委书记，统揽政法、维稳、综治。机构正科级，个人副处级。",
+   gain:{治安:8, 廉政积分:5, 政绩产出:0.08}, cost:{健康:0.8}, req:{道德:45, 能力:45}},
+
+  {id:"c_edt_county", layer:"县处级副职", post:"县经开区管委会主任", by:"副县长",
+   organ:"县经开区管委会", organLevel:"正科级", personLevel:"副处级", highProfile:true,
+   desc:"兼任经开区一把手，直接抓招商引资与项目建设，出政绩快，廉政风险也高。",
+   gain:{GDP:12, 财政:6, 政绩产出:0.15}, cost:{健康:1.0}, req:{能力:55}},
+
+  // ---- 县处级正职 ----
+  {id:"c_deputy_party_county", layer:"县处级正职", post:"县委副书记", by:"县长",
+   organ:"县委", organLevel:"县处级正职", personLevel:"县处级正职", highProfile:false,
+   desc:"县长兼任县委副书记，党政一肩挑，统筹协调更顺，是晋升县委书记的常规铺垫。",
+   gain:{人脉:12, 上司好感:10, 政绩产出:0.06}, cost:{健康:0.6}, req:{道德:50, 能力:55}},
+
+  {id:"c_npc_county", layer:"县处级正职", post:"县人大常委会主任", by:"县委书记",
+   organ:"县人大常委会", organLevel:"县处级正职", personLevel:"县处级正职", highProfile:false,
+   desc:"县委书记兼任县人大常委会主任，党政权力集中，推动决策效率高，但也需注意监督制约。",
+   gain:{上司好感:15, 政绩产出:0.10}, cost:{健康:0.8}, req:{道德:55, 能力:60}},
+
+  // ---- 厅局级副职 ----
+  {id:"c_psb_city", layer:"厅局级副职", post:"市公安局局长", by:"副市长",
+   organ:"市公安局", organLevel:"正处级", personLevel:"副厅级", highProfile:true,
+   desc:"副市长兼任市公安局局长。市公安局是正处级建制，因由副市长兼任，个人为副厅级。",
+   gain:{治安:12, 能力:4, 政绩产出:0.12}, cost:{健康:1.2}, req:{道德:45, 能力:60}},
+
+  {id:"c_political_city", layer:"厅局级副职", post:"市委政法委书记", by:"市委常委",
+   organ:"市委政法委", organLevel:"正科级（三定核定）", personLevel:"副厅级", highProfile:true,
+   desc:"市委常委兼任政法委书记。机构按正科级核定，个人副厅级——高配幅度最大的一类。",
+   gain:{治安:10, 廉政积分:8, 政绩产出:0.10}, cost:{健康:0.9}, req:{道德:50, 能力:55}},
+
+  {id:"c_org_city", layer:"厅局级副职", post:"市委组织部部长", by:"市委常委",
+   organ:"市委组织部", organLevel:"正处级", personLevel:"副厅级", highProfile:true,
+   desc:"市委常委兼任组织部长，掌干部选拔任用，人脉与政治资源大幅提升。",
+   gain:{人脉:18, 上司好感:12, 政绩产出:0.08}, cost:{健康:0.8}, req:{道德:50, 能力:55}},
+
+  // ---- 厅局级正职 ----
+  {id:"c_deputy_party_city", layer:"厅局级正职", post:"市委副书记", by:"市长",
+   organ:"市委", organLevel:"厅局级正职", personLevel:"厅局级正职", highProfile:false,
+   desc:"市长兼任市委副书记，是接任市委书记的标准台阶。",
+   gain:{上司好感:12, 政绩产出:0.08}, cost:{健康:0.6}, req:{道德:55, 能力:60}},
+
+  {id:"c_npc_city", layer:"厅局级正职", post:"市人大常委会主任", by:"市委书记",
+   organ:"市人大常委会", organLevel:"厅局级正职", personLevel:"厅局级正职", highProfile:false,
+   desc:"市委书记兼任市人大常委会主任，统筹党委与立法监督。",
+   gain:{上司好感:15, 政绩产出:0.10}, cost:{健康:0.8}, req:{道德:60, 能力:65}},
+
+  // ---- 省部级副职 ----
+  {id:"c_psb_prov", layer:"省部级副职", post:"省公安厅厅长", by:"副省长",
+   organ:"省公安厅", organLevel:"正厅级", personLevel:"副省级", highProfile:true,
+   desc:"副省长兼任省公安厅厅长。公安厅是正厅级建制，因由副省长兼任，个人为副省级。",
+   gain:{治安:14, 能力:5, 政绩产出:0.14}, cost:{健康:1.3}, req:{道德:50, 能力:65}},
+
+  {id:"c_political_prov", layer:"省部级副职", post:"省委政法委书记", by:"省委常委",
+   organ:"省委政法委", organLevel:"正厅级", personLevel:"副部级", highProfile:true,
+   desc:"省委常委兼任政法委书记，统筹公检法司与平安建设，属中央管理任免的岗位。",
+   gain:{治安:12, 廉政积分:15, 政绩产出:0.12}, cost:{健康:1.0}, req:{道德:55, 能力:65}},
+
+  {id:"c_org_prov", layer:"省部级副职", post:"省委组织部部长", by:"省委常委",
+   organ:"省委组织部", organLevel:"正厅级", personLevel:"副部级", highProfile:true,
+   desc:"省委常委兼任组织部长，掌全省干部选拔，是省部级岗位上最具实权的兼任之一。",
+   gain:{人脉:25, 上司好感:18, 政绩产出:0.10}, cost:{健康:1.0}, req:{道德:55, 能力:65}},
+
+  // ---- 省部级正职 ----
+  {id:"c_npc_prov", layer:"省部级正职", post:"省人大常委会主任", by:"省委书记",
+   organ:"省人大常委会", organLevel:"省部级正职", personLevel:"省部级正职", highProfile:false,
+   desc:"省委书记兼任省人大常委会主任，是省级领导班子的常见配置。",
+   gain:{上司好感:20, 政绩产出:0.10}, cost:{健康:0.8}, req:{道德:65, 能力:70}},
+];
+
+/* 按当前层次取可选的兼任职务 */
+function availableConcurrent(){
+  const layer = rankLayer(S.rank);
+  const taken = (S.兼任||[]).map(x=>x.id);
+  return CONCURRENT_POSTS.filter(p=>p.layer===layer && !taken.includes(p.id));
+}
+
+/* 判断当前是否处于"高配"状态（兼任了机构建制低于个人级别的职务）*/
+function highProfileStatus(){
+  const arr = S.兼任||[];
+  if(!arr.length) return null;
+  const hp = arr.filter(x=>x.highProfile);
+  return hp.length ? hp : null;
+}
+
 /* ========== 一、衔级体系（独立于职级的等级序列）========== */
 
 /* 1. 人民警察警衔：五等十三级（《人民警察警衔条例》第七、八条） */
@@ -616,6 +882,119 @@ function highProfileNote(title){
   if(t.includes("县政法委书记")) return ORG_VS_PERSON.county_political;
   if(t.includes("县纪委书记")) return ORG_VS_PERSON.county_discipline;
   return null;
+}
+
+/* ---------- 兼任高配：申请 / 辞去 ---------- */
+function applyConcurrent(id){
+  const P = CONCURRENT_POSTS.find(p=>p.id===id);
+  if(!P) return;
+  if(!S.兼任) S.兼任 = [];
+  if(S.兼任.length>=2){ addToast("最多兼任2个职务"); return; }
+  if(S.兼任.some(x=>x.id===id)) return;
+  const req = P.req||{};
+  if(req.道德 && S.道德<req.道德){ addToast(`道德不足（需${req.道德}）`); return; }
+  if(req.能力 && S.能力<req.能力){ addToast(`能力不足（需${req.能力}）`); return; }
+  S.兼任.push({id:P.id, post:P.post, organ:P.organ, organLevel:P.organLevel,
+                personLevel:P.personLevel, highProfile:P.highProfile, by:P.by});
+  // 立即获得一次性收益
+  const g = P.gain||{};
+  if(g.治安) S.治安 = clamp(S.治安 + g.治安, 0, 100);
+  if(g.GDP)  S.GDP  = clamp(S.GDP  + g.GDP,  0, 100);
+  if(g.财政) S.财政 = clamp(S.财政 + g.财政, 0, 100);
+  if(g.人脉) S.人脉 = (S.人脉||0) + g.人脉;
+  if(g.能力) S.能力 = clamp(S.能力 + g.能力, 0, 100);
+  if(g.上司好感) S.上司好感 = clamp(S.上司好感 + g.上司好感, 0, 100);
+  if(g.廉政积分) S.廉政积分 = (S.廉政积分||0) + g.廉政积分;
+  addToast("兼任："+P.post);
+  pushLog(`组织决定：你以【${P.by}】身份<b>兼任${P.post}</b>。${P.highProfile?`（高配：${P.organ}建制为${P.organLevel}，你个人为${P.personLevel}）`:""}`);
+  save(); renderTopbar(); renderMain(curTab);
+}
+
+function resignConcurrent(id){
+  if(!S.兼任) return;
+  const P = CONCURRENT_POSTS.find(p=>p.id===id);
+  S.兼任 = S.兼任.filter(x=>x.id!==id);
+  if(P){
+    pushLog(`你辞去了兼任的【${P.post}】，得以将精力集中到主职上。`);
+    addToast("已辞去："+P.post);
+  }
+  save(); renderTopbar(); renderMain(curTab);
+}
+
+/* 兼任带来的月度收益与消耗 */
+function concurrentMonthlyEffect(){
+  let 政绩加成 = 0, 健康消耗 = 0;
+  (S.兼任||[]).forEach(x=>{
+    const P = CONCURRENT_POSTS.find(p=>p.id===x.id);
+    if(!P) return;
+    const g = P.gain||{}, c = P.cost||{};
+    政绩加成 += (g.政绩产出||0);
+    健康消耗 += (c.健康||0);
+  });
+  return {政绩加成, 健康消耗};
+}
+
+/* ---------- 任职地分配与地域回避 ---------- */
+function assignLocation(notify){
+  const layer = rankLayer(S.rank);
+  const tier = locationTierFor(layer);
+  const cur = S.任职地;
+  // 层级未变则保留原任职地
+  if(cur && cur.tier===tier) return;
+  const homeProv = (S.hometownProvince||"");
+  const loc = pickLocation(S.rank, homeProv);
+  if(!loc) return;
+  S.任职地 = Object.assign({}, loc, {tier});
+  S.地域回避提示 = false;
+  if(notify){
+    const where = loc.city ? `${loc.prov}${loc.city}${loc.name}` : `${loc.prov||""}${loc.name}`;
+    pushLog(`组织安排你赴 <b>${where}</b> 任职${loc.tag?`（${loc.tag}）`:""}。`);
+    if(loc.desc) pushLog(`　　${loc.desc}`);
+  }
+}
+
+/* 地域回避检查：县处级正职（县长/县委书记）等岗位不得在成长地担任 */
+const AVOIDANCE_LAYERS = ["县处级正职"];
+function checkAvoidance(){
+  if(!S.任职地 || !S.hometownProvince) return null;
+  const layer = rankLayer(S.rank);
+  if(!AVOIDANCE_LAYERS.includes(layer)) return null;
+  const prov = S.任职地.prov || "";
+  const home = S.hometownProvince || "";
+  if(!prov || !home) return null;
+  const same = (prov===home) || (home.startsWith(prov.slice(0,2))) || (prov.startsWith(home.slice(0,2)));
+  if(!same) return null;
+  return {
+    post: rankTitle(S.rank),
+    place: S.任职地.name,
+    prov: prov,
+    home: home,
+    desc:"按照党政领导干部回避制度，担任县（市）委书记、县（市）长以及县（市）纪检、组织、法院、检察院、公安部门主要领导职务的，一般不得在本人成长地担任。",
+  };
+}
+
+/* 执行地域回避：交流到其他地区 */
+function doAvoidanceTransfer(){
+  const homeProv = S.hometownProvince||"";
+  const tier = S.任职地 ? S.任职地.tier : locationTierFor(rankLayer(S.rank));
+  const pool = (LOCATIONS[tier]||[]).filter(l=>l.prov && l.prov!==homeProv && !homeProv.startsWith(l.prov.slice(0,2)));
+  if(!pool.length){ S.地域回避提示 = true; return; }
+  const old = S.任职地;
+  S.任职地 = Object.assign({}, pool[Math.floor(Math.random()*pool.length)], {tier});
+  S.地域回避提示 = true;
+  S.人脉 = Math.max(0, (S.人脉||0) - 10);   // 异地交流，人脉受损
+  pushLog(`【地域回避】你主动申请异地交流，由 ${old?old.name:"原地"} 调往 <b>${S.任职地.name}</b>（${S.任职地.prov}）任职。熟悉的人脉网络需要重新开始（人脉-10）。`);
+  addToast("已落实地域回避：异地交流");
+  save(); renderTopbar(); renderMain(curTab);
+}
+
+/* 不回避：承担违规风险 */
+function doAvoidanceStay(){
+  S.地域回避提示 = true;
+  S.道德 = clamp(S.道德 - 8, 0, 100);
+  pushLog(`【地域回避】你选择留在成长地任职，虽有本土优势，但违反了领导干部地域回避规定，组织上对此有看法（道德-8）。`);
+  addToast("未落实地域回避：道德-8");
+  save(); renderTopbar(); renderMain(curTab);
 }
 
 /* 股所级说明（非法定领导职务层次） */
@@ -1184,6 +1563,9 @@ function newGame(opts){
     returned:false,         // 是否已回流部委
     archive:false,          // 专项培养档案（选调生）
     基层月数:0,              // 基层工作经历（月）提任县处级需满24个月
+    任职地:null,             // 现实任职地：{name,city,prov,tag,desc}
+    兼任:[],                // 兼任职务：[{id,post,organ,organLevel,personLevel,highProfile,by}]
+    地域回避提示:false,      // 是否已就地域回避作出处理
     natPath:{},              // 国家级方向：{vice:'power|honor|judicial|military', top:'...'}
     dept:null,              // 所属中央部委（回流后选定）：ndrc/mof/mfa/zzb/miit/mee
     deptCd:{},              // 部委专属技能冷却：{技能id:剩余月数}
@@ -1206,6 +1588,13 @@ function newGame(opts){
     gameOver:false, ending:null,
   };
   const hmCity = S.hometownCity || S.hometown || "—";
+  // 分配初始现实任职地
+  assignLocation(false);
+  if(S.任职地){
+    const L = S.任职地;
+    const where = L.city ? `${L.prov}${L.city}${L.name}` : `${L.prov||""}${L.name}`;
+    pushLog(`你的第一个工作岗位在 <b>${where}</b>${L.tag?`（${L.tag}）`:""}。${L.desc||""}`);
+  }
   const who = `${S.name}（${S.gender}，${S.age}岁，${hmCity}人）`;
   if(mode==="selective"){
     S.archive = true;
@@ -1247,6 +1636,13 @@ function save(){ _rawSet("qlp_top", JSON.stringify(S)); }
 function load(){
   const t = _rawGet("qlp_top");
   if(t){ try{ S = JSON.parse(t); }catch(e){ _rawDel("qlp_top"); } }
+  // 旧存档兼容：补齐后续版本新增的字段
+  if(S){
+    if(S.兼任===undefined) S.兼任 = [];
+    if(S.地域回避提示===undefined) S.地域回避提示 = false;
+    if(S.基层月数===undefined) S.基层月数 = 0;
+    if(!S.任职地){ try{ assignLocation(false); }catch(e){} }
+  }
 }
 function hasSave(){ return !!_rawGet("qlp_top"); }
 function clearSave(){ _rawDel("qlp_top"); }
@@ -1321,6 +1717,16 @@ function monthlySettlement(){
   // 基层工作经历累积：县处级副职（索引11）以下岗位计入基层经历
   if(!S.基层月数) S.基层月数 = 0;
   if(S.rank < 11){ S.基层月数 += 1; }
+  // 兼任职务的月度收益与消耗
+  {
+    const ce = concurrentMonthlyEffect();
+    if(ce.政绩加成>0){
+      S.政绩 = Math.round(S.政绩 * (1 + ce.政绩加成));
+    }
+    if(ce.健康消耗>0){
+      S.健康 = clamp(S.健康 - ce.健康消耗, 0, 100);
+    }
+  }
   S.健康 = clamp(S.健康 - (S.rank>=20?0:1) - (S.健康>90?0:0), 0, 100);
   // 指标缓慢回归
   const drift=(cur,target)=> cur + (target-cur)*0.03;
@@ -1452,6 +1858,9 @@ function doPromote(){
     endGame("大国领袖"); return;
   }
   save();
+  // ==== 职级变动后重新分配现实任职地（层级跨档时才换地方）====
+  assignLocation(true);
+
   // ==== 进入政治局常委会（正国级）：由中央委员会全体会议选举产生 ====
   if(S.rank===42){
     addToast("🌟 当选中共中央政治局常委");
@@ -2324,6 +2733,100 @@ function pAction(){
         </div>
       </div>`;
     }
+
+    // ===== 任职地卡片（现实地名）=====
+    {
+      const L = S.任职地;
+      const where = L ? (L.city ? `${L.prov}${L.city}${L.name}` : `${L.prov||""}${L.name}`) : "—";
+      html += `<div class="card">
+        <div class="card-h">📍 任职地</div>
+        <div class="card-b">
+          <div style="font-size:15px;font-weight:700;color:#b01e23">${where}</div>
+          ${L&&L.tag?`<div class="mini" style="margin-top:3px;color:#8a6a35">${L.tag}</div>`:""}
+          ${L&&L.desc?`<div class="mini" style="margin-top:4px;color:#666;line-height:1.6">${L.desc}</div>`:""}
+        </div>
+      </div>`;
+    }
+
+    // ===== 兼任与高配卡片 =====
+    {
+      const hp = highProfileStatus();
+      const cur = S.兼任||[];
+      html += `<div class="card">
+        <div class="card-h">🔗 兼任与高配${cur.length?`（${cur.length}/2）`:""}</div>
+        <div class="card-b">`;
+      if(cur.length){
+        cur.forEach(x=>{
+          const P = CONCURRENT_POSTS.find(p=>p.id===x.id);
+          html += `<div style="border-left:3px solid ${x.highProfile?'#b01e23':'#35618a'};padding-left:8px;margin-bottom:8px">
+            <div style="font-weight:700">${x.by} 兼任 ${x.post}
+              ${x.highProfile?`<span style="background:#b01e23;color:#fff;border-radius:3px;padding:1px 5px;font-size:10px;margin-left:4px">⚠ 高配</span>`:""}
+            </div>
+            <div class="mini" style="margin-top:2px;color:#666">${P?P.desc:""}</div>
+            <div class="mini" style="margin-top:2px;color:#888">机构建制：${x.organLevel} · 个人级别：${x.personLevel}</div>
+            <button class="btn" data-act="resignc" data-id="${x.id}" style="margin-top:6px">
+              <span class="bt">辞去兼任</span>
+            </button>
+          </div>`;
+        });
+        const ce = concurrentMonthlyEffect();
+        html += `<div class="mini" style="margin-top:6px;color:#35618a">兼任效果：政绩产出 +${Math.round(ce.政绩加成*100)}% · 每月健康 -${ce.健康消耗.toFixed(1)}</div>`;
+      } else {
+        html += `<div class="mini muted">当前没有兼任其他职务。</div>`;
+      }
+      const avail = availableConcurrent();
+      if(avail.length){
+        html += `<div style="margin-top:10px;border-top:1px dashed #ddd;padding-top:8px">
+          <div class="mini"><b>可争取的兼任职务</b></div>`;
+        avail.forEach(P=>{
+          const okM = !P.req.道德 || S.道德>=P.req.道德;
+          const okA = !P.req.能力 || S.能力>=P.req.能力;
+          const ok = okM && okA;
+          html += `<div style="margin-top:8px;border-left:3px solid ${P.highProfile?'#b01e23':'#ccc'};padding-left:8px">
+            <div style="font-weight:700">${P.by} 兼任 ${P.post}
+              ${P.highProfile?`<span style="background:#b01e23;color:#fff;border-radius:3px;padding:1px 5px;font-size:10px;margin-left:4px">⚠ 高配</span>`:""}
+            </div>
+            <div class="mini" style="margin-top:2px;color:#666">${P.desc}</div>
+            <div class="mini" style="margin-top:2px;color:#888">
+              机构建制：${P.organLevel} → 个人级别：${P.personLevel}
+            </div>
+            <div class="mini" style="margin-top:2px;color:#35618a">
+              收益：${Object.keys(P.gain).map(k=>`${k}+${P.gain[k]}`).join(' · ')}
+            </div>
+            <div class="mini" style="margin-top:2px;color:#a05">
+              消耗：每月健康 -${P.cost.健康}
+            </div>
+            ${ok?`<button class="btn primary" data-act="applyc" data-id="${P.id}" style="margin-top:6px">
+              <span class="bt">争取兼任</span></button>`
+            :`<div class="mini" style="margin-top:4px;color:#a00">条件不足：${!okM?'道德需≥'+P.req.道德:''}${!okM&&!okA?'、':''}${!okA?'能力需≥'+P.req.能力:''}</div>`}
+          </div>`;
+        });
+        html += `</div>`;
+      }
+      html += `</div></div>`;
+    }
+
+    // ===== 地域回避提示卡片 =====
+    {
+      const av = checkAvoidance();
+      if(av && !S.地域回避提示){
+        html += `<div class="card">
+          <div class="card-h" style="background:#b01e23;color:#fff">⚠ 地域回避</div>
+          <div class="card-b">
+            <div style="color:#b01e23;font-weight:700">你的成长地是${av.home}，现任${av.post}的任职地${av.place}同属${av.prov}。</div>
+            <div class="mini" style="margin-top:6px;color:#666;line-height:1.7">${av.desc}</div>
+            <button class="btn primary" data-act="avoid_transfer" style="margin-top:10px">
+              <span class="bt">🔄 申请异地交流</span>
+              <span class="bd">落实回避规定，人脉 -10，但合规</span>
+            </button>
+            <button class="btn" data-act="avoid_stay" style="border-left-color:#999">
+              <span class="bt">留在本地</span>
+              <span class="bd">本土优势，但违规，道德 -8</span>
+            </button>
+          </div>
+        </div>`;
+      }
+    }
   }
   // 轮岗适应期 / 增益提示
   if(S.rotation && (S.rotation.adaptation>0 || (S.rotation.buffs&&S.rotation.buffs.length))){
@@ -2370,6 +2873,7 @@ function pAction(){
 let _acts=[];
 function renderMain(tab){
   const main=$("main");
+  if(tab) curTab = tab;          // 同步当前页签，便于各处回调正确重绘
   if(S.gameOver){ renderEnding(); return; }
   let h="";
   if(tab==='event' || !tab){
@@ -2420,6 +2924,39 @@ function renderArchive(){
       <div class="mini"><b>🏆 成就</b>（${S.achievements.length}）</div>
       ${S.achievements.map(a=>`<div class="mini" style="margin-top:4px"><b style="color:#b01e23">【${a.name}】</b>${a.desc||''}</div>`).join("")}
     </div>`;
+  }
+
+  // 任职地卡片
+  let locCard = "";
+  {
+    const L = S.任职地;
+    if(L){
+      const where = L.city ? `${L.prov}${L.city}${L.name}` : `${L.prov||""}${L.name}`;
+      locCard = `<div style="border-top:1px dashed #ddd;margin-top:8px;padding-top:8px">
+        <div class="mini"><b>📍 任职地</b></div>
+        <div style="font-weight:700;color:#b01e23;margin-top:2px">${where}</div>
+        ${L.tag?`<div class="mini" style="color:#8a6a35">${L.tag}</div>`:""}
+        ${L.desc?`<div class="mini" style="color:#666;line-height:1.6">${L.desc}</div>`:""}
+      </div>`;
+    }
+  }
+
+  // 兼任与高配卡片
+  let hpCard = "";
+  {
+    const cur = S.兼任||[];
+    if(cur.length){
+      hpCard = `<div style="border-top:1px dashed #ddd;margin-top:8px;padding-top:8px">
+        <div class="mini"><b>🔗 兼任职务</b>（${cur.length}/2）</div>`;
+      cur.forEach(x=>{
+        hpCard += `<div class="mini" style="margin-top:3px">
+          ${x.by} 兼任 <b>${x.post}</b>
+          ${x.highProfile?`<span style="background:#b01e23;color:#fff;border-radius:3px;padding:0 4px;font-size:10px">⚠ 高配</span>`:""}
+          <span style="color:#888">　${x.organ}（${x.organLevel}）→ 个人${x.personLevel}</span>
+        </div>`;
+      });
+      hpCard += `</div>`;
+    }
   }
 
   // 岗位全景卡片：显示同层级其他重要岗位
@@ -2476,6 +3013,8 @@ function renderArchive(){
       ${buffCard}
       ${achCard}
       ${postCard}
+      ${locCard}
+      ${hpCard}
     </div>
   </div>`;
 
@@ -2550,6 +3089,20 @@ function bindActions(){
   });
   document.querySelectorAll('[data-act="save"]').forEach(b=>{ b.onclick=()=>{save();addToast("进度已保存");};});
   document.querySelectorAll('[data-act="postbook"]').forEach(b=>{ b.onclick=()=>{ openPostBook(); };});
+  // 兼任高配
+  document.querySelectorAll('[data-act="applyc"]').forEach(b=>{
+    b.onclick=()=>{ applyConcurrent(b.getAttribute('data-id')); };
+  });
+  document.querySelectorAll('[data-act="resignc"]').forEach(b=>{
+    b.onclick=()=>{ resignConcurrent(b.getAttribute('data-id')); };
+  });
+  // 地域回避
+  document.querySelectorAll('[data-act="avoid_transfer"]').forEach(b=>{
+    b.onclick=()=>{ doAvoidanceTransfer(); };
+  });
+  document.querySelectorAll('[data-act="avoid_stay"]').forEach(b=>{
+    b.onclick=()=>{ doAvoidanceStay(); };
+  });
   document.querySelectorAll('[data-act="restart"]').forEach(b=>{
     b.onclick=()=>{ if(confirm("确定重新开始？当前进度将丢失。")){localStorage.removeItem("qlp_top");location.reload();} }
   });
@@ -3105,6 +3658,8 @@ function endGame(type){
       ${S.mode==='selective'?`<br>墩苗：${S.dunmiaoMonths||0}个月 · 已${S.returned?'回流部委':'在基层'}`:""}
       ${S.dept?`<br>所属部委：<b>${DEPARTMENTS[S.dept].name}</b>（${DEPARTMENTS[S.dept].school}）`:""}
       <br>干部：${S.name}（${S.gender}，${S.age}岁，${S.hometownCity||S.hometown}人，${S.edu}）
+      ${S.任职地?`<br>最后任职地：<b>${S.任职地.city?S.任职地.prov+S.任职地.city+S.任职地.name:(S.任职地.prov||"")+S.任职地.name}</b>`:""}
+      ${(S.兼任&&S.兼任.length)?`<br>兼任职务：${S.兼任.map(x=>x.post+(x.highProfile?"（高配）":"")).join('、')}`:""}
       ${(S.tags&&S.tags.length)?`<br>人设标签：${S.tags.join(' · ')}`:""}
       ${(S.natPath&&S.natPath.vice)?`<br>副国级方向：<b>${VICE_NATIONAL_PATHS[S.natPath.vice].name}</b>`:""}
       ${(S.natPath&&S.natPath.top)?`<br>政治局常委：<b>第${TOP_NATIONAL_POSITIONS[S.natPath.top].seat}位</b> · ${TOP_NATIONAL_POSITIONS[S.natPath.top].fullTitle}

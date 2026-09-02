@@ -496,6 +496,207 @@ function buildCityLocations(){
   return out;
 }
 
+/* ==========================================================
+   六项实绩考核指标（对应地方党政领导班子实绩考核）
+   内部字段名保持不变，仅规范显示名称、考核口径与分项构成
+   ========================================================== */
+const INDICATOR_META = [
+  {key:"GDP", name:"经济发展", weight:0.25, icon:"📈", color:"#b01e23",
+   brief:"地区生产总值及增长",
+   items:["地区生产总值（GDP）及其增长率","规模以上工业增加值","固定资产投资与社会消费品零售总额"],
+   gauge:"以不变价核算的GDP增速为核心，规上工业增加值反映实体经济活跃度，固投与社零反映需求两端。",
+   note:"高质量发展阶段，该指标不再唯GDP论英雄，而是与能耗、效益、债务等指标统筹考核。"},
+  {key:"财政", name:"财政保障", weight:0.15, icon:"💰", color:"#8a6a35",
+   brief:"一般公共预算收入质量",
+   items:["一般公共预算收入","税收收入占比（收入质量）","政府债务率与风险等级"],
+   gauge:"不仅看收入总量，更看税收占比——占比越高说明财政收入质量越好，对土地出让依赖越小。",
+   note:"隐性债务化解与政府债务率是关键约束，债务率超警戒线将影响政绩与晋升。"},
+  {key:"民生", name:"民生福祉", weight:0.25, icon:"🩺", color:"#2f7d4f",
+   brief:"居民收入与公共服务供给",
+   items:["居民人均可支配收入增长","城镇调查失业率（逆向指标）","教育、医疗、养老、托育等公共服务供给"],
+   gauge:"居民收入增速应与经济增长基本同步；城镇调查失业率为逆向指标，越低越好。",
+   note:"民生支出占一般公共预算支出比重是硬约束，通常要求保持在七成以上。"},
+  {key:"生态", name:"生态环境", weight:0.15, icon:"🌿", color:"#4a8f5f",
+   brief:"环境质量与绿色低碳",
+   items:["空气质量优良天数比率与PM2.5浓度","地表水国考断面水质达标率","单位GDP能耗与二氧化碳排放降低率"],
+   gauge:"空气、水、能耗三组指标构成约束性指标体系，多属「十四五」规划中的约束性指标。",
+   note:"生态环境是约束性指标，发生重大环境污染事件通常实行一票否决。"},
+  {key:"治安", name:"平安法治", weight:0.10, icon:"🛡️", color:"#35618a",
+   brief:"安全生产与社会治理",
+   items:["生产安全事故起数与死亡人数（逆向指标）","万人刑事发案率与群众安全感","信访积案化解率与矛盾纠纷调处成功率"],
+   gauge:"安全事故为逆向指标，直接关系「一票否决」；群众安全感通过抽样调查获得。",
+   note:"平安建设纳入领导干部政绩考核，发生重特大安全事故通常实行一票否决。"},
+  {key:"营商", name:"营商改革", weight:0.10, icon:"⚙️", color:"#6a4a8a",
+   brief:"营商环境与创新驱动",
+   items:["市场主体增长率与万人拥有量","政务服务好评率与「一网通办」覆盖率","研发经费投入强度与高新技术企业数"],
+   gauge:"市场主体增长反映经济活力，政务服务好评率反映「放管服」改革成效。",
+   note:"营商环境评价采用企业满意度调查与第三方评估相结合的方式。"},
+];
+
+/* 取指标元数据 */
+function indMeta(key){
+  return INDICATOR_META.find(m=>m.key===key) || {key, name:key, brief:"", items:[], gauge:"", note:"", weight:0, icon:"📊", color:"#666"};
+}
+/* 指标当前值 */
+function indVal(key){ return (S&&typeof S[key]==="number") ? S[key] : 0; }
+/* 综合考核得分（加权，满分100）——即"实绩考核得分" */
+function performanceScore(){
+  let s=0;
+  INDICATOR_META.forEach(m=>{ s += indVal(m.key) * m.weight; });
+  return Math.round(clamp(s,0,100));
+}
+/* 考核等次（现实中的优秀/良好/一般/较差） */
+function performanceGrade(){
+  const v=performanceScore();
+  if(v>=85) return {t:"优秀", c:"#2f7d4f"};
+  if(v>=70) return {t:"良好", c:"#35618a"};
+  if(v>=60) return {t:"一般", c:"#8a6a35"};
+  return {t:"较差", c:"#b01e23"};
+}
+/* 一票否决项检查（现实中的安全生产、生态环境、党风廉政） */
+function vetoCheck(){
+  const out=[];
+  if(indVal("治安")<=15) out.push({t:"重特大安全事故", d:"发生重特大生产安全事故，平安建设一票否决。"});
+  if(indVal("生态")<=15) out.push({t:"重大环境污染", d:"发生重大生态环境破坏事件，生态文明考核一票否决。"});
+  if((S.道德||0)<=10)    out.push({t:"党风廉政建设", d:"党风廉政建设存在严重问题，实行一票否决。"});
+  return out;
+}
+
+
+/* ==========================================================
+   突发事件属性（依据《国家突发公共事件总体应急预案》分级）
+   Ⅰ级（特别重大·红） 国务院组织应对，2小时内上报
+   Ⅱ级（重大·橙）     省级政府组织应对，24小时内上报
+   Ⅲ级（较大·黄）     市级政府组织应对，3个工作日内办结
+   Ⅳ级（一般·蓝）     县级政府组织应对，7个工作日内办结
+   常规政务类无分级，按工作计划推进
+   ========================================================== */
+const EVENT_LEVELS = {
+  "I":  {name:"Ⅰ级 特别重大", short:"Ⅰ级", color:"#b01e23", bg:"#ffeaea",
+         report:"2小时内上报", org:"国务院组织应对", resp:"党中央、国务院", bonus:15, penalty:10,
+         desc:"造成重大人员伤亡或财产损失，需启动国家层面应急响应。"},
+  "II": {name:"Ⅱ级 重大", short:"Ⅱ级", color:"#d2691e", bg:"#fff2e6",
+         report:"24小时内上报", org:"省级政府组织应对", resp:"省委、省政府", bonus:10, penalty:7,
+         desc:"造成较重人员伤亡或财产损失，需省级层面统筹处置。"},
+  "III":{name:"Ⅲ级 较大", short:"Ⅲ级", color:"#b8860b", bg:"#fffbe6",
+         report:"3个工作日内办结", org:"市级政府组织应对", resp:"市委、市政府", bonus:6, penalty:4,
+         desc:"影响范围有限，由市级层面组织处置。"},
+  "IV": {name:"Ⅳ级 一般", short:"Ⅳ级", color:"#35618a", bg:"#eaf2fa",
+         report:"7个工作日内办结", org:"县级政府组织应对", resp:"县委、县政府", bonus:3, penalty:2,
+         desc:"影响范围较小，由县级层面自行处置。"},
+  "N":  {name:"常规政务工作", short:"常规", color:"#4a6a4a", bg:"#eef5ee",
+         report:"按工作计划推进", org:"按职责分工办理", resp:"本机关", bonus:0, penalty:0,
+         desc:"属日常政务范畴，不纳入突发公共事件分级管理。"},
+};
+
+/* 突发公共事件四大类 + 政务分类 */
+const EVENT_CATS = {
+  "自然灾害":     {icon:"🌊", color:"#2b7a9b", desc:"水旱、气象、地震、地质、海洋、生物灾害及森林草原火灾"},
+  "事故灾难":     {icon:"🔥", color:"#b01e23", desc:"工矿商贸等企业的安全事故、交通运输事故、公共设施设备事故、环境污染与生态破坏事件"},
+  "公共卫生事件": {icon:"🦠", color:"#8a4a8a", desc:"传染病疫情、群体性不明原因疾病、食品安全与职业危害、动物疫情"},
+  "社会安全事件": {icon:"⚠️", color:"#b8860b", desc:"恐怖袭击、经济安全事件、涉外突发事件与群体性事件"},
+  "党建纪检监察": {icon:"🔍", color:"#a02a2a", desc:"全面从严治党、党风廉政、巡视巡察与执纪监督工作"},
+  "经济发展":     {icon:"📈", color:"#35618a", desc:"宏观调控、产业规划、招商引资与重大项目建设"},
+  "综合政务":     {icon:"📋", color:"#4a6a4a", desc:"日常行政、民生保障、乡村振兴与干部队伍建设"},
+  "涉外事务":     {icon:"🌍", color:"#2b5a8b", desc:"外交外事、涉外经贸与国际合作事务"},
+};
+
+/* 事件信息报送渠道（现实中的信息来源） */
+const EVENT_SOURCES = [
+  "12345政务服务热线", "群众来信来访", "应急值守报告", "上级部门交办",
+  "媒体舆论曝光", "网络舆情监测", "巡视巡察移交", "纪检监察机关移送",
+  "下级单位请示报告", "企业或机构反映", "群众实名举报", "人大代表建议",
+  "政协委员提案", "审计发现移交", "司法建议书",
+];
+
+/* 47个事件的分级、分类、来源映射 */
+const EVENT_ATTR = {
+  // ── 自然灾害 ──
+  flood:                    {lv:"I",  cat:"自然灾害",     src:"应急值守报告",        loc:"辖区河道沿线"},
+  // ── 事故灾难 ──
+  overcapacity:             {lv:"III",cat:"事故灾难",     src:"部门例行报告",        loc:"重点工业园区"},
+  one_size_fits_all:        {lv:"III",cat:"事故灾难",     src:"群众来信来访",        loc:"县工业园区"},
+  epa:                      {lv:"II", cat:"事故灾难",     src:"上级部门交办",        loc:"重点排污企业"},
+  // ── 公共卫生事件 ──
+  hospital:                 {lv:"III",cat:"公共卫生事件", src:"12345政务服务热线",   loc:"乡镇卫生院"},
+  // ── 社会安全事件 ──
+  petition:                 {lv:"II", cat:"社会安全事件", src:"群众来信来访",        loc:"问题楼盘现场"},
+  land:                     {lv:"II", cat:"社会安全事件", src:"群众来信来访",        loc:"征地拆迁片区"},
+  rumor:                    {lv:"III",cat:"社会安全事件", src:"网络舆情监测",        loc:"网络传播平台"},
+  case_collusion:           {lv:"II", cat:"社会安全事件", src:"群众实名举报",        loc:"涉黑涉恶重点行业"},
+  sell_offices:             {lv:"II", cat:"社会安全事件", src:"群众实名举报",        loc:"组织人事领域"},
+  court_judgment:           {lv:"III",cat:"社会安全事件", src:"司法建议书",          loc:"行政争议领域"},
+  corruption_case:          {lv:"I",  cat:"社会安全事件", src:"纪检监察机关移送",    loc:"系统性腐败领域"},
+  debt_crisis:              {lv:"I",  cat:"社会安全事件", src:"审计发现移交",        loc:"政府投融资平台"},
+  // ── 党建纪检监察 ──
+  cadre:                    {lv:"III",cat:"党建纪检监察", src:"纪检监察机关移送",    loc:"本单位及下属单位"},
+  xunshi:                   {lv:"II", cat:"党建纪检监察", src:"巡视巡察移交",        loc:"被巡视党组织"},
+  liuzhi:                   {lv:"II", cat:"党建纪检监察", src:"纪检监察机关移送",    loc:"问题线索涉及单位"},
+  discipline_self:          {lv:"III",cat:"党建纪检监察", src:"纪检监察机关移送",    loc:"纪检监察系统内部"},
+  political_trial:          {lv:"II", cat:"党建纪检监察", src:"上级部门交办",        loc:"重大政治任务一线"},
+  banquet:                  {lv:"IV", cat:"党建纪检监察", src:"—",                   loc:"公务接待场所"},
+  // ── 经济发展 ──
+  invest:                   {lv:"N",  cat:"经济发展",     src:"企业或机构反映",      loc:"产业园区"},
+  economic_pressure:        {lv:"II", cat:"经济发展",     src:"部门例行报告",        loc:"全省经济运行"},
+  clash_west_energy:        {lv:"N",  cat:"经济发展",     src:"上级部门交办",        loc:"西部新能源基地"},
+  clash_property_rescue:    {lv:"II", cat:"经济发展",     src:"企业或机构反映",      loc:"房地产市场"},
+  clash_chip_route:         {lv:"N",  cat:"经济发展",     src:"上级部门交办",        loc:"科技产业一线"},
+  tech_breakthrough:        {lv:"N",  cat:"经济发展",     src:"上级部门交办",        loc:"重大科技专项"},
+  tech_blockade:            {lv:"II", cat:"经济发展",     src:"上级部门交办",        loc:"关键产业链"},
+  basic_science_breakthrough:{lv:"N", cat:"经济发展",     src:"部门例行报告",        loc:"基础研究一线"},
+  // ── 综合政务 ──
+  inspect:                  {lv:"N",  cat:"综合政务",     src:"上级部门交办",        loc:"调研点位"},
+  poverty:                  {lv:"N",  cat:"综合政务",     src:"部门例行报告",        loc:"乡村振兴重点村"},
+  school:                   {lv:"III",cat:"综合政务",     src:"群众来信来访",        loc:"乡村教学点"},
+  road:                     {lv:"IV", cat:"综合政务",     src:"下级单位请示报告",    loc:"行政村"},
+  faction:                  {lv:"N",  cat:"综合政务",     src:"—",                   loc:"领导班子内部"},
+  promotion_eval:           {lv:"N",  cat:"综合政务",     src:"上级部门交办",        loc:"干部考察一线"},
+  national_plan:            {lv:"N",  cat:"综合政务",     src:"上级部门交办",        loc:"规划编制组"},
+  // ── 涉外事务 ──
+  diplomacy:                {lv:"II", cat:"涉外事务",     src:"上级部门交办",        loc:"涉外经贸领域"},
+  diplomatic_friction:      {lv:"I",  cat:"涉外事务",     src:"上级部门交办",        loc:"双边关系领域"},
+  // ── 选调生专属 ──
+  sel_recommend:            {lv:"N",  cat:"综合政务",     src:"—",                   loc:"高校就业指导中心"},
+  sel_exam:                 {lv:"N",  cat:"综合政务",     src:"—",                   loc:"省级考点"},
+  sel_interview:            {lv:"N",  cat:"综合政务",     src:"—",                   loc:"部委机关"},
+  sel_dunmiao:              {lv:"N",  cat:"综合政务",     src:"上级部门交办",        loc:"挂职行政村"},
+  sel_return:               {lv:"N",  cat:"综合政务",     src:"上级部门交办",        loc:"中央部委机关"},
+  sel_plan_draft:           {lv:"N",  cat:"综合政务",     src:"上级部门交办",        loc:"部委规划司局"},
+  sel_crosspost:            {lv:"N",  cat:"综合政务",     src:"上级部门交办",        loc:"跨系统任职单位"},
+  // ── 基层扎根专属 ──
+  gr_villager:              {lv:"III",cat:"综合政务",     src:"群众来信来访",        loc:"村民聚居区"},
+  gr_collective:            {lv:"N",  cat:"综合政务",     src:"下级单位请示报告",    loc:"村集体经济组织"},
+  gr_grid:                  {lv:"N",  cat:"综合政务",     src:"部门例行报告",        loc:"基层网格"},
+  gr_promotion_local:       {lv:"N",  cat:"综合政务",     src:"上级部门交办",        loc:"基层一线"},
+};
+
+/* 取事件属性（缺省按常规政务处理） */
+function eventAttr(id){
+  const a = EVENT_ATTR[id] || {};
+  const lv = a.lv || "N";
+  return {
+    lv,
+    level: EVENT_LEVELS[lv] || EVENT_LEVELS["N"],
+    cat: a.cat || "综合政务",
+    catInfo: EVENT_CATS[a.cat] || EVENT_CATS["综合政务"],
+    src: a.src || "部门例行报告",
+    loc: a.loc || "辖区内",
+  };
+}
+
+/* 通用弹窗 */
+function openModal(title, bodyHtml){
+  const mt = document.getElementById("modalTitle");
+  const mb = document.getElementById("modalBody");
+  if(mt) mt.textContent = title;
+  if(mb) mb.innerHTML = bodyHtml + `<button class="btn primary" id="modalOk" style="margin-top:14px">继续</button>`;
+  const modal = document.getElementById("modal");
+  if(modal) modal.classList.add("show");
+  const ok = document.getElementById("modalOk");
+  if(ok) ok.onclick=()=>{ modal.classList.remove("show"); renderTopbar(); renderMain(curTab); };
+}
+
+
 /* ================= 一、现实任职地（按行政层级的真实地名）================= */
 const LOCATIONS = {
   // 乡镇 / 街道级（乡科级干部任职地）
@@ -2964,6 +3165,9 @@ function newGame(opts){
     任职地:null,             // 现实任职地：{name,city,prov,tag,desc}
     部门:null,              // 所属部门：{name,cat,level,func,duties,power,risk}
     部门履历:[],            // 历任部门记录
+    处置得当:0,             // 突发事件处置得当次数
+    处置失当:0,             // 突发事件处置失当次数
+    一票否决次数:0,         // 触及一票否决事项累计次数
     兼任:[],                // 兼任职务：[{id,post,organ,organLevel,personLevel,highProfile,by}]
     地域回避提示:false,      // 是否已就地域回避作出处理
     natPath:{},              // 国家级方向：{vice:'power|honor|judicial|military', top:'...'}
@@ -3108,7 +3312,8 @@ function monthlySettlement(){
   // 自然衰减/增长
   // 轮岗适应期：政绩产出下降50%（政绩真空期）
   const adapt = (S.rotation && S.rotation.adaptation>0) ? 0.5 : 1;
-  S.政绩 += Math.round((S.GDP*0.3 + S.民生*0.3 + S.营商*0.2 + S.生态*0.1 + S.治安*0.1)*r*0.15*adapt);
+  // 政绩积累 = 六项实绩考核加权综合得分 × 系数（不再唯GDP论）
+  S.政绩 += Math.round(performanceScore()*r*0.15*adapt);
   // 适应期倒计时
   if(S.rotation && S.rotation.adaptation>0){
     S.rotation.adaptation--;
@@ -3136,6 +3341,18 @@ function monthlySettlement(){
     if(a.上司好感) S.上司好感 = clamp(S.上司好感 + a.上司好感, 0, 100);
     if(a.政绩产出) S.政绩 = Math.round(S.政绩 * (1 + a.政绩产出));
     if(S.route==='discipline' && de.廉政) S.廉政积分 = (S.廉政积分||0) + de.廉政;
+  }
+  // 一票否决事项：触及则政绩与晋升资格受严重影响
+  {
+    const vs = vetoCheck();
+    if(vs.length){
+      S.政绩 = Math.max(0, S.政绩 - 30*vs.length);
+      S.上司好感 = clamp((S.上司好感||0) - 10*vs.length, 0, 100);
+      if(!S.一票否决次数) S.一票否决次数 = 0;
+      S.一票否决次数 += vs.length;
+      pushLog(`⛔ <b>一票否决</b>：${vs.map(v=>v.t).join('、')}。本月政绩 -${30*vs.length}，上级评价下降。`);
+      addToast("⛔ 触及一票否决事项");
+    }
   }
   // 基层工作经历累积：县处级副职（索引11）以下岗位计入基层经历
   if(!S.基层月数) S.基层月数 = 0;
@@ -4051,22 +4268,51 @@ function renderTopbar(){
 
 /* ---------- 6. 渲染：各页面 ---------- */
 function pStats(){
-  return `<div class="card">
-    <div class="card-h">📊 六城指标</div>
+  const score = performanceScore();
+  const grade = performanceGrade();
+  const vetoes = vetoCheck();
+
+  // 综合考核得分卡
+  let html = `<div class="card">
+    <div class="card-h">📊 年度实绩考核</div>
+    <div class="card-b">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="font-size:30px;font-weight:800;color:${grade.c};line-height:1">${score}</div>
+        <div>
+          <div style="font-weight:700;color:${grade.c}">考核等次：${grade.t}</div>
+          <div class="mini muted">六项指标加权综合得分（满分100）</div>
+        </div>
+      </div>
+      <div class="mini" style="margin-top:8px;color:#666;line-height:1.6">
+        考核等次对应现实中的优秀 / 良好 / 一般 / 较差。政绩积累速度直接由综合得分决定。
+      </div>
+      ${vetoes.length?`<div style="margin-top:8px;border:1px solid #b01e23;border-radius:4px;padding:7px;background:#fff5f5">
+        <div style="font-weight:700;color:#b01e23;font-size:12px">⛔ 一票否决风险（${vetoes.length}项）</div>
+        ${vetoes.map(v=>`<div class="mini" style="color:#a33;margin-top:3px">· ${v.t}：${v.d}</div>`).join('')}
+      </div>`:`<div style="margin-top:8px;border:1px solid #2f7d4f;border-radius:4px;padding:7px;background:#f5fbf7">
+        <div class="mini" style="color:#2f7d4f">✓ 未触及一票否决事项（安全生产、生态环境、党风廉政）</div>
+      </div>`}
+    </div>
+  </div>`;
+
+  // 六项指标明细
+  html += `<div class="card">
+    <div class="card-h">📋 六项实绩考核指标</div>
     <div class="card-b">
       <div class="stat-grid">
-        <div class="stat"><span class="lbl">财政资金</span><div class="n">${S.财政}</div></div>
-        <div class="stat"><span class="lbl">GDP增长</span><div class="n">${S.GDP}</div></div>
-        <div class="stat"><span class="lbl">民生福祉</span><div class="n">${S.民生}</div></div>
-        <div class="stat"><span class="lbl">生态指数</span><div class="n">${S.生态}</div></div>
-        <div class="stat"><span class="lbl">营商环境</span><div class="n">${S.营商}</div></div>
-        <div class="stat"><span class="lbl">治安指数</span><div class="n">${S.治安}</div></div>
+        ${INDICATOR_META.map(m=>`
+          <div class="stat" data-ind="${m.key}" style="cursor:pointer">
+            <span class="lbl">${m.icon} ${m.name}<span style="color:#999;font-weight:400">×${m.weight}</span></span>
+            <div class="n">${indVal(m.key)}</div>
+          </div>`).join('')}
       </div>
       <div class="mini" style="margin-top:8px">可支配资源点：<b>${S.cash}</b>（可用于专项建设）</div>
+      <div class="mini muted" style="margin-top:4px">👆 点任一指标查看现实考核口径与分项构成</div>
     </div>
-  </div>` +
-  // 部委专属指标
-  (S.dept==='mfa'? `<div class="card">
+  </div>`;
+
+  // 部委专属指标（保留）
+  html += (S.dept==='mfa'? `<div class="card">
     <div class="card-h">🌍 外交部 · 国际声望</div>
     <div class="card-b">
       <div class="stat-grid">
@@ -4084,7 +4330,35 @@ function pStats(){
       <div class="mini" style="margin-top:8px">通过专精特新与新基建积累，决定突破「卡脖子」技术的能力。</div>
     </div>
   </div>`:"");
+  return html;
 }
+
+/* 打开指标口径详情 */
+function openIndicatorDetail(key){
+  const m = indMeta(key);
+  if(!m) return;
+  const v = indVal(key);
+  openModal(`📊 ${m.name}（${m.brief}）`, `
+    <div class="result-box" style="border-style:solid">
+      <div style="font-size:26px;font-weight:800;color:${m.color}">${v}<span style="font-size:13px;color:#888"> / 100</span></div>
+      <div class="mini" style="margin-top:2px">考核权重：<b>${(m.weight*100).toFixed(0)}%</b></div>
+    </div>
+    <div style="margin-top:10px">
+      <div class="mini" style="font-weight:700;color:${m.color}">📌 分项构成</div>
+      <div class="mini" style="color:#555;line-height:1.7;margin-top:3px">
+        ${m.items.map(it=>'· '+it).join('<br>')}
+      </div>
+    </div>
+    <div style="margin-top:10px">
+      <div class="mini" style="font-weight:700;color:${m.color}">📐 考核口径</div>
+      <div class="mini" style="color:#555;line-height:1.7;margin-top:3px">${m.gauge}</div>
+    </div>
+    ${m.note?`<div style="margin-top:10px;border-left:3px solid ${m.color};padding-left:8px">
+      <div class="mini" style="color:#666;line-height:1.7">${m.note}</div>
+    </div>`:""}
+  `);
+}
+
 
 function pFaction(){
   return `<div class="card">
@@ -4112,21 +4386,88 @@ function pFaction(){
 }
 
 function pEvent(){
-  const e=pickEvent();
-  let html=`<div class="card">
-    <div class="card-h">📋 政务事件 · ${e.title}</div>
+  const e = pickEvent();
+  const A = eventAttr(e.id);
+  const lv = A.level, cat = A.catInfo;
+  const isEmergency = (A.lv !== "N");
+
+  let html = `<div class="card">
+    <div class="card-h">${isEmergency?"🚨 突发事件处置":"📋 政务工作办理"}</div>
     <div class="card-b">
+
+      <!-- 事件分级与分类标识 -->
+      <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:8px">
+        <span style="background:${lv.bg};color:${lv.color};border:1px solid ${lv.color};
+              border-radius:4px;padding:3px 9px;font-size:12px;font-weight:700">
+          ${isEmergency?"⚡ ":""}${lv.name}
+        </span>
+        <span style="background:#f5f5f5;color:#555;border:1px solid #ddd;
+              border-radius:4px;padding:3px 9px;font-size:12px">
+          ${cat.icon} ${A.cat}
+        </span>
+        ${isEmergency?`<span style="background:#fff5f5;color:#b01e23;border:1px dashed #b01e23;
+              border-radius:4px;padding:3px 9px;font-size:12px">
+          ⏱ ${lv.report}
+        </span>`:`<span style="background:#eef5ee;color:#4a6a4a;border:1px dashed #4a6a4a;
+              border-radius:4px;padding:3px 9px;font-size:12px">
+          ⏱ ${lv.report}
+        </span>`}
+      </div>
+
+      <!-- 事件标题 -->
+      <div style="font-size:17px;font-weight:800;color:#b01e23;line-height:1.35;margin-bottom:6px">
+        ${e.title}
+      </div>
+
+      <!-- 事发信息栏 -->
+      <div style="background:#fafafa;border-left:3px solid ${lv.color};padding:8px 10px;
+                  border-radius:0 4px 4px 0;margin-bottom:10px">
+        <div class="mini" style="line-height:1.9;color:#555">
+          <b>信息来源</b>：${A.src}<br>
+          <b>涉及范围</b>：${A.loc}<br>
+          <b>处置层级</b>：${lv.org}　<b>责任主体</b>：${lv.resp}
+          ${isEmergency?`<br><b style="color:${lv.color}">事件定级</b>：${lv.desc}`:""}
+        </div>
+      </div>
+
+      <!-- 事件正文 -->
       <div class="event-text">${e.text}</div>
-      <div class="muted" style="font-size:11px">请审慎抉择，每个决定都将影响你的仕途：</div>`;
+
+      <div class="muted" style="font-size:11px;margin-bottom:8px">
+        ${isEmergency?`请按突发事件应急预案要求及时妥善处置。处置结果将按事件等级计入考核：`:"请按职责分工研究办理，处置结果计入年度考核："}
+        ${isEmergency?`<b style="color:#2f7d4f">妥善 +${lv.bonus}政绩</b> / <b style="color:#b01e23">失当 -${lv.penalty}政绩</b>`:""}
+      </div>
+
+      <!-- 当前考核状态 -->
+      <div style="background:#f7f9fb;border-radius:4px;padding:7px 9px;margin-bottom:10px">
+        <div class="mini" style="line-height:1.8;color:#555">
+          当前实绩考核：<b style="color:${performanceGrade().c}">${performanceScore()} 分（${performanceGrade().t}）</b>
+          　当前职务：${rankTitle(S.rank)}
+          ${vetoCheck().length?`<br><b style="color:#b01e23">⛔ 存在一票否决风险</b>`:""}
+        </div>
+      </div>`;
+
   e.opts.forEach((o,i)=>{
     html+=`<button class="btn" data-act="choose" data-eid="${e.id}" data-idx="${i}">
       <span class="bt">${i+1}. ${o.t}</span>
       <span class="bd">${o.d}</span>
     </button>`;
   });
-  html+=`</div></div>`;
+
+  // 事件分类说明
+  html += `<div style="margin-top:10px;border-top:1px dashed #ddd;padding-top:8px">
+    <div class="mini" style="color:#888;line-height:1.6">
+      <b>${cat.icon} ${A.cat}</b>：${cat.desc}
+    </div>
+    ${isEmergency?`<div class="mini" style="color:#888;margin-top:4px">
+      分级依据《国家突发公共事件总体应急预案》：Ⅰ级特别重大（红）· Ⅱ级重大（橙）· Ⅲ级较大（黄）· Ⅳ级一般（蓝）
+    </div>`:""}
+  </div>`;
+
+  html += `</div></div>`;
   return html;
 }
+
 
 function pAction(){
   // 日常行动
@@ -4433,6 +4774,28 @@ function renderArchive(){
     }
   }
 
+  // 突发事件处置统计卡片
+  let emergencyCard = "";
+  {
+    const good = S.处置得当||0, bad = S.处置失当||0, veto = S.一票否决次数||0;
+    const total = good + bad;
+    const rate = total ? Math.round(good/total*100) : 0;
+    const score = performanceScore();
+    const grade = performanceGrade();
+    emergencyCard = `<div style="border-top:1px dashed #ddd;margin-top:8px;padding-top:8px">
+      <div class="mini"><b>🚨 突发事件处置</b>（分级响应）</div>
+      <div class="mini" style="line-height:1.9;margin-top:3px">
+        处置得当：<b style="color:#2f7d4f">${good}</b> 次 ·
+        处置失当：<b style="color:#b01e23">${bad}</b> 次
+        ${total?`<br>妥善处置率：<b>${rate}%</b>`:""}
+        ${veto?`<br><b style="color:#b01e23">⛔ 累计触及一票否决：${veto} 次</b>`:""}
+      </div>
+      <div class="mini" style="line-height:1.9;margin-top:5px">
+        <b>📊 年度实绩考核</b>：综合得分 <b style="color:${grade.c}">${score}</b>（${grade.t}）
+      </div>
+    </div>`;
+  }
+
   // 兼任与高配卡片
   let hpCard = "";
   {
@@ -4507,6 +4870,7 @@ function renderArchive(){
       ${postCard}
       ${locCard}
       ${deptCard}
+      ${emergencyCard}
       ${hpCard}
     </div>
   </div>`;
@@ -4589,6 +4953,10 @@ function bindActions(){
   document.querySelectorAll('[data-act="resignc"]').forEach(b=>{
     b.onclick=()=>{ resignConcurrent(b.getAttribute('data-id')); };
   });
+  // 指标口径详情
+  document.querySelectorAll('[data-ind]').forEach(el=>{
+    el.onclick=()=>{ openIndicatorDetail(el.dataset.ind); };
+  });
   // 部门岗位交流
   document.querySelectorAll('[data-act="transfer_dept"]').forEach(b=>{
     b.onclick=()=>{ const sel=$("deptSel"); if(sel) transferDepartment(sel.value); };
@@ -4605,6 +4973,49 @@ function bindActions(){
   });
 }
 
+/* 事件处置效果判定：以"是否损害公共利益"为粗略标准
+   判断依据：道德、民生、治安、生态的净变化 */
+function buildLevelFeedback(eid, opt){
+  const A = eventAttr(eid);
+  if(A.lv === "N") return "";
+  const lv = A.level;
+
+  // 计算该选项对关键指标的净影响
+  const probe = {};
+  const snap = {道德:S.道德, 民生:S.民生, 治安:S.治安, 生态:S.生态, 政绩:S.政绩};
+  try{
+    const tmp = Object.assign({}, S);
+    if(typeof opt.fn === "function") opt.fn(tmp);
+    const d道德 = (tmp.道德??0) - (snap.道德??0);
+    const d民生 = (tmp.民生??0) - (snap.民生??0);
+    const d治安 = (tmp.治安??0) - (snap.治安??0);
+    const d生态 = (tmp.生态??0) - (snap.生态??0);
+    probe.net = d道德*0.4 + d民生*0.25 + d治安*0.2 + d生态*0.15;
+  }catch(err){ return ""; }
+
+  const good = probe.net >= 0;
+  const delta = good ? lv.bonus : -lv.penalty;
+  S.政绩 = Math.max(0, (S.政绩||0) + delta);
+  if(good) { S.处置得当 = (S.处置得当||0)+1; } else { S.处置失当 = (S.处置失当||0)+1; }
+  pushLog(`${good?"✅":"❌"} 【${lv.short}事件】${eidTitle(eid)}处置${good?"得当":"失当"}，政绩 ${delta>0?"+":""}${delta}。`);
+
+  const c = good ? "#2f7d4f" : "#b01e23";
+  return `<div style="margin-top:10px;border:1px solid ${c};border-radius:4px;padding:8px;background:${good?"#f5fbf7":"#fff5f5"}">
+    <div style="font-weight:700;color:${c};font-size:13px">
+      ${good?"✅ 处置得当":"❌ 处置失当"}　政绩 ${delta>0?"+":""}${delta}
+    </div>
+    <div class="mini" style="color:#666;margin-top:3px;line-height:1.6">
+      ${good
+        ? `你在${lv.short}事件中的处置符合应急预案要求，未造成次生影响。`
+        : `该${lv.short}事件处置存在明显不足，公共利益受损，可能影响年度考核。`}
+    </div>
+  </div>`;
+}
+function eidTitle(id){
+  const e = EVENTS.find(x=>x.id===id);
+  return e ? e.title : id;
+}
+
 function showResult(e,opt){
   $("modalTitle").textContent="处理结果 · "+e.title;
   $("modalBody").innerHTML=`
@@ -4613,6 +5024,7 @@ function showResult(e,opt){
       ${opt.d}
     </div>
     <div class="mini" style="margin-top:10px">"${flavorText(e.id)}"</div>
+    ${buildLevelFeedback(e.id, opt)}
     <button class="btn primary" id="modalOk" style="margin-top:14px">继续</button>`;
   $("modal").classList.add("show");
   $("modalOk").onclick=()=>{ $("modal").classList.remove("show"); renderTopbar(); renderMain('event'); checkPromotion(); };
@@ -5173,6 +5585,8 @@ function endGame(type){
       ${S.任职地?`<br>最后任职地：<b>${S.任职地.city?S.任职地.prov+S.任职地.city+S.任职地.name:(S.任职地.prov||"")+S.任职地.name}</b>`:""}
       ${(S.兼任&&S.兼任.length)?`<br>兼任职务：${S.兼任.map(x=>x.post+(x.highProfile?"（高配）":"")).join('、')}`:""}
       ${S.部门?`<br>最后所在部门：<b>${S.部门.name}</b>（${S.部门.cat}）`:""}
+      ${(S.处置得当||S.处置失当)?`<br>突发事件处置：得当 <b>${S.处置得当||0}</b> 次 · 失当 <b>${S.处置失当||0}</b> 次`:""}
+      ${S.一票否决次数?`<br><b>⛔ 累计触及一票否决：${S.一票否决次数} 次</b>`:""}
       ${(S.部门履历&&S.部门履历.length)?`<br>部门履历：${[...new Set(S.部门履历.map(x=>x.name))].join(' → ')}`:""}
       ${(S.tags&&S.tags.length)?`<br>人设标签：${S.tags.join(' · ')}`:""}
       ${(S.natPath&&S.natPath.vice)?`<br>副国级方向：<b>${VICE_NATIONAL_PATHS[S.natPath.vice].name}</b>`:""}
@@ -5215,6 +5629,8 @@ function renderEnding(){
           ${S.任职地?`<br>最后任职地：<b>${S.任职地.city?S.任职地.prov+S.任职地.city+S.任职地.name:(S.任职地.prov||"")+S.任职地.name}</b>`:""}
           ${dept?`<br>最后所在部门：<b>${dept.name}</b>（${dept.cat} · ${dept.level}）`:""}
           ${uniqDept.length?`<br>部门履历：${uniqDept.join(' → ')}`:""}
+          ${((S.处置得当||0)+(S.处置失当||0))?`<br>突发事件处置：得当 <b>${S.处置得当||0}</b> 次 · 失当 <b>${S.处置失当||0}</b> 次`:""}
+          ${S.一票否决次数?`<br><b style="color:#b01e23">⛔ 累计触及一票否决：${S.一票否决次数} 次</b>`:""}
           ${(S.兼任&&S.兼任.length)?`<br>兼任职务：${S.兼任.map(x=>x.post+(x.highProfile?"（高配）":"")).join('、')}`:""}
           ${S.dept?`<br>所属部委：<b>${DEPARTMENTS[S.dept].name}</b>`:""}
           ${(S.rotation&&S.rotation.count>0)?`<br>轮岗履历：${(S.rotation.history||[]).map(k=>DEPARTMENTS[k]?DEPARTMENTS[k].short:k).join(' → ')}（共${S.rotation.count}次）`:""}
@@ -5271,7 +5687,7 @@ function startScreen(){
       </div>
       <div class="card" style="text-align:left;margin-top:12px">
         <div class="card-b">
-          <span class="mini">核心机制：六城指标 · 派系博弈 · 突发事件 · 五维考核 · 多结局分支</span>
+          <span class="mini">核心机制：六项实绩考核 · 突发事件分级处置 · 派系博弈 · 部门职能 · 多结局分支</span>
         </div>
       </div>
       ${localStorage.getItem("qlp_top")?'<button class="btn center" id="contGame" style="margin-top:10px;width:80%;border-left-color:#999"><span class="bt">继续上次进度</span></button>':''}

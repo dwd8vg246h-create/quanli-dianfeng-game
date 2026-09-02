@@ -2296,7 +2296,12 @@ function loadUsers(){
   }catch(e){ return {}; }
 }
 function saveUsers(u){
-  try{ localStorage.setItem(DB_USERS, JSON.stringify(u)); }catch(e){}
+  // 返回写入是否成功（容量不足时返回 false，供调用方提示并回退）
+  try{
+    if(typeof DB_USERS === "undefined" || !DB_USERS) { try{ localStorage.setItem("qlp_users", JSON.stringify(u)); }catch(e){ return false; } return true; }
+    localStorage.setItem(DB_USERS, JSON.stringify(u));
+    return true;
+  }catch(e){ return false; }
 }
 
 /* 按联系方式查找档案 */
@@ -2514,6 +2519,274 @@ const AVATAR_TEMPLATES = [
 ];
 function avatarOf(key){
   return AVATAR_TEMPLATES.find(a=>a.key===key) || AVATAR_TEMPLATES[0];
+}
+
+/* ============================================================
+   自定义证件照（正装照上传）
+   说明：图片经等比裁切压缩后以 base64 存入浏览器 localStorage，
+         不上传任何服务器。受 localStorage 容量限制（约5MB），
+         统一压缩为标准证件照规格 240×320（3:4），JPEG 质量 0.82。
+   ============================================================ */
+const AVATAR_SPEC = {w:240, h:320, quality:0.82, maxBytes:260*1024};
+
+/* 取自定义照片 dataURL */
+function customAvatar(user){
+  if(!user) return null;
+  if(user.avatar === "custom" && user.avatar_custom) return user.avatar_custom;
+  return null;
+}
+
+/* 统一头像 HTML（自定义照片为 <img>，预设模板为 emoji） */
+function avatarHTML(user, size, extraCss){
+  const w = size || 74, h = Math.round(w * 4/3);
+  const cust = customAvatar(user);
+  if(cust){
+    return `<img src="${cust}" alt="证件照"
+      style="width:${w}px;height:${h}px;object-fit:cover;border-radius:3px;${extraCss||''}">`;
+  }
+  const a = avatarOf(user ? user.avatar : "default");
+  return `<div style="width:${w}px;height:${h}px;background:${a.bg};
+    border-radius:3px;display:flex;align-items:center;justify-content:center;
+    font-size:${Math.round(w*0.5)}px;${extraCss||''}">${a.emoji}</div>`;
+}
+
+/* 读取本地图片 → 等比裁切 → 压缩 → dataURL */
+function processAvatarFile(file){
+  return new Promise((resolve, reject)=>{
+    if(!file) { reject({msg:"未选择文件"}); return; }
+    if(!/^image\//.test(file.type)){ reject({msg:"请选择图片文件（JPG / PNG / WebP）。"}); return; }
+    if(file.size > 12*1024*1024){ reject({msg:"图片过大，请选择 12MB 以内的照片。"}); return; }
+
+    const reader = new FileReader();
+    reader.onerror = ()=>reject({msg:"图片读取失败，请重试。"});
+    reader.onload = ()=>{
+      const dataUrl = String(reader.result || "");
+      const img = new Image();
+      // 超时保护：极少数环境（或超大图片）可能既不触发 load 也不触发 error
+      let settled = false;
+      const guard = setTimeout(()=>{
+        if(settled) return;
+        settled = true;
+        reject({msg:"图片处理超时，请换一张尺寸较小的照片重试。"});
+      }, 15000);
+      const done = (fn)=>(...args)=>{ if(settled) return; settled=true; clearTimeout(guard); fn(...args); };
+      img.onerror = done(()=>reject({msg:"图片格式无法识别，请换一张试试。"}));
+      img.onload = done(function(){
+        try{
+          const spec = AVATAR_SPEC;
+          const canvas = document.createElement("canvas");
+          canvas.width = spec.w; canvas.height = spec.h;
+          const ctx = canvas.getContext("2d");
+          if(!ctx){ reject({msg:"当前浏览器不支持图片处理。"}); return; }
+          // 白底（PNG 透明区域填充为白，符合证件照要求）
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(0, 0, spec.w, spec.h);
+          // 等比裁切（居中，cover）
+          const sw = img.naturalWidth || img.width;
+          const sh = img.naturalHeight || img.height;
+          const scale = Math.max(spec.w/sw, spec.h/sh);
+          const dw = sw*scale, dh = sh*scale;
+          const dx = (spec.w - dw)/2, dy = (spec.h - dh)/2;
+          ctx.drawImage(img, dx, dy, dw, dh);
+          let out = canvas.toDataURL("image/jpeg", spec.quality);
+          // 若仍超预算，逐级降质量
+          let q = spec.quality;
+          while(out.length > spec.maxBytes*1.37 && q > 0.45){
+            q -= 0.08;
+            out = canvas.toDataURL("image/jpeg", q);
+          }
+          resolve({dataUrl:out, bytes:Math.round(out.length*0.75)});
+        }catch(e){ reject({msg:"图片处理失败：" + (e.message||e)}); }
+      });
+      img.src = dataUrl;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+/* 保存自定义证件照到档案 */
+function saveCustomAvatar(dataUrl){
+  let u = null;
+  try{ u = getSession(); }catch(e){}
+  if(!u) return {ok:false, msg:"免建档模式不支持设置证件照"};
+  const users = loadUsers();
+  if(!users[u.user_id]) return {ok:false, msg:"未找到人事档案"};
+  const prevAvatar = u.avatar && u.avatar!=="custom" ? u.avatar : "default";
+  const prevCustom = u.avatar_custom;
+  users[u.user_id].avatar = "custom";
+  users[u.user_id].avatar_custom = dataUrl;
+  users[u.user_id].avatar_updated = new Date().toISOString();
+  const okWrite = saveUsers(users);
+  if(!okWrite){
+    // 容量不足：回退到修改前状态并提示
+    delete users[u.user_id].avatar_custom;
+    users[u.user_id].avatar = prevAvatar;
+    if(prevCustom) users[u.user_id].avatar_custom = prevCustom;
+    saveUsers(users);
+    return {ok:false, msg:"存储空间不足，无法保存照片。请先移除其他档案的照片后重试。"};
+  }
+  return {ok:true, user:users[u.user_id]};
+}
+
+/* 移除自定义证件照（恢复预设模板） */
+function removeCustomAvatar(fallbackKey){
+  let u = null;
+  try{ u = getSession(); }catch(e){}
+  if(!u) return {ok:false, msg:"免建档模式"};
+  const users = loadUsers();
+  if(!users[u.user_id]) return {ok:false, msg:"未找到人事档案"};
+  delete users[u.user_id].avatar_custom;
+  users[u.user_id].avatar = (fallbackKey && fallbackKey!=="custom") ? fallbackKey : "default";
+  saveUsers(users);
+  return {ok:true, user:users[u.user_id]};
+}
+
+/* 证件照选择弹窗（预设模板 + 上传正装照） */
+function openAvatarPicker(){
+  let u = null;
+  try{ u = getSession(); }catch(e){}
+  if(!u){ addToast("免建档模式不支持设置证件照"); return; }
+
+  const isCustom = u.avatar === "custom" && !!u.avatar_custom;
+  openModal("🖼️ 证件照设置", `
+    <div class="mini muted" style="margin-bottom:10px;line-height:1.7">
+      可选择系统预设的标准证件照模板，或<b>上传本人正装照</b>。<br>
+      <span style="font-size:10px">
+        上传的照片将自动裁切为标准证件照规格（3:4，240×320），
+        <b>仅保存在本机浏览器</b>，不会上传至任何服务器。
+      </span>
+    </div>
+
+    <div class="mini" style="font-weight:700;color:#b01e23;margin-bottom:6px">当前证件照</div>
+    <div style="display:flex;justify-content:center;margin-bottom:12px">
+      ${avatarHTML(u, 90, "border:2px solid #b01e23;box-shadow:0 1px 6px rgba(0,0,0,.12)")}
+    </div>
+
+    <div class="mini" style="font-weight:700;color:#b01e23;margin-bottom:6px">上传正装照</div>
+    <div style="border:1px dashed #c8b48c;border-radius:4px;padding:12px;text-align:center;
+                background:rgba(255,250,238,.7);margin-bottom:6px">
+      <input type="file" id="av_file" accept="image/*" style="display:none">
+      <button class="btn" id="av_pick" style="width:100%">
+        <span class="bt">📷 选择本地照片</span>
+        <span class="bd" style="font-size:10px">支持 JPG / PNG / WebP，12MB 以内</span>
+      </button>
+      <div class="mini" id="av_preview" style="margin-top:8px"></div>
+      <div class="mini" id="av_msg" style="margin-top:5px"></div>
+      <button class="btn primary" id="av_save" style="width:100%;margin-top:6px;display:none">
+        <span class="bt">✓ 确认使用该照片</span>
+      </button>
+    </div>
+    <div class="mini muted" style="font-size:10px;line-height:1.6;margin-bottom:12px">
+      建议：正面免冠、深色正装、浅色背景、露出双耳与眉毛，
+      与真实证件照要求一致，代入感更强。
+    </div>
+
+    <div class="mini" style="font-weight:700;color:#b01e23;margin-bottom:6px">系统预设模板</div>
+    <div style="display:flex;flex-wrap:wrap;gap:10px;justify-content:center">
+      ${AVATAR_TEMPLATES.map(a=>`
+        <div data-pick-avatar="${a.key}" style="width:78px;cursor:pointer;text-align:center">
+          <div style="width:70px;height:92px;background:${a.bg};
+                      border:2px solid ${(!isCustom && u.avatar===a.key)?'#b01e23':'#ddd'};border-radius:3px;
+                      display:flex;align-items:center;justify-content:center;font-size:34px">
+            ${a.emoji}
+          </div>
+          <div class="mini" style="font-size:9px;margin-top:2px">${a.name}</div>
+        </div>`).join('')}
+    </div>
+
+    ${isCustom?`<button class="btn" id="av_remove" style="width:100%;margin-top:12px">
+      <span class="bt">🗑️ 移除上传的照片</span>
+    </button>`:""}
+  `);
+
+  let pending = null;
+  const fileInp = document.getElementById("av_file");
+  const pick = document.getElementById("av_pick");
+  const prev = document.getElementById("av_preview");
+  const msg = document.getElementById("av_msg");
+  const saveBtn = document.getElementById("av_save");
+  const rmBtn = document.getElementById("av_remove");
+
+  if(pick) pick.onclick = ()=>{ if(fileInp) fileInp.click(); };
+  if(fileInp) fileInp.onchange = async ()=>{
+    const f = fileInp.files && fileInp.files[0];
+    if(!f) return;
+    if(msg){ msg.textContent = "正在处理照片…"; msg.style.color = "#8a6a35"; }
+    try{
+      const r = await processAvatarFile(f);
+      pending = r.dataUrl;
+      if(prev) prev.innerHTML = `<img src="${r.dataUrl}"
+         style="width:90px;height:120px;object-fit:cover;border:2px solid #2f7d4f;border-radius:3px">`;
+      if(msg){
+        msg.textContent = `处理完成（约 ${Math.round(r.bytes/1024)} KB），确认后生效。`;
+        msg.style.color = "#2f7d4f";
+      }
+      if(saveBtn) saveBtn.style.display = "";
+    }catch(e){
+      pending = null;
+      if(msg){ msg.textContent = e.msg || "处理失败"; msg.style.color = "#b01e23"; }
+      if(prev) prev.innerHTML = "";
+      if(saveBtn) saveBtn.style.display = "none";
+    }
+  };
+  if(saveBtn) saveBtn.onclick = ()=>{
+    if(!pending) return;
+    const r = saveCustomAvatar(pending);
+    if(r.ok){
+      sfxStamp();
+      addToast("证件照已更新");
+      document.getElementById("modal").classList.remove("show");
+      refreshAvatarViews();
+    } else {
+      if(msg){ msg.textContent = r.msg; msg.style.color = "#b01e23"; }
+      addToast(r.msg);
+    }
+  };
+  if(rmBtn) rmBtn.onclick = ()=>{
+    if(!confirm("确定移除上传的证件照？将恢复为系统预设模板。")) return;
+    const r = removeCustomAvatar("default");
+    if(r.ok){
+      addToast("已恢复预设证件照");
+      document.getElementById("modal").classList.remove("show");
+      refreshAvatarViews();
+    }
+  };
+  document.querySelectorAll('[data-pick-avatar]').forEach(el=>{
+    el.onclick = ()=>{
+      const users = loadUsers();
+      if(users[u.user_id]){
+        users[u.user_id].avatar = el.dataset.pickAvatar;
+        saveUsers(users);
+      }
+      sfxStamp();
+      document.getElementById("modal").classList.remove("show");
+      addToast("证件照已更新");
+      refreshAvatarViews();
+    };
+  });
+}
+
+/* 刷新所有显示证件照的位置 */
+function refreshAvatarViews(){
+  try{
+    // 判断是否已进入游戏（顶栏有内容说明在局内）
+    const inGame = (typeof S !== "undefined") && S && S.rank !== undefined
+                   && document.getElementById("topbar")
+                   && document.getElementById("topbar").innerHTML.length > 0;
+    if(inGame){
+      if(typeof renderTopbar === "function") renderTopbar();
+      if(typeof renderMain === "function" && typeof curTab !== "undefined" && curTab){
+        renderMain(curTab);
+      }
+    } else {
+      // 建档流程中：仅重绘当前注册页（不覆盖流程）
+      const rgMain = document.getElementById("main");
+      if(rgMain && typeof REG !== "undefined" && REG && REG.step){
+        renderRegStep();
+      }
+    }
+    if(typeof renderAcctBar === "function") renderAcctBar();
+  }catch(e){}
 }
 
 
@@ -6182,9 +6455,8 @@ function renderTopbar(){
         ${(()=>{
           let u=null; try{ u=getSession(); }catch(e){}
           if(!u) return '';
-          const a=avatarOf(u.avatar);
           return `<span title="${u.character_name}（工号 ${u.emp_id||'—'}）"
-                        id="tbAvatar" style="cursor:pointer;font-size:18px;line-height:1">${a.emoji}</span>`;
+                        id="tbAvatar" style="cursor:pointer;line-height:1;display:inline-block">${avatarHTML(u, 24, "border-radius:50%;border:1px solid rgba(255,255,255,.6)")}</span>`;
         })()}
         <div class="mini" style="color:#ffd">政绩 ${S.政绩}</div>
       </div>
@@ -6204,6 +6476,40 @@ function renderTopbar(){
       ${S.mode==='selective'?`<span class="attr" style="background:rgba(180,140,30,.6)">${S.returned?'部委':(S.dunmiao?'墩苗中':'选调')}</span>`:""}
       ${S.mode==='grassroots'?`<span class="attr" style="background:rgba(60,110,60,.6)">扎根</span>`:""}
     </div>`;
+
+  // 顶栏头像：点击显示账户信息
+  const av = document.getElementById("tbAvatar");
+  if(av) av.onclick=()=>{
+    let u=null; try{ u=getSession(); }catch(e){}
+    if(!u) return;
+    openModal("🪪 人事档案", `
+      <div style="text-align:center;padding:6px 0;display:flex;justify-content:center">
+        ${avatarHTML(u, 80, "border:2px solid #b01e23")}
+        <div style="font-size:16px;font-weight:700;color:#8a1e23;margin-top:6px">
+          ${u.character_name!=="—"?u.character_name:"未命名"}
+        </div>
+      </div>
+      <div class="mini" style="line-height:2;margin-top:8px">
+        档案编号：<b>${u.user_id}</b><br>
+        专属工号：<b>${u.emp_id||"—"}</b><br>
+        联系方式：<b>${maskContact(u.phone_number)}</b><br>
+        性　　别：<b>${u.gender}</b><br>
+        籍　　贯：<b>${u.hometown||"—"}</b><br>
+        建档时间：<b>${u.registration_time_cn}</b><br>
+        档案状态：<b style="color:#2f7d4f">${u.account_status}</b><br>
+        登录次数：<b>${u.login_count||0}</b> 次<br>
+        实名核验：<b style="color:${u.realname_verified?(u.is_adult?'#2f7d4f':'#8a6a35'):'#b01e23'}">
+          ${u.realname_verified?(u.is_adult?'已完成（成年人）':'已完成（未成年，纳入防沉迷）'):'未核验'}</b>
+      </div>
+      <div style="display:flex;gap:6px;margin-top:10px">
+        <button class="btn" id="acctSwitch" style="flex:1"><span class="bt">切换档案</span></button>
+        <button class="btn" id="acctOut" style="flex:1"><span class="bt">退出登录</span></button>
+      </div>`);
+    const sw=document.getElementById("acctSwitch");
+    if(sw) sw.onclick=()=>{ document.getElementById("modal").classList.remove("show"); logout(); startScreen(); };
+    const ao=document.getElementById("acctOut");
+    if(ao) ao.onclick=()=>{ if(confirm("确定退出当前人事档案？")){ document.getElementById("modal").classList.remove("show"); logout(); startScreen(); } };
+  };
 }
 
 /* ---------- 6. 渲染：各页面 ---------- */
@@ -7472,12 +7778,13 @@ function renderArchive(){
           let u=null; try{ u=getSession(); }catch(e){}
           if(!u) return `<div class="mini muted">当前为免建档模式（本机存档）。可在封面新建人事档案以启用多档案与进度隔离。</div>`;
           const a=avatarOf(u.avatar);
+          const isCustom = (u.avatar==="custom" && !!u.avatar_custom);
           return `<div style="display:flex;gap:12px;align-items:flex-start">
             <div style="flex:0 0 auto;text-align:center">
-              <div style="width:74px;height:92px;background:${a.bg};border:2px solid #c8b48c;
-                          border-radius:3px;display:flex;align-items:center;justify-content:center;
-                          font-size:38px;box-shadow:0 1px 4px rgba(0,0,0,.08)">${a.emoji}</div>
-              <div class="mini muted" style="margin-top:3px;font-size:9px">${a.name}</div>
+              ${avatarHTML(u, 74, "border:2px solid #c8b48c;box-shadow:0 1px 4px rgba(0,0,0,.08)")}
+              <div class="mini muted" style="margin-top:3px;font-size:9px">
+                ${isCustom?"本人正装照":a.name}
+              </div>
               <button class="btn mini-btn" id="archAvatar" style="margin-top:4px;padding:2px 8px;font-size:10px">
                 <span class="bt">更换证件照</span>
               </button>
@@ -7636,36 +7943,9 @@ function bindActions(){
   document.querySelectorAll('[data-act="leader_act"]').forEach(b=>{
     b.onclick=()=>{ interactLeader(parseInt(b.dataset.idx), b.dataset.ikey); };
   });
-  // 更换证件照
+  // 更换证件照（预设模板 + 上传正装照）
   const avBtn=document.getElementById("archAvatar");
-  if(avBtn) avBtn.onclick=()=>{
-    let u=null; try{ u=getSession(); }catch(e){}
-    if(!u){ addToast("免建档模式不支持更换证件照"); return; }
-    openModal("🖼️ 更换标准证件照", `
-      <div class="mini muted" style="margin-bottom:8px">
-        请选择系统预设的标准证件照模板。亦可上传正装照（需后端支持）。
-      </div>
-      <div style="display:flex;flex-wrap:wrap;gap:10px;justify-content:center">
-        ${AVATAR_TEMPLATES.map(a=>`
-          <div data-pick-avatar="${a.key}" style="width:78px;cursor:pointer;text-align:center">
-            <div style="width:70px;height:88px;background:${a.bg};
-                        border:2px solid ${u.avatar===a.key?'#b01e23':'#ddd'};border-radius:3px;
-                        display:flex;align-items:center;justify-content:center;font-size:34px">
-              ${a.emoji}
-            </div>
-            <div class="mini" style="font-size:9px;margin-top:2px">${a.name}</div>
-          </div>`).join('')}
-      </div>`);
-    document.querySelectorAll('[data-pick-avatar]').forEach(el=>{
-      el.onclick=()=>{
-        const users=loadUsers();
-        if(users[u.user_id]){ users[u.user_id].avatar=el.dataset.pickAvatar; saveUsers(users); }
-        document.getElementById("modal").classList.remove("show");
-        addToast("证件照已更新");
-        renderMain(curTab);
-      };
-    });
-  };
+  if(avBtn) avBtn.onclick=()=>{ openAvatarPicker(); };
   // 打开两份档案
   document.querySelectorAll('[data-act="open_profile"]').forEach(b=>{
     b.onclick=()=>{ openLeaderProfile(); };
@@ -8410,40 +8690,6 @@ function renderEnding(){
   const a=$("endAgain"); if(a) a.onclick=()=>{ try{ localStorage.removeItem("qlp_top"); }catch(e){} location.reload(); };
   const r=$("endReview"); if(r) r.onclick=()=>{ $("modal").classList.add("show"); };
 
-  // 顶栏头像：点击显示账户信息
-  const av = document.getElementById("tbAvatar");
-  if(av) av.onclick=()=>{
-    let u=null; try{ u=getSession(); }catch(e){}
-    if(!u) return;
-    const a=avatarOf(u.avatar);
-    openModal("🪪 人事档案", `
-      <div style="text-align:center;padding:6px 0">
-        <div style="font-size:40px;line-height:1">${a.emoji}</div>
-        <div style="font-size:16px;font-weight:700;color:#8a1e23;margin-top:6px">
-          ${u.character_name!=="—"?u.character_name:"未命名"}
-        </div>
-      </div>
-      <div class="mini" style="line-height:2;margin-top:8px">
-        档案编号：<b>${u.user_id}</b><br>
-        专属工号：<b>${u.emp_id||"—"}</b><br>
-        联系方式：<b>${maskContact(u.phone_number)}</b><br>
-        性　　别：<b>${u.gender}</b><br>
-        籍　　贯：<b>${u.hometown||"—"}</b><br>
-        建档时间：<b>${u.registration_time_cn}</b><br>
-        档案状态：<b style="color:#2f7d4f">${u.account_status}</b><br>
-        登录次数：<b>${u.login_count||0}</b> 次<br>
-        实名核验：<b style="color:${u.realname_verified?(u.is_adult?'#2f7d4f':'#8a6a35'):'#b01e23'}">
-          ${u.realname_verified?(u.is_adult?'已完成（成年人）':'已完成（未成年，纳入防沉迷）'):'未核验'}</b>
-      </div>
-      <div style="display:flex;gap:6px;margin-top:10px">
-        <button class="btn" id="acctSwitch" style="flex:1"><span class="bt">切换档案</span></button>
-        <button class="btn" id="acctOut" style="flex:1"><span class="bt">退出登录</span></button>
-      </div>`);
-    const sw=document.getElementById("acctSwitch");
-    if(sw) sw.onclick=()=>{ document.getElementById("modal").classList.remove("show"); logout(); startScreen(); };
-    const ao=document.getElementById("acctOut");
-    if(ao) ao.onclick=()=>{ if(confirm("确定退出当前人事档案？")){ document.getElementById("modal").classList.remove("show"); logout(); startScreen(); } };
-  };
 }
 
 /* ---------- 10. 导航 & 启动 ---------- */
@@ -8685,7 +8931,7 @@ function regStep3(){
             <span class="nm">${a.name}</span>
           </div>`).join('')}
       </div>
-      <div class="fhint">系统预设标准证件照模板，亦可在建档后于档案页上传正装照。</div>
+      <div class="fhint">系统预设标准证件照模板。建档后可在「档案」页上传本人正装照（仅保存在本机）。</div>
     </div>
     <div class="reg-nav">
       <button class="btn" id="rg_back"><span class="bt">上一步</span></button>
@@ -8944,10 +9190,9 @@ function bindRegEvents(){
 
 /* 建档成功页 */
 function showRegSuccess(user){
-  const a = avatarOf(user.avatar);
   $("main").innerHTML = regShell(`
-    <div style="text-align:center;padding:10px 0">
-      <div style="font-size:44px;line-height:1">${a.emoji}</div>
+    <div style="text-align:center;padding:10px 0;display:flex;flex-direction:column;align-items:center">
+      ${avatarHTML(user, 96, "border:2px solid #b01e23;box-shadow:0 1px 6px rgba(0,0,0,.12)")}
       <div style="font-size:17px;font-weight:700;color:#8a1e23;margin-top:8px">
         ${user.character_name} 同志
       </div>
@@ -8967,9 +9212,17 @@ function showRegSuccess(user){
       </div>
     </div>
     <div class="reg-nav">
-      <button class="btn primary" id="rg_go"><span class="bt">进入游戏</span></button>
+      <button class="btn" id="rg_upavatar" style="flex:0 0 auto">
+        <span class="bt">📷 上传正装照</span>
+      </button>
+      <button class="btn primary" id="rg_go" style="flex:1"><span class="bt">进入游戏</span></button>
+    </div>
+    <div class="fhint" style="text-align:center;margin-top:6px">
+      照片仅保存在本机浏览器，不上传服务器
     </div>`);
   bindStampSound();
+  const ua=$("rg_upavatar");
+  if(ua) ua.onclick=()=>{ openAvatarPicker(); };
   const g=$("rg_go");
   if(g) g.onclick=()=>{ afterLogin(user); };
 }
@@ -9188,11 +9441,10 @@ function renderAcctBar(){
   if(!bar) return;
   const u = (typeof getSession==="function") ? getSession() : null;
   if(u){
-    const a = avatarOf(u.avatar);
     bar.innerHTML = `
       <div style="display:flex;align-items:center;gap:8px;justify-content:center;
                   background:rgba(245,236,217,.7);border:1px solid #c8b48c;border-radius:4px;padding:7px 10px">
-        <span style="font-size:20px">${a.emoji}</span>
+        <span style="line-height:1;display:inline-block">${avatarHTML(u, 34, "border:1px solid #c8b48c")}</span>
         <div style="text-align:left;font-family:'FangSong','仿宋',serif">
           <div style="font-size:12px;color:#4a3f2f">
             <b>${u.character_name!=="—"?u.character_name:"未命名"}</b>

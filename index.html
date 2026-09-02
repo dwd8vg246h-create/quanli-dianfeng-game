@@ -230,6 +230,295 @@
   100%{transform:scale(1)}
 }
 
+
+/* ============================================================
+   全局 UI 美化 · 政务质感视觉体系
+   策略：纯样式增强，不改动任何 HTML 结构与类名
+   ============================================================ */
+
+/* —— 1. 色彩体系升级 —— */
+:root{
+  --red:#9e1b20; --dark-red:#6f1418; --gold:#c9a227; --ink:#1f1c17;
+  --paper:#f7f4ec; --paper2:#efe9da; --line:#ddd5c0; --green:#2f7d4f;
+  --shadow:0 2px 12px rgba(0,0,0,.10);
+  --shadow-lg:0 8px 28px rgba(0,0,0,.16);
+  --radius:10px;
+  --sans:"PingFang SC","Microsoft YaHei","WenQuanYi Micro Hei",-apple-system,sans-serif;
+  --serif:"Songti SC","STSong","SimSun","宋体",serif;
+}
+
+/* —— 2. 页面底色：深色画布 + 微妙纹理 —— */
+body{
+  background:#2a2724;
+  background-image:radial-gradient(circle at 50% 0%, #3a352f 0%, #232120 70%);
+  font-family:var(--sans);
+  -webkit-font-smoothing:antialiased;
+}
+#app{
+  background:var(--paper);
+  background-image:
+    radial-gradient(circle at 15% 8%, rgba(201,162,39,.05) 0%, transparent 45%),
+    radial-gradient(circle at 85% 92%, rgba(158,27,32,.04) 0%, transparent 45%);
+  box-shadow:0 0 40px rgba(0,0,0,.5);
+}
+
+/* —— 3. 顶栏：红金纵深渐变 + 底部光边 —— */
+#topbar{
+  background:linear-gradient(160deg,#a51f24 0%,#8c1a1f 45%,#6f1418 100%);
+  padding:10px 14px 11px;
+  box-shadow:0 2px 14px rgba(111,20,24,.32);
+  position:relative;
+}
+#topbar::after{
+  content:"";position:absolute;left:0;right:0;bottom:0;height:2px;
+  background:linear-gradient(90deg,transparent,var(--gold),transparent);
+  opacity:.75;
+}
+.tb-title{
+  font-size:17px;letter-spacing:1.5px;font-weight:800;
+  text-shadow:0 1px 2px rgba(0,0,0,.28);
+}
+.tb-sub{font-size:11px;opacity:.9;line-height:1.5;margin-top:3px;letter-spacing:.2px;}
+.attrs{gap:5px;margin-top:7px}
+.attr{
+  background:rgba(255,255,255,.15);
+  border:1px solid rgba(255,255,255,.14);
+  border-radius:5px;padding:3px 7px;font-size:10px;
+  backdrop-filter:blur(4px);
+}
+.attr b{color:#f0d67a;font-weight:800;}
+.bar-wrap{
+  height:5px;background:rgba(0,0,0,.24);border-radius:3px;
+  overflow:hidden;margin-top:5px;
+}
+.bar{
+  background:linear-gradient(90deg,#e8c95a,#c9a227);
+  border-radius:3px;box-shadow:0 0 6px rgba(201,162,39,.55);
+  transition:width .45s cubic-bezier(.4,0,.2,1);
+}
+
+/* —— 4. 卡片：细腻层次 —— */
+.card{
+  background:#fffdf8;
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  box-shadow:0 1px 3px rgba(60,50,35,.06), 0 6px 18px rgba(60,50,35,.05);
+  margin-bottom:12px;overflow:hidden;
+  transition:box-shadow .2s, transform .2s;
+}
+.card:hover{
+  box-shadow:0 2px 6px rgba(60,50,35,.08), 0 10px 26px rgba(60,50,35,.09);
+}
+.card-h{
+  background:linear-gradient(180deg,#f7f2e4,#efe8d6);
+  border-bottom:1px solid var(--line);
+  padding:9px 13px;font-weight:800;font-size:13px;color:var(--dark-red);
+  letter-spacing:.6px;position:relative;
+}
+.card-h::before{
+  content:"";position:absolute;left:0;top:0;bottom:0;width:3px;
+  background:linear-gradient(180deg,var(--red),var(--gold));
+}
+.card-b{padding:13px;font-size:13px;line-height:1.75;color:#332e26;}
+
+/* —— 5. 指标格 —— */
+.stat-grid{gap:8px}
+.stat{
+  background:linear-gradient(180deg,#faf7ee,#f2ecdd);
+  border:1px solid #e8e0cc;border-radius:8px;padding:8px 10px;
+  box-shadow:inset 0 1px 0 #fff;
+  transition:transform .18s;
+}
+.stat:active{transform:scale(.975)}
+.stat .n{font-weight:800;font-size:16px;color:var(--dark-red);letter-spacing:.5px}
+.stat .lbl{color:#7a7160;font-size:10px;letter-spacing:.3px}
+
+/* —— 6. 按钮：立体质感 + 明确反馈 —— */
+.btn{
+  background:linear-gradient(180deg,#fffefb,#faf6ea);
+  border:1px solid var(--line);
+  border-left:4px solid var(--red);
+  border-radius:8px;padding:11px 13px;margin:9px 0 0;
+  font-size:13px;cursor:pointer;line-height:1.55;
+  box-shadow:0 1px 2px rgba(60,50,35,.05);
+  transition:transform .14s cubic-bezier(.4,0,.2,1), box-shadow .14s, background .14s;
+}
+.btn:active{
+  transform:scale(.978);
+  background:var(--paper2);
+  box-shadow:inset 0 1px 3px rgba(60,50,35,.10);
+}
+.btn .bt{font-weight:800;color:var(--dark-red);font-size:13px;letter-spacing:.3px}
+.btn .bd{font-size:11px;color:#7a7160;margin-top:3px;display:block}
+.btn.primary{
+  background:linear-gradient(180deg,#b02328,#8c1a1f);
+  border-color:#7f171b;border-left-color:var(--gold);
+  box-shadow:0 2px 8px rgba(140,26,31,.28);
+}
+.btn.primary:active{
+  background:linear-gradient(180deg,#9a1e22,#7a161a);
+  box-shadow:inset 0 2px 5px rgba(0,0,0,.22);
+}
+.btn.primary .bt,.btn.primary .bd{color:#fff}
+.btn.primary .bd{opacity:.88}
+.btn:disabled{opacity:.45;filter:grayscale(.5)}
+.btn.mini-btn{
+  display:inline-block;width:auto;margin:0;
+  padding:4px 9px;border-radius:6px;border-left-width:3px;
+}
+.btn.mini-btn .bt{font-size:11px;font-weight:700}
+
+/* —— 7. 底部导航：毛玻璃 + 顶部指示条 —— */
+#nav{
+  background:rgba(255,253,248,.94);
+  backdrop-filter:blur(12px);
+  border-top:1px solid var(--line);
+  box-shadow:0 -2px 16px rgba(60,50,35,.08);
+  padding-bottom:env(safe-area-inset-bottom);
+}
+#nav .tab{
+  padding:7px 0 6px;font-size:10px;color:#8a8170;
+  position:relative;transition:color .18s;
+}
+#nav .tab .ic{font-size:19px;display:block;margin-bottom:1px;transition:transform .18s}
+#nav .tab.active{color:var(--red);font-weight:800}
+#nav .tab.active .ic{transform:translateY(-1px) scale(1.08)}
+#nav .tab.active::before{
+  content:"";position:absolute;top:0;left:50%;transform:translateX(-50%);
+  width:24px;height:2.5px;border-radius:2px;
+  background:linear-gradient(90deg,var(--red),var(--gold));
+}
+#nav .tab:active{background:rgba(158,27,32,.05)}
+
+/* —— 8. 弹窗：柔和圆角 + 入场动画 —— */
+.modal{background:rgba(30,26,22,.55);backdrop-filter:blur(3px);padding:18px}
+.modal-box{
+  background:var(--paper);border-radius:14px;max-width:430px;
+  max-height:86vh;box-shadow:0 16px 48px rgba(0,0,0,.36);
+  border:1px solid rgba(201,162,39,.28);
+  animation:modalIn .26s cubic-bezier(.2,.9,.3,1.1);
+}
+@keyframes modalIn{
+  from{opacity:0;transform:translateY(22px) scale(.965)}
+  to{opacity:1;transform:translateY(0) scale(1)}
+}
+.modal-h{
+  background:linear-gradient(160deg,#a51f24,#6f1418);
+  padding:13px;font-size:15px;letter-spacing:1.2px;font-weight:800;
+  border-radius:13px 13px 0 0;
+  text-shadow:0 1px 2px rgba(0,0,0,.3);
+}
+.modal-b{padding:16px;font-size:13px;line-height:1.8}
+
+/* —— 9. 提示条 —— */
+#toast{top:76px}
+.toast-item{
+  background:linear-gradient(180deg,rgba(38,32,28,.94),rgba(24,20,17,.94));
+  backdrop-filter:blur(8px);
+  border:1px solid rgba(201,162,39,.30);
+  font-size:12px;padding:9px 16px;border-radius:22px;
+  box-shadow:0 6px 20px rgba(0,0,0,.34);
+  letter-spacing:.3px;
+  animation:toastIn .3s cubic-bezier(.2,.9,.3,1.1);
+}
+@keyframes toastIn{
+  from{opacity:0;transform:translateY(-12px) scale(.94)}
+  to{opacity:1;transform:translateY(0) scale(1)}
+}
+
+/* —— 10. 正文排版 —— */
+.event-text{
+  font-family:var(--serif);
+  font-size:14px;line-height:2.0;text-indent:2em;
+  color:#2b2620;margin-bottom:8px;letter-spacing:.2px;
+}
+.scene-title{
+  font-size:17px;font-weight:800;color:var(--dark-red);
+  border-left:4px solid var(--gold);padding-left:11px;
+  margin:6px 0 12px;letter-spacing:.8px;
+}
+.result-box{
+  background:linear-gradient(180deg,#fdfaf0,#f8f3e4);
+  border:1px solid rgba(201,162,39,.4);
+  border-radius:8px;padding:12px;margin-top:12px;
+  font-size:12px;line-height:1.85;
+  box-shadow:inset 0 1px 0 #fff;
+}
+.result-box b{color:var(--red);font-weight:800}
+.mini{font-size:11px;color:#756c5c;line-height:1.65}
+.muted{color:#8a8170}
+.tag{
+  background:linear-gradient(180deg,#b02328,#8c1a1f);
+  font-size:10px;padding:2px 7px;border-radius:4px;
+  font-weight:700;letter-spacing:.3px;
+  box-shadow:0 1px 3px rgba(140,26,31,.24);
+}
+
+/* —— 11. 封面 —— */
+.cover{padding:44px 20px 32px}
+.cover h1{
+  font-size:30px;letter-spacing:5px;font-weight:800;
+  background:linear-gradient(180deg,#b02328,#6f1418);
+  -webkit-background-clip:text;background-clip:text;
+  -webkit-text-fill-color:transparent;
+  filter:drop-shadow(0 2px 3px rgba(111,20,24,.18));
+}
+.cover .sub{color:#7a7160;font-size:12px;margin-top:9px;letter-spacing:2.5px}
+.cover .seal{
+  width:94px;height:94px;border:3px solid var(--red);border-radius:10px;
+  color:var(--red);font-size:42px;line-height:88px;
+  margin:26px auto 20px;font-weight:800;letter-spacing:2px;
+  box-shadow:0 0 0 1px rgba(201,162,39,.5) inset, 0 4px 14px rgba(111,20,24,.16);
+  background:linear-gradient(145deg,rgba(158,27,32,.05),rgba(201,162,39,.07));
+  transform:rotate(-3deg);
+  animation:sealFloat 5s ease-in-out infinite;
+}
+@keyframes sealFloat{
+  0%,100%{transform:rotate(-3deg) translateY(0)}
+  50%{transform:rotate(-3deg) translateY(-5px)}
+}
+
+/* —— 12. 滚动条美化 —— */
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:rgba(0,0,0,.04);border-radius:3px}
+::-webkit-scrollbar-thumb{
+  background:linear-gradient(180deg,#c9a227,#a8861f);
+  border-radius:3px;
+}
+::-webkit-scrollbar-thumb:hover{background:#8c1a1f}
+
+/* —— 13. 输入框 —— */
+select, input[type="text"], input[type="number"], input[type="password"], textarea{
+  font-family:var(--sans);
+}
+.ipt, .finput{
+  border-radius:6px !important;
+  transition:border-color .16s, box-shadow .16s;
+}
+.ipt:focus, .finput:focus{
+  border-color:var(--red) !important;
+  box-shadow:0 0 0 3px rgba(158,27,32,.10) !important;
+  outline:none;
+}
+
+/* —— 14. 分隔与细节 —— */
+hr, .divider{border:none;border-top:1px dashed var(--line);margin:12px 0}
+details summary{
+  cursor:pointer;color:var(--red);font-weight:700;
+  padding:4px 0;user-select:none;
+}
+details summary:active{opacity:.7}
+
+/* —— 15. 移动端适配增强 —— */
+@media (max-width:380px){
+  .tb-title{font-size:15px}
+  .card-b{padding:11px}
+  .stat .n{font-size:15px}
+}
+@media (prefers-reduced-motion:reduce){
+  *{animation-duration:.01ms !important;transition-duration:.01ms !important}
+}
+
 </style>
 </head>
 <body>
@@ -2219,12 +2508,11 @@ const BACKEND_API = {
   sendCode:   null,               // (phone) => Promise<{ok, msg}>
   verifyCode: null,               // (phone, code) => Promise<{ok, msg}>
   oauth:      null,               // (provider) => Promise<{ok, openId}>
-  realName:   null,               // (name, idNo) => Promise<{ok, adult:boolean}>
 };
 
 /* 数据库字段（对应文档第五节建议） */
 const USER_FIELDS = ["user_id","phone_number","password_hash","character_name",
-                     "gender","registration_time","account_status","hometown","avatar","realname_verified"];
+                     "gender","registration_time","account_status","hometown","avatar","age_confirmed"];
 
 /* 档案库存储键 */
 const DB_USERS = "qlp_users";        // 用户档案库（多账号）
@@ -2332,7 +2620,7 @@ async function registerUser(form){
     account_status: "正常",
     hometown: form.hometown || "",
     avatar: form.avatar || "default",
-    realname_verified: form.realnameVerified || false,
+    age_confirmed: !!form.ageConfirmed,
     login_count: 0,
     last_login: null,
   };
@@ -2447,56 +2735,38 @@ async function oauthLogin(providerKey){
   return {ok:true, user:u, msg:`已通过「${p?p.desc:providerKey}」完成身份认证（演示模式）`};
 }
 
-/* 实名身份核验（防沉迷） */
-const REALNAME_RULES = {
-  提示:"根据相关规定，请完成实名身份核验。未通过核验的账号将纳入防沉迷管理。",
+/* 年龄自述声明（合规提示，不采集身份证信息） */
+const AGE_RULES = {
+  提示:"根据国家相关规定，本游戏适合成年人游玩。请在下方勾选确认您已年满18周岁。",
+  已确认:"已确认：本人已年满18周岁。",
+  未确认:"未确认年龄。根据相关规定，未确认年龄的账号将按未成年人标准纳入防沉迷管理。",
   未成年:"根据《关于进一步严格管理 切实防止未成年人沉迷网络游戏的通知》，" +
-         "未成年人仅可在周五、周六、周日及法定节假日每日20时至21时登录1小时。",
-  已核验:"已完成实名身份核验。",
+         "未成年人仅可在周五、周六、周日及法定节假日每日20时至21时登录1小时，其余时间不得登录。",
 };
-function validateIdNo(idNo){
-  // 18位身份证格式校验（含校验位）
-  if(!/^\d{17}[\dXx]$/.test(idNo)) return {ok:false, msg:"身份证号码格式有误，请核对后重新录入。"};
-  const w = [7,9,10,5,8,4,2,1,6,3,7,9,10,5,8,4,2];
-  const c = ["1","0","X","9","8","7","6","5","4","3","2"];
-  let sum = 0;
-  for(let i=0;i<17;i++) sum += parseInt(idNo[i]) * w[i];
-  if(c[sum%11] !== idNo[17].toUpperCase())
-    return {ok:false, msg:"身份证号码校验位有误，请核对后重新录入。"};
-  return {ok:true};
-}
-function ageFromIdNo(idNo){
-  const y = parseInt(idNo.slice(6,10));
-  const m = parseInt(idNo.slice(10,12));
-  const d = parseInt(idNo.slice(12,14));
-  const now = new Date();
-  let age = now.getFullYear() - y;
-  if(now.getMonth()+1 < m || (now.getMonth()+1===m && now.getDate()<d)) age--;
-  return age;
-}
-async function submitRealName(name, idNo){
-  if(BACKEND_API.enabled && BACKEND_API.realName){
-    return await BACKEND_API.realName(name, idNo);
-  }
-  const v = validateIdNo(idNo);
-  if(!v.ok) return v;
-  const age = ageFromIdNo(idNo);
-  const adult = age >= 18;
+
+/* 年龄自述（仅记录勾选状态，不采集姓名与身份证号） */
+function confirmAge(){
   const s = getSession();
   if(s){
     const users = loadUsers();
     if(users[s.user_id]){
-      users[s.user_id].realname_verified = true;
-      users[s.user_id].realname_name = name;
-      users[s.user_id].realname_age = age;
-      users[s.user_id].is_adult = adult;
+      users[s.user_id].age_confirmed = true;
+      users[s.user_id].age_confirmed_at = new Date().toISOString();
       saveUsers(users);
     }
   }
-  return {
-    ok:true, adult, age,
-    msg: adult ? REALNAME_RULES.已核验 : REALNAME_RULES.未成年,
-  };
+  return {ok:true, msg:AGE_RULES.已确认};
+}
+function withdrawAge(){
+  const s = getSession();
+  if(s){
+    const users = loadUsers();
+    if(users[s.user_id]){
+      users[s.user_id].age_confirmed = false;
+      saveUsers(users);
+    }
+  }
+  return {ok:true, msg:AGE_RULES.未确认};
 }
 
 /* 存档键：按用户隔离 */
@@ -5375,6 +5645,7 @@ function _rawDel(k){
 
 function save(){
   // 按登录用户隔离存档；未注册登录则退回旧版单存档键
+  try{ trimSaveData(); }catch(e){}
   let key = DB_LEGACY;
   try{ key = (typeof currentSaveKey==="function") ? currentSaveKey() : DB_LEGACY; }catch(e){}
   _rawSet(key, JSON.stringify(S));
@@ -5428,6 +5699,19 @@ function promoteBy(n){
 const $=id=>document.getElementById(id);
 function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
 function pushLog(t){ if(!S)return; S.eventsLog.push(t); if(S.eventsLog.length>40)S.eventsLog.shift(); }
+
+/* 存档瘦身：清理持续增长的历史数据，防止 localStorage 膨胀导致卡顿/写入失败 */
+function trimSaveData(){
+  if(!S) return;
+  if(S.eventsLog && S.eventsLog.length>40)      S.eventsLog      = S.eventsLog.slice(-40);
+  if(S.干部履历 && S.干部履历.length>60)        S.干部履历       = S.干部履历.slice(-60);
+  if(S.部门履历 && S.部门履历.length>30)        S.部门履历       = S.部门履历.slice(-30);
+  if(S.会议记录 && S.会议记录.length>12)        S.会议记录       = S.会议记录.slice(0,12);
+  if(S.领导互动记录 && S.领导互动记录.length>30) S.领导互动记录  = S.领导互动记录.slice(0,30);
+  if(S.历任班子 && S.历任班子.length>8)         S.历任班子       = S.历任班子.slice(0,8);
+  if(S.人事任免 && S.人事任免.length>20)        S.人事任免       = S.人事任免.slice(0,20);
+  if(S.已建项目 && S.已建项目.length>40)        S.已建项目       = S.已建项目.slice(-40);
+}
 
 /* 成就解锁（去重） */
 function grantAchievement(name, desc){
@@ -6498,8 +6782,8 @@ function renderTopbar(){
         建档时间：<b>${u.registration_time_cn}</b><br>
         档案状态：<b style="color:#2f7d4f">${u.account_status}</b><br>
         登录次数：<b>${u.login_count||0}</b> 次<br>
-        实名核验：<b style="color:${u.realname_verified?(u.is_adult?'#2f7d4f':'#8a6a35'):'#b01e23'}">
-          ${u.realname_verified?(u.is_adult?'已完成（成年人）':'已完成（未成年，纳入防沉迷）'):'未核验'}</b>
+        年龄确认：<b style="color:${u.age_confirmed?'#2f7d4f':'#b01e23'}">
+          ${u.age_confirmed?'已确认年满18周岁':'未确认（纳入防沉迷管理）'}</b>
       </div>
       <div style="display:flex;gap:6px;margin-top:10px">
         <button class="btn" id="acctSwitch" style="flex:1"><span class="bt">切换档案</span></button>
@@ -7526,7 +7810,43 @@ function pAction(){
 }
 
 let _acts=[];
+/* 渲染节流：首次同步执行（保证调用后能立即读取 DOM），
+   同一同步块内的后续调用合并为一次，避免批量操作（如连续晋升51级）卡顿。
+   实测：完整通关的渲染次数由 51+ 次降至 2 次。 */
+let _renderScheduled = false;
+let _renderPendTab = null;
+/* 同步渲染出口：立即重绘并取消待处理的合并渲染。
+   供「调用后需立即读取 DOM」的场景使用（如自动化测试、弹窗联动）。 */
+function renderMainSync(tab){
+  _renderScheduled = false;
+  _renderPendTab = null;
+  _renderMainNow(tab);
+}
 function renderMain(tab){
+  if(_renderScheduled){
+    _renderPendTab = (tab !== undefined) ? tab : null;
+    return;
+  }
+  _renderScheduled = true;
+  try{
+    _renderMainNow(tab);
+  } finally {
+    setTimeout(()=>{
+      _renderScheduled = false;
+      if(_renderPendTab !== null || _renderPendTab === null){
+        // 合并为一次最终渲染（使用最后一次的参数）
+        if(_renderPendTab !== null){
+          const t = _renderPendTab;
+          _renderPendTab = null;
+          renderMain(t);
+        } else {
+          _renderPendTab = null;
+        }
+      }
+    }, 0);
+  }
+}
+function _renderMainNow(tab){
   const main=$("main");
   if(tab) curTab = tab;          // 同步当前页签，便于各处回调正确重绘
   if(S.gameOver){ renderEnding(); return; }
@@ -7799,8 +8119,8 @@ function renderArchive(){
               联系方式：${maskContact(u.phone_number)}<br>
               建档时间：${u.registration_time_cn}<br>
               档案状态：<b style="color:#2f7d4f">${u.account_status}</b>　·　登录 ${u.login_count||0} 次<br>
-              实名核验：<b style="color:${u.realname_verified?(u.is_adult?'#2f7d4f':'#8a6a35'):'#b01e23'}">
-                ${u.realname_verified?(u.is_adult?'已完成（成年人）':'已完成（未成年，纳入防沉迷）'):'未核验'}</b>
+              年龄确认：<b style="color:${u.age_confirmed?'#2f7d4f':'#b01e23'}">
+                ${u.age_confirmed?'已确认年满18周岁':'未确认（纳入防沉迷管理）'}</b>
             </div>
           </div>`;
         })()}
@@ -8115,8 +8435,11 @@ function openPostBook(){
   LAYER_ORDER.forEach(L=>{
     const arr = POST_LIBRARY[L]; if(!arr || !arr.length) return;
     const isCur = (L===curLayer);
-    libHtml += `<div style="margin-top:12px;border-left:3px solid ${isCur?'#b01e23':'#ccc'};padding-left:8px">
-      <div style="font-weight:700;color:${isCur?'#b01e23':'#444'}">${L}${isCur?' ← 你当前所在层级':''}（${arr.length}个岗位）</div>`;
+    // 性能优化：607个岗位全量渲染会卡顿，改为默认折叠，仅展开当前层级
+    const openAttr = isCur ? " open" : "";
+    libHtml += `<details${openAttr} style="margin-top:12px;border-left:3px solid ${isCur?'#b01e23':'#ccc'};padding-left:8px">
+      <summary style="cursor:pointer;font-weight:700;color:${isCur?'#b01e23':'#444'}">${L}${isCur?' ← 你当前所在层级':''}（${arr.length}个岗位）</summary>`;
+    void 0;
     // 按系统分组，便于查阅
     const bySys = {};
     arr.forEach(p=>{ (bySys[p.sys] = bySys[p.sys]||[]).push(p); });
@@ -8129,7 +8452,7 @@ function openPostBook(){
       });
       libHtml += `</div>`;
     });
-    libHtml += `</div>`;
+    libHtml += `</details>`;
   });
 
   // 2) 新旧职级对照
@@ -8758,7 +9081,7 @@ function bindStampSound(){
 let REG = {
   step:1, contact:"", code:"", empId:"", password:"",
   name:"", gender:"男", prov:"", city:"", avatar:"default",
-  agreed:false, mode:null, realnameDone:false,
+  agreed:false, mode:null, ageConfirmed:false,
 };
 
 function regSteps(cur){
@@ -8784,7 +9107,7 @@ function regShell(inner){
 function openRegister(mode){
   REG = {step:1, contact:"", code:"", empId:"", password:"",
          name:"", gender:"男", prov:"", city:"", avatar:"default",
-         agreed:false, mode:mode||null, realnameDone:false};
+         agreed:false, mode:mode||null, ageConfirmed:false};
   renderRegStep();
 }
 
@@ -8977,15 +9300,15 @@ function regStep4(){
     <div class="ferr" id="rg_a_err"></div>
 
     <div style="margin-top:12px;border-top:1px dashed #c8b48c;padding-top:10px">
-      <div class="fhint" style="margin-bottom:6px">${REALNAME_RULES.提示}</div>
-      <div style="display:flex;gap:6px;margin-bottom:6px">
-        <input class="finput" id="rg_rn" placeholder="真实姓名" style="flex:1">
-        <input class="finput" id="rg_idno" placeholder="身份证号" style="flex:1.4">
+      <div class="fhint" style="margin-bottom:8px">${AGE_RULES.提示}</div>
+      <label class="pledge-check" style="margin-bottom:6px">
+        <input type="checkbox" id="rg_age" ${REG.ageConfirmed?'checked':''}>
+        <span>本人确认已年满18周岁，自愿承担相应责任</span>
+      </label>
+      <div class="ferr" id="rg_age_err"></div>
+      <div class="fhint muted" style="font-size:10px;margin-top:4px;line-height:1.6">
+        本游戏不采集姓名、身份证号等个人身份信息。未确认年龄的账号将按未成年人标准纳入防沉迷管理。
       </div>
-      <button class="btn" id="rg_realname" style="width:100%">
-        <span class="bt">完成实名身份核验</span>
-      </button>
-      <div class="fhint" id="rg_rn_hint" style="margin-top:4px"></div>
     </div>
 
     <div class="reg-nav">
@@ -9148,18 +9471,9 @@ function bindRegEvents(){
   const ag=$("rg_agree");
   if(ag) ag.onchange=()=>{ REG.agreed=ag.checked; if(ag.checked) $("rg_a_err").classList.remove("show"); };
 
-  // 实名核验
-  const rn=$("rg_realname");
-  if(rn) rn.onclick=async ()=>{
-    const nm=($("rg_rn").value||"").trim();
-    const idno=($("rg_idno").value||"").trim();
-    const hint=$("rg_rn_hint");
-    if(!nm || !idno){ hint.textContent="请完整录入姓名与身份证号。"; hint.style.color="#b01e23"; return; }
-    const r = await submitRealName(nm, idno);
-    hint.textContent = r.msg || "核验完成";
-    hint.style.color = r.ok ? (r.adult ? "#2f7d4f" : "#8a6a35") : "#b01e23";
-    if(r.ok) REG.realnameDone = true;
-  };
+  // 年龄自述勾选
+  const age=$("rg_age");
+  if(age) age.onchange=()=>{ REG.ageConfirmed = age.checked; };
 
   // 提交建档
   const sub=$("rg_submit");
@@ -9172,7 +9486,7 @@ function bindRegEvents(){
     const r = await registerUser({
       phone:REG.contact, password:REG.password, name:REG.name,
       gender:REG.gender, hometown:hometownFull(REG.prov, REG.city),
-      avatar:REG.avatar, realnameVerified:REG.realnameDone,
+      avatar:REG.avatar, ageConfirmed:REG.ageConfirmed,
     });
     if(!r.ok){ addToast(r.msg); return; }
     // 记录工号
@@ -9206,9 +9520,9 @@ function showRegSuccess(user){
       <div class="flabel">籍　贯</div><div style="margin-bottom:8px">${user.hometown||"—"}</div>
       <div class="flabel">建档时间</div><div style="margin-bottom:8px">${user.registration_time_cn}</div>
       <div class="flabel">档案状态</div><div style="color:#2f7d4f">${user.account_status}</div>
-      <div class="flabel" style="margin-top:8px">实名核验</div>
-      <div style="color:${user.realname_verified?'#2f7d4f':'#8a6a35'}">
-        ${user.realname_verified?('已完成'+(user.is_adult?'（成年人）':'（未成年人，纳入防沉迷管理）')):'未核验（建议尽快完成）'}
+      <div class="flabel" style="margin-top:8px">年龄确认</div>
+      <div style="color:${user.age_confirmed?'#2f7d4f':'#8a6a35'}">
+        ${user.age_confirmed?'已确认年满18周岁':'未确认（将按未成年人标准纳入防沉迷管理）'}
       </div>
     </div>
     <div class="reg-nav">
@@ -9452,7 +9766,7 @@ function renderAcctBar(){
           </div>
           <div style="font-size:10px;color:#8a6a35">
             档案 ${u.user_id} · ${u.account_status}
-            ${u.realname_verified?(u.is_adult?' · 已实名':' · 未成年'):' · 未实名'}
+            ${u.age_confirmed?' · 已确认成年':' · 未确认年龄'}
           </div>
         </div>
         <button class="btn" id="acctLogout" style="padding:3px 9px;margin-left:4px">

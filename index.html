@@ -1037,7 +1037,10 @@ function advanceProjects(){
         else if(k==="治安") S.治安 = clamp(S.治安+p.gain[k],0,100);
       });
       S.政绩 += 12;
-      pushLog(`✅ 【${p.cat}】<b>${p.name}</b> 竣工投用，${Object.keys(p.gain||{}).map(k=>k+'+'+p.gain[k]).join(' ')}，政绩+12。`);
+      addFinishedProject(p);
+      const up = Math.max(1, Math.round(p.cost*UPKEEP_RATE));
+      pushLog(`✅ 【${p.cat}】<b>${p.name}</b> 竣工投用，${Object.keys(p.gain||{}).map(k=>k+'+'+p.gain[k]).join(' ')}，政绩+12。`
+        + `（此后每月需支出运维费 ${up} 点）`);
     }
   });
   if(done.length){
@@ -1370,6 +1373,7 @@ function interactLeader(idx, ikey){
   if(m.isDirectBoss) S.上司好感 = clamp((S.上司好感||0) + delta*0.35, 0, 100);
   if(m.isBoss) S.上司好感 = clamp((S.上司好感||0) + delta*0.25, 0, 100);
 
+  recordLeaderLog(idx, act.key, delta);
   pushLog(`【${act.key}】${act.log.replace(/%s/g, m.name+m.title)}`);
   if(act.warn) pushLog(`　　${act.warn}`);
   addToast(`${act.icon} ${act.key}：${m.name}关系 ${delta>0?"+":""}${Math.round(delta)}`);
@@ -1387,6 +1391,686 @@ const TRIPLE_ONE = {
   ],
   rule:"凡属重大事项，须经领导班子集体讨论决定，不得以个别征求意见等方式替代集体决策。",
 };
+
+
+/* ============================================================
+   一、班子会（"三重一大"集体决策机制）
+   依据：《中国共产党地方委员会工作条例》
+         《重大行政决策程序暂行条例》
+         《党政领导干部选拔任用工作条例》
+   ============================================================ */
+
+/* 表决规则（现实中的议事规则） */
+const MEETING_RULES = {
+  过半数:"会议应有半数以上班子成员到会方可召开；表决以应到会成员过半数同意为通过。",
+  三分之二:"讨论干部任免事项，须有三分之二以上成员到会，以应到会成员过半数同意形成决定。",
+  回避制:"讨论涉及本人或亲属利害关系的事项时，本人应当回避。",
+  末位表态:"一把手应当末位表态，不得先定调子，以保证班子成员充分发表意见。",
+  记录在案:"会议决定事项应当形成会议纪要，不同意见应当如实记录并存档。",
+};
+
+/* 议题类型（对应"三重一大"四项） */
+const MEETING_TOPICS = [
+  {key:"重大事项决策", icon:"📋", 门槛:0.5, desc:TRIPLE_ONE.items[0].desc},
+  {key:"重要干部任免", icon:"👤", 门槛:0.5, 到会:2/3, desc:TRIPLE_ONE.items[1].desc},
+  {key:"重大项目安排", icon:"🏗️", 门槛:0.5, desc:TRIPLE_ONE.items[2].desc},
+  {key:"大额资金使用", icon:"💰", 门槛:0.5, desc:TRIPLE_ONE.items[3].desc},
+];
+
+/* 派系倾向（班子成员的政治倾向，影响表决立场） */
+const FACTION_STANDS = [
+  {key:"改革派", color:"#b01e23", icon:"🔴",
+   desc:"支持改革开放、制度创新，倾向突破性举措，对新生事物接受度高。",
+   偏好:{创新:1.5, 稳健:0.6, 民生:0.9, 环保:1.0}},
+  {key:"务实派", color:"#35618a", icon:"🔵",
+   desc:"强调稳中求进、量力而行，重视经济实效与可操作性。",
+   偏好:{创新:0.8, 稳健:1.4, 民生:0.9, 环保:0.7}},
+  {key:"保守派", color:"#8a6a35", icon:"🟤",
+   desc:"重视程序规矩与传统做法，对风险高度警惕，倾向维持现状。",
+   偏好:{创新:0.4, 稳健:1.6, 民生:0.8, 环保:0.6}},
+  {key:"民生派", color:"#2f7d4f", icon:"🟢",
+   desc:"关注群众获得感与公共服务，倾向把钱花在教育医疗养老上。",
+   偏好:{创新:0.9, 稳健:1.0, 民生:1.7, 环保:1.1}},
+  {key:"中立", color:"#6a6a6a", icon:"⚪",
+   desc:"不轻易站队，看议题本身与一把手态度，跟随多数。",
+   偏好:{创新:1.0, 稳健:1.0, 民生:1.0, 环保:1.0}},
+];
+
+/* 议题立场标签（用于匹配偏好） */
+const TOPIC_STANCE = {
+  创新:["数字政府与一网通办","5G与数据中心布局","营商环境优化专项行动","轨道交通前期","产业园区提档升级"],
+  稳健:["地下管网与海绵城市","电网与能源保障升级","供水与污水处理提标","城镇老旧小区改造"],
+  民生:["中小学与幼儿园新改扩建","公共卫生与医疗能力提升","养老服务与托育设施","四好农村路","燃气与集中供热管网"],
+  环保:["公园绿地与绿道建设","黑臭水体与河湖治理","垃圾分类与处理体系"],
+};
+
+/* 为班子成员分配派系倾向 */
+function assignFactionStands(){
+  const L = S.领导班子;
+  if(!L || !L.members) return;
+  L.members.forEach(m=>{
+    if(m.faction) return;
+    // 纪检监察干部一律不站队（现实规矩）
+    if(m.isDiscipline){ m.faction = FACTION_STANDS.find(f=>f.key==="中立"); return; }
+    // 按干部类型倾向分配
+    const t = m.type.key;
+    let pool = FACTION_STANDS;
+    if(t==="进取型") pool = FACTION_STANDS.filter(f=>["改革派","民生派"].includes(f.key));
+    else if(t==="稳健型"||t==="官场老手") pool = FACTION_STANDS.filter(f=>["务实派","保守派","中立"].includes(f.key));
+    else if(t==="务实型") pool = FACTION_STANDS.filter(f=>["务实派","改革派"].includes(f.key));
+    else if(t==="原则型"||t==="亲民型") pool = FACTION_STANDS.filter(f=>["民生派","保守派","中立"].includes(f.key));
+    m.faction = pool[Math.floor(Math.random()*pool.length)] || FACTION_STANDS[4];
+  });
+}
+
+/* 判断议题的立场标签 */
+function stanceOf(name){
+  for(const k in TOPIC_STANCE){
+    if(TOPIC_STANCE[k].includes(name)) return k;
+  }
+  // 兜底：按类别判断
+  return "稳健";
+}
+
+/* 生成班子会议题（把项目/事项提交会议讨论） */
+function createMeetingTopic(type, payload){
+  const T = MEETING_TOPICS.find(t=>t.key===type);
+  if(!T) return null;
+  const L = getLeadership();
+  assignFactionStands();
+  const stance = stanceOf(payload.name||"");
+  // 逐人预判立场
+  const votes = L.members.map((m,i)=>{
+    const pref = (m.faction && m.faction.偏好[stance]) || 1.0;
+    const rel = m.relation || 50;
+    // 支持度 = 派系偏好×30 + 关系度×0.5 + 随机
+    let score = pref*30 + rel*0.5 + Math.random()*20;
+    // 一把手权重更高（末位表态，但影响大）
+    if(m.isBoss) score += 8;
+    // 纪检干部只关心合规性，不支持有争议事项
+    if(m.isDiscipline) score = payload.riskLevel>0 ? 20 : 60;
+    return {
+      idx:i, name:m.name, title:m.title, faction:m.faction,
+      boss:m.isBoss, direct:m.isDirectBoss, discipline:m.isDiscipline,
+      rel:Math.round(rel), score:Math.round(score),
+      stance: score>=62 ? "支持" : (score>=48 ? "犹豫" : "反对"),
+    };
+  });
+  const topic = {
+    type, icon:T.icon, name:payload.name||"未命名议题",
+    desc:payload.desc||"", cost:payload.cost||0,
+    stance, riskLevel:payload.riskLevel||0,
+    votes, needed: Math.ceil(L.members.length * (T.门槛||0.5)),
+    quorum: T.到会 ? Math.ceil(L.members.length * T.到会) : Math.ceil(L.members.length/2),
+    created:`${S.year}年${S.month}月`,
+    payload: payload,
+  };
+  S.当前议题 = topic;
+  return topic;
+}
+
+/* 会前做工作（争取支持）——有廉政风险 */
+const LOBBY_WAYS = [
+  {key:"逐个汇报", icon:"📋", cost:{健康:2.5}, rel:+3, risk:0,
+   desc:"按照组织程序，逐个向班子成员汇报方案，听取意见。",
+   log:"你逐个向班子成员汇报方案，诚恳听取意见。有人点头，也有人提出尖锐质疑。"},
+  {key:"数据论证", icon:"📊", cost:{健康:3.0, cash:5}, rel:+5, risk:0,
+   desc:"补充详实的数据与案例，用事实说话，增强说服力。",
+   log:"你准备了详实的数据支撑和同类地区案例，方案的可行性显著提升。"},
+  {key:"请一把手背书", icon:"🤝", cost:{健康:1.5}, rel:+9, risk:0,
+   desc:"先争取一把手支持。一把手末位表态，但其态度往往决定会议走向。",
+   log:"你先向一把手专题汇报，获得了原则同意。会议上的阻力小了许多。"},
+  {key:"私下沟通", icon:"☕", cost:{健康:2.0, cash:10}, rel:+13, risk:6,
+   desc:"会前私下找关键成员沟通，属正常的工作协调，但需注意分寸。",
+   log:"你会前逐一走访关键成员，交换了意见，也做了一定的承诺。",
+   warn:"⚠ 会前私下串联虽属常见做法，但过度的利益交换可能构成非组织活动。"},
+  {key:"利益承诺", icon:"🎁", cost:{健康:1.5, cash:35}, rel:+22, risk:18,
+   desc:"以资源分配、项目安排等作为交换条件换取支持。",
+   log:"你以项目安排和资源倾斜作为交换，换来了明确的支持承诺。",
+   warn:"⛔ 以利益交换换取表决支持，涉嫌非组织活动与利益输送，是严重违纪行为。"},
+];
+
+/* 会前做工作 */
+function lobbyVotes(wayKey){
+  const t = S.当前议题;
+  if(!t) return;
+  const way = LOBBY_WAYS.find(w=>w.key===wayKey);
+  if(!way) return;
+  if(way.cost.cash && (S.cash||0) < way.cost.cash){ addToast("资源点不足"); return; }
+  if(way.cost.cash) S.cash -= way.cost.cash;
+  if(way.cost.健康) S.健康 = clamp(S.健康 - way.cost.健康, 0, 100);
+
+  const L = getLeadership();
+  t.votes.forEach(v=>{
+    const m = L.members[v.idx];
+    // 纪检干部不受做工作影响（现实：监督者不吃这套）
+    if(m.isDiscipline){ return; }
+    let delta = way.rel;
+    // 一把手背书主要影响一把手本人与中立派
+    if(wayKey==="请一把手背书"){
+      delta = m.isBoss ? 25 : (m.faction.key==="中立" ? 10 : 3);
+    }
+    // 反对者更难争取
+    if(v.stance==="反对") delta *= 0.6;
+    v.score += delta;
+    // 同步到成员关系度
+    m.relation = Math.round(clamp((m.relation||50) + delta*0.3, 0, 100));
+    v.rel = m.relation;
+    v.stance = v.score>=62 ? "支持" : (v.score>=48 ? "犹豫" : "反对");
+  });
+
+  if(way.risk>0){
+    S.道德 = clamp(S.道德 - way.risk, 0, 100);
+    S.廉政风险暴露 = (S.廉政风险暴露||0) + way.risk;
+  }
+
+  pushLog(`【${way.key}】${way.log}`);
+  if(way.warn) pushLog(`　　${way.warn}`);
+
+  // 被查处风险
+  if(way.risk>=15 && Math.random()<0.10){
+    S.道德 = clamp(S.道德-25, 0, 100);
+    t.votes.forEach(v=>{ v.score -= 30; v.stance = v.score>=62?"支持":(v.score>=48?"犹豫":"反对"); });
+    pushLog(`🚨 <b>严重的非组织活动</b>：你在议题【${t.name}】上的串联行为被反映，`
+      + `纪检监察机关介入核查。道德大幅下降，班子成员纷纷撇清关系。`);
+    addToast("🚨 非组织活动被查处！");
+  }
+  save(); renderTopbar(); renderMain(curTab);
+}
+
+/* 召开班子会表决 */
+function holdMeeting(){
+  const t = S.当前议题;
+  if(!t) return null;
+  const L = getLeadership();
+  const present = L.members.filter(m=>!m.isDiscipline || true);   // 纪检列席
+  const 到会 = present.length;
+  let 赞成 = 0, 反对 = 0, 弃权 = 0;
+  t.votes.forEach(v=>{
+    if(v.stance==="支持") 赞成++;
+    else if(v.stance==="反对") 反对++;
+    else 弃权++;
+  });
+  const 通过 = 到会 >= t.quorum && 赞成 >= t.needed;
+
+  const result = {
+    name:t.name, type:t.type, 到会, 赞成, 反对, 弃权,
+    needed:t.needed, quorum:t.quorum, 通过,
+    date:`${S.year}年${S.month}月`,
+    votes:t.votes.map(v=>({name:v.name, title:v.title, stance:v.stance, faction:v.faction.key})),
+  };
+
+  S.会议记录 = S.会议记录 || [];
+  S.会议记录.unshift(result);
+  if(S.会议记录.length>12) S.会议记录.length = 12;
+
+  if(通过){
+    pushLog(`✅ <b>班子会通过</b>：议题【${t.name}】获 ${赞成}/${到会} 票赞成（需${t.needed}票）。`
+      + `会议决定：原则同意，按程序组织实施。`);
+    addToast("✅ 议题通过");
+    // 执行议题效果
+    applyTopicResult(t, true);
+  } else {
+    pushLog(`❌ <b>班子会未通过</b>：议题【${t.name}】仅获 ${赞成}/${到会} 票赞成（需${t.needed}票）。`
+      + `${到会<t.quorum?"到会人数未达法定人数。":""}会议决定：暂缓，修改完善后再议。`);
+    addToast("❌ 议题未通过");
+    // 未通过：影响威信
+    S.上司好感 = clamp((S.上司好感||0) - 5, 0, 100);
+    applyTopicResult(t, false);
+  }
+  S.当前议题 = null;
+  save(); renderTopbar(); renderMain(curTab);
+  return result;
+}
+
+/* 议题表决结果落地 */
+function applyTopicResult(t, passed){
+  const p = t.payload || {};
+  if(t.type==="重大项目安排" && passed){
+    // 通过则立项（不再扣资源点，会前已扣或由财政列支）
+    if(p.pid && !S.在建项目.some(x=>x.id===p.pid)){
+      const proj = URBAN_PROJECTS.find(x=>x.id===p.pid);
+      if(proj){
+        S.在建项目.push({
+          id:proj.id, name:proj.name, cat:proj.cat, months:proj.months, left:proj.months,
+          gain:proj.gain, risk:proj.risk, cost:proj.cost, start:`${S.year}年${S.month}月`,
+        });
+        pushLog(`🏗️ 【${proj.cat}】<b>${proj.name}</b> 经班子会决定，正式立项开工。`);
+      }
+    }
+    S.政绩 += 8;
+  }
+  if(t.type==="重要干部任免" && passed && p.candidate){
+    S.人事任免 = S.人事任免 || [];
+    S.人事任免.unshift({
+      name:p.candidate.name, to:p.candidate.to, from:p.candidate.from,
+      date:`${S.year}年${S.month}月`, 方式:"班子会票决",
+    });
+    S.政绩 += 10;
+    S.人脉 += 6;
+    pushLog(`👤 经班子会票决，<b>${p.candidate.name}</b> 任 ${p.candidate.to}。`);
+  }
+  if(t.type==="大额资金使用" && passed && p.amount){
+    S.cash = (S.cash||0) + Math.round(p.amount*0.6);
+    pushLog(`💰 班子会同意追加资金安排，可支配资源点 +${Math.round(p.amount*0.6)}。`);
+  }
+}
+
+/* ============================================================
+   二、干部任免（组织人事权）
+   依据：《党政领导干部选拔任用工作条例》
+   ============================================================ */
+
+/* 动议提名：提出拟任人选 */
+function proposeCadre(slotIdx){
+  const L = getLeadership();
+  const m = L.members && L.members[slotIdx];
+  if(!m || m.isBoss) return;
+  const 到 = nextPostFor(m);
+  if(!到){ addToast("该同志暂无可提拔岗位"); return; }
+
+  // 任职条件审查（现实中"凡提四必"）
+  const audit = cadreAudit(m, 到);
+  S.当前议题 = null;
+  createMeetingTopic("重要干部任免", {
+    name:`关于${m.name}同志职务任免的请示`,
+    desc:`拟任：${到}。${audit.summary}`,
+    riskLevel: audit.risk,
+    candidate:{name:m.name, to:到, from:m.title},
+  });
+  if(S.当前议题){
+    S.当前议题.audit = audit;
+    pushLog(`📋 你动议提名 <b>${m.name}</b> 任 ${到}，提交班子会讨论。资格审查：${audit.summary}`);
+    addToast("已提交班子会讨论");
+  }
+  save(); renderTopbar(); renderMain(curTab);
+}
+
+/* 任职资格审查（"凡提四必"） */
+function cadreAudit(m, to){
+  const issues = [];
+  const L = getLeadership();
+  // 1. 任职资格
+  if((m.age||40) >= 58) issues.push("接近退休年龄，一般不再提拔");
+  if((m.relation||50) < 35) issues.push("与组织关系疏远，群众基础待考察");
+  // 2. 廉政意见（纪检干部把关）
+  if(L && S.纪检负责人 && (S.纪检负责人.relation||50) < 50){
+    issues.push("派驻纪检监察组未出具明确廉政意见");
+  }
+  // 3. 编制职数
+  const Q = L.quota||{};
+  let maxVice = 3;
+  if(Array.isArray(Q.副职)) maxVice = Q.副职[1];
+  else if(typeof Q.副职==="number") maxVice = Q.副职;
+  const curVice = L.members.filter(x=>x.role==="副职").length;
+  if(curVice >= maxVice) issues.push("副职已超编，须先消化现有职数");
+  // 4. 干部档案
+  if((S.廉政风险暴露||0) > 20) issues.push("本单位近期存在廉政风险反映");
+  return {
+    pass: issues.length===0,
+    issues,
+    summary: issues.length ? `存在问题：${issues.join("；")}。` : "任职资格、廉政意见、编制职数均符合规定。",
+    risk: issues.length>=2 ? 2 : (issues.length===1 ? 1 : 0),
+  };
+}
+
+/* 该同志的下一岗位 */
+function nextPostFor(m){
+  const L = S.领导班子;
+  const type = L && L.type;
+  if(m.role==="常务副职") return "正职";
+  if(m.role==="副职") return "常务副职";
+  if(m.role==="班子成员") return "副职";
+  return null;
+}
+
+/* ============================================================
+   三、财政收支博弈（"三保"与建设的资金分配）
+   ============================================================ */
+
+/* 年度预算分配（现实中财政预算的三大去向） */
+const BUDGET_ALLOCS = [
+  {key:"三保支出", icon:"🛡️", color:"#2f7d4f", min:0.35, max:0.75,
+   desc:"保基本民生、保工资、保运转。这是财政的底线任务，必须优先足额保障。",
+   effect:{民生:+0.35, 治安:+0.15, 道德:+0.2},
+   warn:"三保是财政底线：支出不足将导致工资拖欠、民生停摆，属重大失职。"},
+  {key:"债务还本付息", icon:"💳", color:"#b01e23", min:0.05, max:0.30,
+   desc:"偿还到期债务本息。债务率越高，刚性支出压力越大。",
+   effect:{财政:+0.3},
+   warn:"债务违约将触发财政重整，严重影响政府信用与后续融资。"},
+  {key:"建设发展支出", icon:"🏗️", color:"#35618a", min:0.05, max:0.45,
+   desc:"用于基础设施建设、产业扶持与公共服务提升，是出政绩的来源。",
+   effect:{GDP:+0.4, 营商:+0.3, 政绩:+0.5},
+   warn:"过度压减建设支出会影响发展后劲，但过度举债建设会推高债务率。"},
+];
+
+/* 默认预算分配（按财政状况自动测算） */
+function defaultBudget(){
+  const f = S.财政数据 || {};
+  const debt = (f.政府债务率||100)/100;
+  const self = (f.财政自给率||50)/100;
+  let sanbao = clamp(0.72 - self*0.35, 0.35, 0.75);
+  let debtSvc = clamp(debt*0.16, 0.05, 0.30);
+  let build = clamp(1 - sanbao - debtSvc, 0.05, 0.45);
+  const sum = sanbao+debtSvc+build;
+  return {
+    三保支出: Math.round(sanbao/sum*100),
+    债务还本付息: Math.round(debtSvc/sum*100),
+    建设发展支出: Math.round(build/sum*100),
+  };
+}
+
+/* 执行预算分配（年度动作，每年可调一次） */
+function setBudget(sanbao, debtSvc, build){
+  const total = sanbao+debtSvc+build;
+  if(Math.abs(total-100)>1){ addToast("三项比例之和须为100%"); return false; }
+  const f = S.财政数据;
+  if(!f){ addToast("财政数据未初始化"); return false; }
+
+  // "三保"硬约束
+  const minSanbao = BUDGET_ALLOCS[0].min*100;
+  if(sanbao < minSanbao){
+    addToast(`⚠ 「三保」支出不得低于${minSanbao}%，这是财政底线`);
+    return false;
+  }
+
+  S.预算分配 = {三保支出:sanbao, 债务还本付息:debtSvc, 建设发展支出:build, 年度:`${S.year}年`};
+
+  // 效果结算
+  const self = (f.财政自给率||50)/100;
+  const debt = (f.政府债务率||100)/100;
+
+  // 三保：达标则民生治安提升，不足则重大惩罚
+  if(sanbao >= 55){
+    S.民生 = clamp(S.民生 + 6, 0, 100);
+    S.治安 = clamp(S.治安 + 3, 0, 100);
+    S.道德 = clamp(S.道德 + 4, 0, 100);
+  } else if(sanbao < 45){
+    S.民生 = clamp(S.民生 - 14, 0, 100);
+    S.治安 = clamp(S.治安 - 10, 0, 100);
+    S.道德 = clamp(S.道德 - 12, 0, 100);
+    S.上司好感 = clamp((S.上司好感||0) - 12, 0, 100);
+    pushLog(`🚨 <b>「三保」保障不力</b>：本年度三保支出仅 ${sanbao}%，`
+      + `出现民生停摆与运转困难，被上级约谈。民生-14 治安-10 道德-12。`);
+  }
+
+  // 债务：付息占比影响债务率
+  if(debtSvc >= Math.round(debt*16)){
+    f.政府债务率 = Math.max(30, f.政府债务率 - 6);
+    S.财政 = clamp(S.财政 + 5, 0, 100);
+  } else {
+    f.政府债务率 = Math.min(320, f.政府债务率 + 10);
+    S.财政 = clamp(S.财政 - 8, 0, 100);
+    pushLog(`⚠ 债务还本付息安排不足，债务率上升至 ${f.政府债务率}%，财政信用受到影响。`);
+  }
+
+  // 建设：占比影响发展指标与资源点
+  if(build >= 25){
+    S.GDP = clamp(S.GDP + 8, 0, 100);
+    S.营商 = clamp(S.营商 + 6, 0, 100);
+    S.cash = (S.cash||0) + Math.round(build*1.2);
+    S.政绩 += 15;
+  } else if(build <= 12){
+    S.GDP = clamp(S.GDP - 5, 0, 100);
+    S.营商 = clamp(S.营商 - 4, 0, 100);
+    pushLog(`发展投入不足（${build}%），经济增长乏力，营商环境改善缓慢。`);
+  }
+
+  pushLog(`💰 <b>本年度财政预算</b>：三保 ${sanbao}% · 债务付息 ${debtSvc}% · 建设发展 ${build}%。`);
+  addToast("预算已确定");
+  save(); renderTopbar(); renderMain(curTab);
+  return true;
+}
+
+
+/* ============================================================
+   城市建设优化：立项审批门槛 / 运维成本 / 持续收益 / 项目分级
+   ============================================================ */
+
+/* 项目分级（按投资规模与现实审批要求） */
+const PROJECT_TIERS = {
+  小型:{name:"小型项目", color:"#35618a", maxCost:22,
+    desc:"投资规模较小，由本单位按程序审批即可，可自主安排。",
+    需上会:false, 需上级审批:false},
+  中型:{name:"中型项目", color:"#8a6a35", maxCost:34,
+    desc:"投资规模中等，属「三重一大」中的重大项目安排，须经领导班子集体讨论决定。",
+    需上会:true, 需上级审批:false},
+  大型:{name:"大型项目", color:"#b01e23", maxCost:999,
+    desc:"投资规模大、影响面广，须经班子会讨论并报上级主管部门审批。",
+    需上会:true, 需上级审批:true},
+};
+
+/* 项目分级判定 */
+function projectTier(p){
+  if(p.cost <= PROJECT_TIERS.小型.maxCost) return PROJECT_TIERS.小型;
+  if(p.cost <= PROJECT_TIERS.中型.maxCost) return PROJECT_TIERS.中型;
+  return PROJECT_TIERS.大型;
+}
+
+/* 项目前置条件（现实中的审批门槛） */
+const PROJECT_REQUIREMENTS = {
+  rail_transit:{
+    name:"城市轨道交通建设门槛",
+    conds:[
+      {k:"GDP", min:70, label:"地区生产总值达到较高水平"},
+      {k:"财政", min:65, label:"地方财政具备较强保障能力"},
+      {k:"人口", min:0, label:"（按管辖区域人口测算，150万以上）"},
+    ],
+    note:"国家对城市轨道交通建设设定了GDP、财政、客流三道门槛，需报国家发展改革委审批。",
+  },
+  hospital_build:{
+    name:"医疗机构设置条件",
+    conds:[{k:"民生", min:0, label:"无硬性门槛"}],
+    note:"医疗机构设置须符合区域卫生规划，并依法办理执业登记。",
+  },
+  shantytown:{
+    name:"棚户区改造要求",
+    conds:[{k:"民生", min:30, label:"民生保障水平不宜过低"},
+           {k:"债务", max:150, label:"债务率处于可控区间"}],
+    note:"改造方案须征求居民意见，做好资金平衡测算，严防大拆大建。",
+  },
+  industrial_park:{
+    name:"开发区建设要求",
+    conds:[{k:"营商", min:40, label:"具备一定营商基础"}],
+    note:"开发区建设应严控新增建设用地，注重亩均效益与产出强度。",
+  },
+};
+
+/* 检查项目前置条件 */
+function checkProjectReq(pid){
+  const req = PROJECT_REQUIREMENTS[pid];
+  if(!req) return {ok:true, req:null, fails:[]};
+  const fails = [];
+  const f = S.财政数据 || {};
+  const j = S.管辖区域 || {};
+  req.conds.forEach(c=>{
+    if(c.k==="人口"){
+      const pop = parseFloat(j.人口)||0;
+      const unit = j.人口单位||"万人";
+      const inWan = unit==="亿人" ? pop*10000 : (unit==="万人" ? pop : pop/10000);
+      if(inWan < 150) fails.push(`辖区人口 ${pop}${unit}（要求150万以上）`);
+    } else if(c.k==="债务"){
+      if((f.政府债务率||0) > c.max) fails.push(`政府债务率 ${f.政府债务率}%（要求不超${c.max}%）`);
+    } else {
+      const v = indVal(c.k);
+      if(c.min!==undefined && v < c.min) fails.push(`${c.k} ${v}（要求≥${c.min}）`);
+    }
+  });
+  return {ok:fails.length===0, req, fails};
+}
+
+/* 项目运维成本（建成后每月消耗财政） */
+const UPKEEP_RATE = 0.035;   // 按造价的3.5%折算月度资源点消耗
+
+/* 已完成项目（含运维） */
+function addFinishedProject(p){
+  S.已建项目 = S.已建项目 || [];
+  S.已建项目.push({
+    id:p.id, name:p.name, cat:p.cat,
+    upkeep: Math.max(1, Math.round(p.cost*UPKEEP_RATE)),
+    built:`${S.year}年${S.month}月`,
+    gain:p.gain,
+  });
+}
+
+/* 月度运维支出（在 monthlySettlement 中调用） */
+function payUpkeep(){
+  if(!S.已建项目 || !S.已建项目.length) return;
+  const total = S.已建项目.reduce((a,p)=>a+p.upkeep, 0);
+  S.cash = Math.max(0, (S.cash||0) - total);
+  // 运维不足：设施失养，指标下滑
+  if((S.cash||0) <= 0 && S.已建项目.length){
+    S.民生 = clamp(S.民生 - 0.5, 0, 100);
+    S.营商 = clamp(S.营商 - 0.3, 0, 100);
+    if(S.month===1){
+      pushLog(`⚠ 运维经费紧张，部分已建成设施出现失养失管，群众有所反映。`);
+    }
+  }
+  // 持续收益：已建项目每月小幅贡献政绩
+  const yieldN = Math.min(3, Math.round(S.已建项目.length*0.25));
+  if(yieldN>0) S.政绩 += yieldN;
+}
+
+/* 提交项目上会（重大项目安排属"三重一大"） */
+function submitProjectToMeeting(pid){
+  const p = URBAN_PROJECTS.find(x=>x.id===pid);
+  if(!p) return;
+  const tier = projectTier(p);
+  // 前置条件检查
+  const chk = checkProjectReq(pid);
+  if(!chk.ok){
+    addToast("不满足立项条件");
+    pushLog(`⚠ 【${p.name}】未通过立项条件审查：${chk.fails.join('、')}。${chk.req?chk.req.note:""}`);
+    return;
+  }
+  // 财政承受能力
+  const f = S.财政数据 || {};
+  if(f.政府债务率 > 120 && p.财政依赖 >= 0.8){
+    addToast("⚠ 债务率超警戒线，不予立项");
+    return;
+  }
+  if((S.cash||0) < p.cost){ addToast("资源点不足"); return; }
+
+  S.cash -= p.cost;
+  createMeetingTopic("重大项目安排", {
+    name:`关于实施${p.name}的请示`,
+    desc:`${p.desc}　投资${p.cost}点，工期${p.months}个月，属${tier.name}。`,
+    cost:p.cost, pid:p.id,
+    riskLevel: p.财政依赖>=0.85 ? 1 : 0,
+  });
+  pushLog(`📋 你动议实施【${p.name}】（${tier.name}，投资${p.cost}点），`
+    + `已按「三重一大」程序提交班子会讨论。${tier.desc}`);
+  addToast("已提交班子会讨论");
+  save(); renderTopbar(); renderMain(curTab);
+}
+
+/* ============================================================
+   领导班子档案（历任班子与互动记录）
+   ============================================================ */
+
+/* 记录与领导的互动 */
+function recordLeaderLog(idx, actKey, delta){
+  if(!S.领导互动记录) S.领导互动记录 = [];
+  const L = S.领导班子;
+  const m = L && L.members[idx];
+  if(!m) return;
+  S.领导互动记录.unshift({
+    姓名:m.name, 职务:m.title, 类型:m.type.key, 派系:m.faction?m.faction.key:"—",
+    方式:actKey, 关系变化:Math.round(delta), 关系值:m.relation,
+    时间:`${S.year}年${S.month}月`,
+  });
+  if(S.领导互动记录.length>30) S.领导互动记录.length = 30;
+}
+
+/* 归档当前班子（离任时调用） */
+function archiveLeadership(){
+  const L = S.领导班子;
+  if(!L || !L.members) return;
+  S.历任班子 = S.历任班子 || [];
+  const avg = Math.round(L.members.reduce((a,m)=>a+(m.relation||50),0)/L.members.length);
+  S.历任班子.unshift({
+    单位:L.单位, 类型:L.type, 我的职务:L.我的职务,
+    起:`${L.生成时间}`, 止:`${S.year}年${S.month}月`,
+    一把手:S.一把手 ? S.一把手.name+S.一把手.title : "—",
+    直接上司:S.直接上司 ? S.直接上司.name+S.直接上司.title : "—",
+    纪检负责人:S.纪检负责人 ? S.纪检负责人.name+S.纪检负责人.title : "—",
+    人数:L.members.length, 平均关系:avg,
+    members:L.members.map(m=>({
+      name:m.name, title:m.title, role:m.role, age:m.age,
+      duty:m.duty.key, type:m.type.key, origin:m.origin.key,
+      faction:m.faction?m.faction.key:"—", relation:m.relation,
+    })),
+  });
+  if(S.历任班子.length>10) S.历任班子.length = 10;
+}
+
+/* ============================================================
+   领导人档案（玩家个人完整履历，参照干部任免审批表）
+   ============================================================ */
+
+/* 履历节点：每次晋升/调动记录 */
+function addCareerRecord(kind, detail){
+  S.干部履历 = S.干部履历 || [];
+  S.干部履历.push({
+    时间:`${S.year}年${S.month}月`,
+    事项:kind, 内容:detail,
+    职务:rankTitle(S.rank), 层级:rankLayer(S.rank), 职级:rankGrade(S.rank),
+    任职地:S.任职地 ? (S.任职地.city?S.任职地.prov+S.任职地.city+S.任职地.name:S.任职地.name) : "—",
+    部门:S.部门 ? S.部门.name : "—",
+  });
+  if(S.干部履历.length>80) S.干部履历.shift();
+}
+
+/* 生成领导人档案（干部任免审批表格式） */
+function buildLeaderProfile(){
+  const j = S.管辖区域 || {};
+  const f = S.财政数据 || {};
+  const L = S.领导班子 || {};
+  const career = S.干部履历 || [];
+  // 按层级汇总履历
+  const byLayer = {};
+  career.forEach(c=>{ byLayer[c.层级] = (byLayer[c.层级]||0)+1; });
+  // 统计
+  const stats = {
+    突发事件: (S.处置得当||0)+(S.处置失当||0),
+    妥善率: ((S.处置得当||0)+(S.处置失当||0)) ? Math.round((S.处置得当||0)/((S.处置得当||0)+(S.处置失当||0))*100) : 0,
+    完工项目: S.完工项目||0,
+    已建项目: (S.已建项目||[]).length,
+    一票否决: S.一票否决次数||0,
+    会议次数: (S.会议记录||[]).length,
+    会议通过: (S.会议记录||[]).filter(m=>m.通过).length,
+    任免干部: (S.人事任免||[]).length,
+    互动次数: (S.领导互动记录||[]).length,
+    历任班子: (S.历任班子||[]).length,
+  };
+  return {
+    基本信息:{
+      姓名:S.name||"—", 性别:S.gender||"—", 年龄:S.age||"—",
+      籍贯:(S.hometownProvince||"—")+(S.hometownCity?(" "+S.hometownCity):""),
+      学历:S.edu||"—", 政治面貌:"中共党员",
+      参加工作时间:`${(S.year||2026) - Math.max(0,Math.floor((S.month||1)+S.rank*8)/12)}年（推算）`,
+      现任职务:rankTitle(S.rank), 职级:rankGrade(S.rank), 层级:rankLayer(S.rank),
+      所属部门:S.部门?S.部门.name:"—", 任职地:j.全称||"—",
+    },
+    年度考核:{
+      实绩得分:performanceScore(), 等次:performanceGrade().t,
+      财政健康度:fiscalHealth(), 财政等次:fiscalGrade().t,
+    },
+    现任班子:{
+      单位:L.单位||"—", 类型:L.type||"—", 人数:(L.members||[]).length,
+      一把手:S.一把手?(S.一把手.name+S.一把手.title):"—",
+      直接上司:S.直接上司?(S.直接上司.name+S.直接上司.title):"—",
+    },
+    辖区:{
+      全称:j.全称||"—", 下辖:`${j.下辖数量||0} ${j.下辖单位||""}`,
+      面积:`${j.面积||0} ${j.面积单位||""}`, 人口:`${j.人口||0} ${j.人口单位||""}`,
+      财政自给率:`${f.财政自给率||0}%`, 政府债务率:`${f.政府债务率||0}%`,
+    },
+    统计:stats,
+    履历:career,
+    层级分布:byLayer,
+  };
+}
 
 
 /* ================= 一、现实任职地（按行政层级的真实地名）================= */
@@ -3869,6 +4553,14 @@ function newGame(opts){
     一把手:null,            // 单位正职
     纪检负责人:null,        // 派驻纪检监察组长/纪委书记
     廉政风险暴露:0,         // 违规往来累计暴露度
+    当前议题:null,          // 待表决的班子会议题
+    会议记录:[],            // 历次班子会表决结果
+    人事任免:[],            // 经班子会票决的干部任免记录
+    预算分配:null,          // 年度财政预算分配
+    已建项目:[],            // 已建成项目（含运维）
+    领导互动记录:[],        // 与领导往来的历史记录
+    历任班子:[],            // 历任领导班子档案
+    干部履历:[],            // 个人完整履历（领导人档案）
     兼任:[],                // 兼任职务：[{id,post,organ,organLevel,personLevel,highProfile,by}]
     地域回避提示:false,      // 是否已就地域回避作出处理
     natPath:{},              // 国家级方向：{vice:'power|honor|judicial|military', top:'...'}
@@ -3904,8 +4596,15 @@ function newGame(opts){
   if(S.部门){
     pushLog(`你被安排到 <b>${S.部门.name}</b> 工作。${S.部门.func}`);
   }
+  // 年度预算初始分配
+  S.预算分配 = null;
+  const db = defaultBudget();
+  S.预算分配 = Object.assign({年度:`${S.year}年`}, db);
   // 生成领导班子（同事 + 上司）
   generateLeadership();
+  assignFactionStands();
+  // 首条履历
+  addCareerRecord("入职", `以${S.edu}学历进入${S.部门?S.部门.name:"机关"}工作，任${rankTitle(S.rank)}。`);
   if(S.一把手){
     pushLog(`单位正职是 <b>${S.一把手.name}${S.一把手.title}</b>（${S.一把手.type.key}）；`
       + `你的直接上司是 <b>${S.直接上司?S.直接上司.name+S.直接上司.title:"—"}</b>。`);
@@ -3969,7 +4668,14 @@ function load(){
     if(!S.财政数据){ try{ refreshFiscal(); }catch(e){} }
     if(!S.管辖区域){ try{ refreshJurisdiction(); }catch(e){} }
     if(S.在建项目===undefined) S.在建项目 = [];
-    if(!S.领导班子){ try{ generateLeadership(); }catch(e){} }
+    if(!S.领导班子){ try{ generateLeadership(); assignFactionStands(); }catch(e){} }
+    if(S.会议记录===undefined) S.会议记录 = [];
+    if(S.人事任免===undefined) S.人事任免 = [];
+    if(S.已建项目===undefined) S.已建项目 = [];
+    if(S.领导互动记录===undefined) S.领导互动记录 = [];
+    if(S.历任班子===undefined) S.历任班子 = [];
+    if(S.干部履历===undefined) S.干部履历 = [];
+    if(!S.预算分配){ try{ S.预算分配 = Object.assign({年度:S.year+"年"}, defaultBudget()); }catch(e){} }
     if(S.地域回避提示===undefined) S.地域回避提示 = false;
     if(S.基层月数===undefined) S.基层月数 = 0;
     if(!S.任职地){ try{ assignLocation(false); }catch(e){} }
@@ -4087,6 +4793,8 @@ function monthlySettlement(){
   }
   // 城市建设项目月度推进
   advanceProjects();
+  // 已建项目运维支出 + 持续收益
+  payUpkeep();
   // 一票否决事项：触及则政绩与晋升资格受严重影响
   {
     const vs = vetoCheck();
@@ -4221,6 +4929,7 @@ function checkPromotion(){
   }
 }
 function doPromote(){
+  const oldRank = S.rank;
   S.rank++;
   const ttl=rankTitle(S.rank), lyr=rankLayer(S.rank), grd=rankGrade(S.rank);
   addToast("🎉 晋升："+ttl);
@@ -4243,6 +4952,8 @@ function doPromote(){
     endGame("大国领袖"); return;
   }
   save();
+  // 记录晋升履历
+  addCareerRecord("晋升", `由 ${rankTitle(oldRank)} 晋升为 ${rankTitle(S.rank)}（${rankLayer(S.rank)}${rankGrade(S.rank)!=="—"?" · "+rankGrade(S.rank):""}）。`);
   // ==== 职级变动后重新分配现实任职地（层级跨档时才换地方）====
   assignLocation(true);
   // ==== 部门随层级调整（层级跨档时才换部门层级）====
@@ -4253,9 +4964,12 @@ function doPromote(){
     // 部门变化 → 领导班子随之调整（现实中"新官上任"面对的班子可能不同）
     if(S.部门 && oldDeptName !== S.部门.name){
       const oldBoss = S.一把手 ? S.一把手.name : null;
+      archiveLeadership();          // 归档上一任班子
       generateLeadership();
+      assignFactionStands();
       pushLog(`随着岗位变动，你进入新的领导班子。新的正职是 <b>${S.一把手?S.一把手.name+S.一把手.title:"—"}</b>`
         + `，直接上司是 <b>${S.直接上司?S.直接上司.name+S.直接上司.title:"—"}</b>。`);
+      addCareerRecord("岗位变动", `调任${S.部门.name}，进入新的领导班子（正职：${S.一把手?S.一把手.name+S.一把手.title:"—"}）。`);
     }
     // 财政与管辖区域随层级刷新
     refreshFiscal();
@@ -5116,6 +5830,196 @@ function openIndicatorDetail(key){
 }
 
 
+/* 打开领导人档案（参照干部任免审批表） */
+function openLeaderProfile(){
+  const P = buildLeaderProfile();
+  const B = P.基本信息, K = P.年度考核, Z = P.现任班子, J = P.辖区, st = P.统计;
+
+  let h = `
+    <div style="border:1px solid #b01e23;border-radius:4px;padding:10px;margin-bottom:10px;background:#fffafa">
+      <div style="text-align:center;font-weight:800;color:#b01e23;font-size:14px;letter-spacing:3px">
+        干 部 任 免 审 批 表
+      </div>
+      <div style="text-align:center" class="mini muted">（游戏内履历档案）</div>
+    </div>
+
+    <table style="width:100%;border-collapse:collapse;font-size:12px">
+      <tr><td style="border:1px solid #ddd;padding:5px;background:#f7f7f7;width:22%"><b>姓名</b></td>
+          <td style="border:1px solid #ddd;padding:5px">${B.姓名}</td>
+          <td style="border:1px solid #ddd;padding:5px;background:#f7f7f7;width:18%"><b>性别</b></td>
+          <td style="border:1px solid #ddd;padding:5px">${B.性别}</td></tr>
+      <tr><td style="border:1px solid #ddd;padding:5px;background:#f7f7f7"><b>出生/年龄</b></td>
+          <td style="border:1px solid #ddd;padding:5px">${B.年龄}岁</td>
+          <td style="border:1px solid #ddd;padding:5px;background:#f7f7f7"><b>籍贯</b></td>
+          <td style="border:1px solid #ddd;padding:5px">${B.籍贯}</td></tr>
+      <tr><td style="border:1px solid #ddd;padding:5px;background:#f7f7f7"><b>学历</b></td>
+          <td style="border:1px solid #ddd;padding:5px">${B.学历}</td>
+          <td style="border:1px solid #ddd;padding:5px;background:#f7f7f7"><b>政治面貌</b></td>
+          <td style="border:1px solid #ddd;padding:5px">${B.政治面貌}</td></tr>
+      <tr><td style="border:1px solid #ddd;padding:5px;background:#f7f7f7"><b>现任职务</b></td>
+          <td style="border:1px solid #ddd;padding:5px" colspan="3">
+            <b>${B.现任职务}</b>（${B.层级}${B.职级!=="—"?" · "+B.职级:""}）</td></tr>
+      <tr><td style="border:1px solid #ddd;padding:5px;background:#f7f7f7"><b>所属部门</b></td>
+          <td style="border:1px solid #ddd;padding:5px" colspan="3">${B.所属部门}</td></tr>
+      <tr><td style="border:1px solid #ddd;padding:5px;background:#f7f7f7"><b>任职地</b></td>
+          <td style="border:1px solid #ddd;padding:5px" colspan="3">${B.任职地}</td></tr>
+    </table>
+
+    <div style="margin-top:10px">
+      <div class="mini" style="font-weight:700;color:#b01e23">📊 年度考核情况</div>
+      <div class="mini" style="line-height:1.9;margin-top:3px">
+        实绩考核：<b>${K.实绩得分} 分（${K.等次}）</b><br>
+        财政健康度：<b>${K.财政健康度}（${K.财政等次}）</b>
+      </div>
+    </div>
+
+    <div style="margin-top:10px">
+      <div class="mini" style="font-weight:700;color:#b01e23">🗺️ 主政辖区</div>
+      <div class="mini" style="line-height:1.9;margin-top:3px">
+        ${J.全称}　下辖 ${J.下辖}<br>
+        面积 ${J.面积} · 人口 ${J.人口}<br>
+        财政自给率 ${J.财政自给率} · 政府债务率 ${J.政府债务率}
+      </div>
+    </div>
+
+    <div style="margin-top:10px">
+      <div class="mini" style="font-weight:700;color:#b01e23">👥 现任领导班子</div>
+      <div class="mini" style="line-height:1.9;margin-top:3px">
+        ${Z.单位}（${Z.类型}，${Z.人数}人）<br>
+        一把手：${Z.一把手}<br>直接上司：${Z.直接上司}
+      </div>
+    </div>
+
+    <div style="margin-top:10px">
+      <div class="mini" style="font-weight:700;color:#b01e23">📈 任职统计</div>
+      <div class="mini" style="line-height:1.9;margin-top:3px">
+        突发事件处置：<b>${st.突发事件}</b> 起（妥善率 <b>${st.妥善率}%</b>）<br>
+        完工/已建项目：<b>${st.完工项目}</b> / <b>${st.已建项目}</b> 个<br>
+        班子会：<b>${st.会议次数}</b> 次（通过 <b>${st.会议通过}</b> 次）<br>
+        经手干部任免：<b>${st.任免干部}</b> 人<br>
+        与领导往来：<b>${st.互动次数}</b> 次　·　历任班子：<b>${st.历任班子}</b> 届
+        ${st.一票否决?`<br><b style="color:#b01e23">⛔ 累计触及一票否决：${st.一票否决} 次</b>`:""}
+      </div>
+    </div>
+
+    <div style="margin-top:10px">
+      <div class="mini" style="font-weight:700;color:#b01e23">📜 主要履历</div>
+      <div style="max-height:200px;overflow-y:auto;margin-top:4px">
+        ${P.履历.length ? P.履历.slice().reverse().map(c=>`
+          <div style="border-left:2px solid #ddd;padding-left:7px;margin-bottom:5px">
+            <div class="mini muted">${c.时间}　${c.事项}</div>
+            <div class="mini">${c.内容}</div>
+            <div class="mini muted" style="font-size:10px">
+              ${c.职务}（${c.层级}${c.职级!=="—"?" · "+c.职级:""}）· ${c.部门} · ${c.任职地}
+            </div>
+          </div>`).join('') : `<div class="mini muted">暂无履历记录</div>`}
+      </div>
+    </div>`;
+
+  openModal("📇 领导人档案 · " + B.姓名, h);
+}
+
+/* 打开领导班子档案 */
+function openLeaderArchive(){
+  const L = S.领导班子;
+  const hist = S.历任班子 || [];
+  const inter = S.领导互动记录 || [];
+  const appt = S.人事任免 || [];
+
+  let h = "";
+
+  /* 现任班子 */
+  h += `<div style="border:1px solid #b01e23;border-radius:4px;padding:8px;margin-bottom:10px;background:#fffafa">
+    <div style="font-weight:700;color:#b01e23;font-size:13px">现任领导班子</div>
+    <div class="mini" style="margin-top:3px;line-height:1.8">
+      ${L&&L.单位?L.单位:"—"}　（${L&&L.type?L.type:"—"}，${L&&L.members?L.members.length:0}人）<br>
+      <span class="muted">职数规定：${L&&L.quota?L.quota.描述:"—"}</span><br>
+      组建于 ${L?L.生成时间:"—"}　·　我的职务：${L?L.我的职务:"—"}
+    </div>
+  </div>`;
+
+  if(L && L.members && L.members.length){
+    h += `<div class="mini" style="font-weight:700;color:#b01e23;margin-bottom:4px">现任成员</div>`;
+    h += `<table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:10px">
+      <tr style="background:#f7f7f7">
+        <td style="border:1px solid #ddd;padding:4px"><b>姓名</b></td>
+        <td style="border:1px solid #ddd;padding:4px"><b>职务</b></td>
+        <td style="border:1px solid #ddd;padding:4px"><b>分工</b></td>
+        <td style="border:1px solid #ddd;padding:4px"><b>风格</b></td>
+        <td style="border:1px solid #ddd;padding:4px"><b>出身</b></td>
+        <td style="border:1px solid #ddd;padding:4px"><b>派系</b></td>
+        <td style="border:1px solid #ddd;padding:4px"><b>关系</b></td>
+      </tr>`;
+    L.members.forEach(m=>{
+      const rel = m.relation||50;
+      const rc = rel>=70?"#2f7d4f":(rel>=50?"#35618a":(rel>=35?"#8a6a35":"#b01e23"));
+      h += `<tr>
+        <td style="border:1px solid #ddd;padding:4px">${m.name}${m.isBoss?' <span style="color:#b01e23;font-size:9px">★</span>':(m.isDirectBoss?' <span style="color:#35618a;font-size:9px">▲</span>':(m.isDiscipline?' <span style="color:#8a4a8a;font-size:9px">●</span>':''))}</td>
+        <td style="border:1px solid #ddd;padding:4px">${m.title}</td>
+        <td style="border:1px solid #ddd;padding:4px">${m.duty.key}</td>
+        <td style="border:1px solid #ddd;padding:4px">${m.type.key}</td>
+        <td style="border:1px solid #ddd;padding:4px">${m.origin.key}</td>
+        <td style="border:1px solid #ddd;padding:4px" style="color:${m.faction?m.faction.color:'#999'}">${m.faction?m.faction.icon+m.faction.key:"—"}</td>
+        <td style="border:1px solid #ddd;padding:4px;color:${rc};font-weight:700">${rel}</td>
+      </tr>`;
+    });
+    h += `</table><div class="mini muted" style="margin-bottom:10px">★一把手　▲直接上司　●纪检监察</div>`;
+  }
+
+  /* 干部任免记录 */
+  if(appt.length){
+    h += `<div class="mini" style="font-weight:700;color:#b01e23;margin-bottom:4px">📋 经手干部任免（${appt.length}人）</div>`;
+    h += appt.slice(0,8).map(a=>`
+      <div class="mini" style="line-height:1.7">
+        ${a.date}　<b>${a.name}</b> 任 ${a.to}<span class="muted">（原${a.from}，${a.方式}）</span>
+      </div>`).join('');
+    h += `<div style="margin-bottom:10px"></div>`;
+  }
+
+  /* 往来记录 */
+  if(inter.length){
+    h += `<div class="mini" style="font-weight:700;color:#b01e23;margin-bottom:4px">🤝 往来记录（近${Math.min(15,inter.length)}条）</div>`;
+    h += `<div style="max-height:160px;overflow-y:auto;margin-bottom:10px">`;
+    h += inter.slice(0,15).map(r=>`
+      <div class="mini" style="line-height:1.7">
+        ${r.时间}　与 <b>${r.姓名}</b>${r.职务} <span class="muted">（${r.类型}${r.派系!=="—"?" · "+r.派系:""}）</span>
+        ${r.方式}　<span style="color:${r.关系变化>=0?'#2f7d4f':'#b01e23'}">${r.关系变化>=0?"+":""}${r.关系变化}</span>
+        <span class="muted">→ ${r.关系值}</span>
+      </div>`).join('');
+    h += `</div>`;
+  }
+
+  /* 历任班子 */
+  h += `<div class="mini" style="font-weight:700;color:#b01e23;margin-bottom:4px">📚 历任班子（${hist.length}届）</div>`;
+  if(hist.length){
+    h += hist.map((a,i)=>`
+      <div style="border-left:3px solid #b01e23;padding-left:8px;margin-bottom:8px">
+        <div style="font-weight:700;font-size:12px">第${hist.length-i}届　${a.单位}</div>
+        <div class="mini muted">${a.起} — ${a.止}　（${a.类型}，${a.人数}人，平均关系 ${a.平均关系}）</div>
+        <div class="mini" style="line-height:1.7;margin-top:2px">
+          我的职务：${a.我的职务}<br>
+          一把手：${a.一把手}　直接上司：${a.直接上司}<br>
+          纪检负责人：${a.纪检负责人}
+        </div>
+        <details style="margin-top:3px">
+          <summary class="mini" style="cursor:pointer;color:#35618a">展开成员名单（${a.members.length}人）</summary>
+          <div style="margin-top:3px">
+            ${a.members.map(m=>`
+              <div class="mini" style="line-height:1.6">
+                ${m.name}　<span class="muted">${m.title}</span>
+                <span class="muted" style="font-size:10px">（${m.age}岁 · ${m.duty} · ${m.type} · ${m.origin}${m.faction!=="—"?" · "+m.faction:""} · 关系${m.relation}）</span>
+              </div>`).join('')}
+          </div>
+        </details>
+      </div>`).join('');
+  } else {
+    h += `<div class="mini muted">尚未经历班子更替。岗位变动后将自动归档。</div>`;
+  }
+
+  openModal("👥 领导班子档案", h);
+}
+
+
 /* ---------- 城建页：城市财政 + 管辖区域 + 城市建设 ---------- */
 function pCity(){
   const f = S.财政数据 || refreshFiscal();
@@ -5197,39 +6101,65 @@ function pCity(){
     </div>`;
   }
 
-  /* —— 可建设项目 —— */
+  /* —— 可建设项目（优化：分级 + 门槛 + 运维 + 上会） —— */
   const projects = availableProjects();
   const canAfford = p => S.cash >= p.cost;
   const inProgress = pid => (S.在建项目||[]).some(p=>p.id===pid);
+  const built = pid => (S.已建项目||[]).some(p=>p.id===pid);
+  const totalUpkeep = (S.已建项目||[]).reduce((a,p)=>a+p.upkeep,0);
+
   html += `<div class="card">
     <div class="card-h">🏗️ 城市建设项目库（${projects.length}个）</div>
     <div class="card-b">
       <div class="mini muted" style="margin-bottom:8px">
-        可支配资源点：<b>${S.cash}</b>　·　已完工项目：<b>${S.完工项目||0}</b> 个
-        ${S.cash<15?'<span style="color:#b01e23">（资源点不足，需通过施政积累）</span>':''}
+        可支配资源点：<b>${S.cash}</b>　·　在建 <b>${(S.在建项目||[]).length}</b> 个　·
+        已建成 <b>${(S.已建项目||[]).length}</b> 个（月运维 <b style="color:#b01e23">-${totalUpkeep}</b> 点）<br>
+        <span style="font-size:10px">已建成项目每月产生持续收益，但也需持续投入运维经费。</span>
       </div>
+
       ${projects.map(p=>{
-        const afford = canAfford(p), doing = inProgress(p.id);
-        const blocked = !afford || doing || (debt>=120 && p.财政依赖>=0.8);
-        return `<div style="border:1px solid #eee;border-radius:4px;padding:8px;margin-bottom:8px;${blocked?'opacity:0.55':''}">
+        const tier = projectTier(p);
+        const chk = checkProjectReq(p.id);
+        const afford = canAfford(p), doing = inProgress(p.id), done = built(p.id);
+        const debtBlock = debt>=120 && p.财政依赖>=0.8;
+        const blocked = !afford || doing || debtBlock || !chk.ok;
+        const upkeep = Math.max(1, Math.round(p.cost*UPKEEP_RATE));
+        let btnText = doing?"在建":(!afford?"资源不足":(!chk.ok?"条件不足":(debtBlock?"债务超限":(tier.需上会?"提交上会":"直接立项"))));
+        return `<div style="border:1px solid ${tier.color}33;border-left:3px solid ${tier.color};border-radius:4px;padding:8px;margin-bottom:8px;${blocked?'opacity:0.55':''}">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
             <div style="flex:1">
-              <div style="font-weight:700;font-size:13px">${p.name}</div>
-              <div class="mini muted">${p.cat} · 工期${p.months}个月 · 投入<b>${p.cost}</b>点</div>
+              <div style="font-weight:700;font-size:13px;display:flex;align-items:center;gap:5px;flex-wrap:wrap">
+                ${p.name}
+                <span style="background:${tier.color};color:#fff;border-radius:3px;padding:1px 6px;font-size:10px">${tier.name}</span>
+                ${tier.需上会?`<span style="background:#b01e23;color:#fff;border-radius:3px;padding:1px 6px;font-size:10px">须上会</span>`:""}
+                ${tier.需上级审批?`<span style="background:#8a4a8a;color:#fff;border-radius:3px;padding:1px 6px;font-size:10px">上级审批</span>`:""}
+                ${done?`<span style="background:#2f7d4f;color:#fff;border-radius:3px;padding:1px 6px;font-size:10px">已建成</span>`:""}
+              </div>
+              <div class="mini muted">${p.cat} · 工期${p.months}个月 · 投入<b>${p.cost}</b>点 · 月运维<b style="color:#b01e23">${upkeep}</b>点</div>
             </div>
             <button class="btn mini-btn" data-act="build" data-pid="${p.id}" ${blocked?'disabled':''}
               style="padding:4px 10px;font-size:12px;${blocked?'opacity:0.5':''}">
-              <span class="bt">${doing?'在建':(afford?'立项':'资源不足')}</span>
+              <span class="bt">${btnText}</span>
             </button>
           </div>
           <div class="mini" style="color:#666;line-height:1.6;margin-top:4px">${p.desc}</div>
           <div class="mini" style="color:#35618a;margin-top:3px">预期：${Object.keys(p.gain||{}).map(k=>k+'+'+p.gain[k]).join(' ')}</div>
           <div class="mini" style="color:#a05;margin-top:2px">⚠ 风险：${p.risk}</div>
+          ${chk.req?`<div class="mini" style="color:${chk.ok?'#666':'#b01e23'};margin-top:3px;font-size:10px;line-height:1.5">
+            <b>立项条件</b>：${chk.ok?'✓ 满足':('✗ '+chk.fails.join('、'))}<br>${chk.req.note}
+          </div>`:""}
           <div class="mini muted" style="margin-top:3px;font-size:10px;line-height:1.5">${p.note}</div>
+          <div class="mini muted" style="margin-top:2px;font-size:10px">${tier.desc}</div>
         </div>`;
       }).join('')}
     </div>
   </div>`;
+
+  /* —— 班子会（三重一大集体决策） —— */
+  html += meetingPanel();
+
+  /* —— 财政收支博弈 —— */
+  html += budgetPanel();
 
   return html;
 }
@@ -5281,7 +6211,8 @@ function pLeadership(){
           <div style="font-weight:700;font-size:13px">
             ${m.name}　<span style="color:#b01e23">${m.title}</span>　${badge}
           </div>
-          <div class="mini muted">${m.age}岁 · ${m.role} · ${m.type.key}</div>
+          <div class="mini muted">${m.age}岁 · ${m.role} · ${m.type.key}
+            ${m.faction?` · <span style="color:${m.faction.color}">${m.faction.icon}${m.faction.key}</span>`:""}</div>
         </div>
         <div style="text-align:right">
           <div style="font-weight:800;color:${relColor};font-size:16px">${rel}</div>
@@ -5306,6 +6237,13 @@ function pLeadership(){
               style="padding:3px 8px;font-size:11px" title="${a.desc}${a.warn?' ⚠ '+a.warn:''}">
               <span class="bt">${a.icon} ${a.key}</span>
             </button>`).join('')}
+          ${(()=>{
+            const to = nextPostFor(m);
+            if(!to) return "";
+            return `<button class="btn mini-btn" data-act="propose" data-idx="${i}"
+              style="padding:3px 8px;font-size:11px" title="动议提名该同志提拔为${to}，提交班子会票决">
+              <span class="bt">📋 提名提拔为${to}</span></button>`;
+          })()}
         </div>
       </div>
     </div>`;
@@ -5322,6 +6260,169 @@ function pLeadership(){
 
   html += `</div></div>`;
   return html;
+}
+
+
+/* 班子会面板（三重一大集体决策） */
+function meetingPanel(){
+  const t = S.当前议题;
+  let h = `<div class="card">
+    <div class="card-h">🏛️ 班子会 · 「三重一大」集体决策</div>
+    <div class="card-b">`;
+
+  if(!t){
+    h += `<div class="mini muted" style="line-height:1.7;margin-bottom:8px">
+      凡属重大事项决策、重要干部任免、重大项目安排、大额资金使用，
+      须经领导班子集体讨论决定，不得以个别征求意见等方式替代集体决策。
+    </div>
+    <div class="mini" style="color:#666;line-height:1.7">
+      ${MEETING_TOPICS.map(tp=>`${tp.icon} <b>${tp.key}</b>——${tp.desc}`).join('<br>')}
+    </div>
+    <div class="mini muted" style="margin-top:8px;font-size:10px;line-height:1.6">
+      ${Object.keys(MEETING_RULES).map(k=>`· ${MEETING_RULES[k]}`).join('<br>')}
+    </div>
+    <div class="mini muted" style="margin-top:8px">
+      💡 提交方式：在上方项目库点击「提交上会」，或在下方「干部任免」提名拟任人选。
+    </div>`;
+  } else {
+    const L = getLeadership();
+    const 支持 = t.votes.filter(v=>v.stance==="支持").length;
+    const 犹豫 = t.votes.filter(v=>v.stance==="犹豫").length;
+    const 反对 = t.votes.filter(v=>v.stance==="反对").length;
+    const willPass = 支持 >= t.needed;
+    h += `<div style="background:#fff9e6;border:1px solid #e0c080;border-radius:4px;padding:8px;margin-bottom:8px">
+      <div style="font-weight:700;font-size:13px">${t.icon} ${t.name}</div>
+      <div class="mini" style="color:#666;margin-top:3px;line-height:1.6">${t.desc}</div>
+      <div class="mini" style="margin-top:5px;line-height:1.8">
+        议题类型：<b>${t.type}</b>　立场属性：<b>${t.stance}</b><br>
+        需 <b>${t.needed}</b> 票赞成方可通过（应到 ${L.members.length} 人，法定到会 ${t.quorum} 人）
+      </div>
+    </div>
+
+    <div style="display:flex;gap:6px;margin-bottom:8px">
+      <div style="flex:1;text-align:center;background:#f0f8f2;border-radius:4px;padding:5px">
+        <div style="font-weight:800;color:#2f7d4f;font-size:16px">${支持}</div><div class="mini">支持</div>
+      </div>
+      <div style="flex:1;text-align:center;background:#faf8f0;border-radius:4px;padding:5px">
+        <div style="font-weight:800;color:#8a6a35;font-size:16px">${犹豫}</div><div class="mini">犹豫</div>
+      </div>
+      <div style="flex:1;text-align:center;background:#fdf0f0;border-radius:4px;padding:5px">
+        <div style="font-weight:800;color:#b01e23;font-size:16px">${反对}</div><div class="mini">反对</div>
+      </div>
+    </div>
+
+    <div class="mini" style="margin-bottom:6px"><b>班子成员预判立场</b></div>
+    ${t.votes.map(v=>{
+      const c = v.stance==="支持"?"#2f7d4f":(v.stance==="犹豫"?"#8a6a35":"#b01e23");
+      const badge = v.boss?`<span style="background:#b01e23;color:#fff;border-radius:3px;padding:0 4px;font-size:9px">一把手</span>`
+        : v.direct?`<span style="background:#35618a;color:#fff;border-radius:3px;padding:0 4px;font-size:9px">直接上司</span>`
+        : v.discipline?`<span style="background:#8a4a8a;color:#fff;border-radius:3px;padding:0 4px;font-size:9px">纪检</span>`:"";
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;border-bottom:1px dashed #f0f0f0">
+        <div style="font-size:11px">
+          ${badge} ${v.name}<span class="muted">${v.title}</span>
+          <span style="color:${v.faction?v.faction.color:'#999'};font-size:10px">${v.faction?v.faction.icon+v.faction.key:""}</span>
+        </div>
+        <div style="text-align:right">
+          <span style="color:${c};font-weight:700;font-size:12px">${v.stance}</span>
+          <span class="muted" style="font-size:10px">（关系${v.rel}）</span>
+        </div>
+      </div>`;
+    }).join('')}
+
+    <div class="mini" style="margin:8px 0 4px"><b>会前做工作</b></div>
+    <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px">
+      ${LOBBY_WAYS.map(w=>{
+        const afford = !w.cost.cash || S.cash>=w.cost.cash;
+        return `<button class="btn mini-btn" data-act="lobby" data-way="${w.key}" ${afford?'':'disabled'}
+          style="padding:3px 8px;font-size:11px;${afford?'':'opacity:0.5'}"
+          title="${w.desc}${w.warn?' ⚠ '+w.warn:''}">
+          <span class="bt">${w.icon} ${w.key}${w.risk>0?' ⚠':''}</span>
+        </button>`;
+      }).join('')}
+    </div>
+
+    <div style="display:flex;gap:6px">
+      <button class="btn primary" data-act="hold_meeting" style="flex:2">
+        <span class="bt">🗳️ 召开班子会表决${willPass?'（预计通过）':'（预计未通过）'}</span>
+      </button>
+      <button class="btn" data-act="drop_topic" style="flex:1">
+        <span class="bt">撤回议题</span>
+      </button>
+    </div>`;
+  }
+
+  // 会议记录
+  if(S.会议记录 && S.会议记录.length){
+    h += `<div style="margin-top:10px;border-top:1px dashed #ddd;padding-top:8px">
+      <div class="mini"><b>📜 会议记录（近${S.会议记录.length}次）</b></div>
+      ${S.会议记录.slice(0,5).map(m=>`
+        <div class="mini" style="margin-top:3px;line-height:1.6">
+          ${m.通过?'<span style="color:#2f7d4f">✓ 通过</span>':'<span style="color:#b01e23">✗ 未通过</span>'}
+          【${m.type}】${m.name}　${m.赞成}/${m.到会}票（需${m.needed}票）· ${m.date}
+        </div>`).join('')}
+    </div>`;
+  }
+
+  h += `</div></div>`;
+  return h;
+}
+
+/* 财政收支博弈面板 */
+function budgetPanel(){
+  const f = S.财政数据 || {};
+  const b = S.预算分配 || defaultBudget();
+  let h = `<div class="card">
+    <div class="card-h">💰 财政收支博弈 · 年度预算分配</div>
+    <div class="card-b">
+      <div class="mini muted" style="line-height:1.6;margin-bottom:8px">
+        年度预算须在「三保」、债务还本付息与建设发展之间权衡。
+        「三保」是底线，债务是刚性，建设出政绩——三者此消彼长。
+      </div>`;
+
+  BUDGET_ALLOCS.forEach(a=>{
+    const cur = b[a.key] || 0;
+    h += `<div style="margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div style="font-size:12px;font-weight:700;color:${a.color}">${a.icon} ${a.key}</div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <div style="width:120px;height:6px;background:#eee;border-radius:3px;overflow:hidden">
+            <div style="width:${cur}%;height:100%;background:${a.color}"></div>
+          </div>
+          <b style="color:${a.color};font-size:13px;min-width:36px;text-align:right">${cur}%</b>
+        </div>
+      </div>
+      <div class="mini muted" style="line-height:1.5;margin-top:2px">${a.desc}</div>
+      <div class="mini" style="color:#a05;font-size:10px;margin-top:1px">${a.warn}</div>
+      <input type="range" min="${Math.round(a.min*100)}" max="${Math.round(a.max*100)}" value="${cur}"
+        data-budget="${a.key}" style="width:100%;margin-top:4px">
+    </div>`;
+  });
+
+  const total = (b.三保支出||0)+(b.债务还本付息||0)+(b.建设发展支出||0);
+  const ok = Math.abs(total-100)<=1;
+  h += `<div class="mini" style="margin-bottom:6px">
+    合计：<b style="color:${ok?'#2f7d4f':'#b01e23'}">${total}%</b>
+    ${ok?'':'（须为100%）'}
+  </div>
+  <button class="btn ${ok?'primary':''}" data-act="set_budget" ${ok?'':'disabled'}>
+    <span class="bt">确定本年度预算</span>
+  </button>`;
+
+  if(f.政府债务率){
+    const debt = f.政府债务率;
+    const dc = debt>=120?"#b01e23":(debt>=100?"#b8860b":"#2f7d4f");
+    h += `<div class="mini" style="margin-top:8px;line-height:1.6;color:${dc}">
+      当前债务率 <b>${debt}%</b>　·　建议债务付息比例约 <b>${Math.max(5,Math.round(debt*0.16))}%</b>
+    </div>`;
+  }
+
+  h += `<div class="mini muted" style="margin-top:6px;font-size:10px;line-height:1.6">
+    现实机制：县级财政「三保」支出一般占七成以上；债务付息属刚性支出，
+    不足将推高债务率并影响政府信用；建设支出是发展的资金来源，但过度举债会形成风险。
+  </div>`;
+
+  h += `</div></div>`;
+  return h;
 }
 
 
@@ -5805,6 +6906,55 @@ function renderArchive(){
     </div>`;
   }
 
+  // 领导人档案卡片（干部任免审批表格式）
+  let profileCard = "";
+  {
+    const P = buildLeaderProfile();
+    const st = P.统计;
+    profileCard = `<div style="border-top:1px dashed #ddd;margin-top:8px;padding-top:8px">
+      <div class="mini"><b>📇 领导人档案</b>
+        <span class="muted" style="font-weight:400">（参照干部任免审批表）</span></div>
+      <div class="mini" style="line-height:1.9;margin-top:3px">
+        <b>${P.基本信息.姓名}</b>　${P.基本信息.性别}　${P.基本信息.年龄}岁　${P.基本信息.籍贯}人<br>
+        ${P.基本信息.学历}　${P.基本信息.政治面貌}<br>
+        现任：<b>${P.基本信息.现任职务}</b>（${P.基本信息.层级}${P.基本信息.职级!=="—"?" · "+P.基本信息.职级:""}）<br>
+        实绩考核：<b>${P.年度考核.实绩得分}分（${P.年度考核.等次}）</b> ·
+        财政：<b>${P.年度考核.财政健康度}（${P.年度考核.财政等次}）</b>
+      </div>
+      <div class="mini" style="line-height:1.9;margin-top:5px;color:#555">
+        <b>任职统计</b>：突发事件 ${st.突发事件} 起（妥善率 ${st.妥善率}%）·
+        完工项目 ${st.完工项目} 个 · 班子会 ${st.会议次数} 次（通过 ${st.会议通过}）·
+        任免干部 ${st.任免干部} 人 · 往来 ${st.互动次数} 次
+        ${st.一票否决?`<br><b style="color:#b01e23">⛔ 一票否决 ${st.一票否决} 次</b>`:""}
+      </div>
+      ${P.履历.length?`<div class="mini muted" style="margin-top:4px">
+        履历记录 ${P.履历.length} 条，最近：${P.履历[P.履历.length-1].时间} ${P.履历[P.履历.length-1].事项}——${P.履历[P.履历.length-1].内容.slice(0,28)}…
+      </div>`:""}
+      <button class="btn mini-btn" data-act="open_profile" style="margin-top:6px;padding:4px 10px;font-size:12px">
+        <span class="bt">📖 查看完整领导人档案</span>
+      </button>
+    </div>`;
+  }
+
+  // 领导班子档案卡片
+  let leaderArchCard = "";
+  {
+    const L = S.领导班子;
+    const hist = S.历任班子 || [];
+    const inter = S.领导互动记录 || [];
+    leaderArchCard = `<div style="border-top:1px dashed #ddd;margin-top:8px;padding-top:8px">
+      <div class="mini"><b>👥 领导班子档案</b></div>
+      <div class="mini" style="line-height:1.9;margin-top:3px">
+        现任班子：${L&&L.单位?L.单位:"—"}（${L&&L.type?L.type:"—"}，${L&&L.members?L.members.length:0}人）<br>
+        历任班子：<b>${hist.length}</b> 届　·　往来记录：<b>${inter.length}</b> 条
+        ${inter.length?`<br>最近往来：${inter[0].时间} 与 ${inter[0].姓名}${inter[0].职务} ${inter[0].方式}（关系${inter[0].关系变化>0?"+":""}${inter[0].关系变化}→${inter[0].关系值}）`:""}
+      </div>
+      <button class="btn mini-btn" data-act="open_leader_arch" style="margin-top:6px;padding:4px 10px;font-size:12px">
+        <span class="bt">📖 查看领导班子档案</span>
+      </button>
+    </div>`;
+  }
+
   // 兼任与高配卡片
   let hpCard = "";
   {
@@ -5881,6 +7031,8 @@ function renderArchive(){
       ${deptCard}
       ${cityCard}
       ${leaderCard}
+      ${profileCard}
+      ${leaderArchCard}
       ${emergencyCard}
       ${hpCard}
     </div>
@@ -5979,6 +7131,56 @@ function bindActions(){
   // 与领导往来
   document.querySelectorAll('[data-act="leader_act"]').forEach(b=>{
     b.onclick=()=>{ interactLeader(parseInt(b.dataset.idx), b.dataset.ikey); };
+  });
+  // 打开两份档案
+  document.querySelectorAll('[data-act="open_profile"]').forEach(b=>{
+    b.onclick=()=>{ openLeaderProfile(); };
+  });
+  document.querySelectorAll('[data-act="open_leader_arch"]').forEach(b=>{
+    b.onclick=()=>{ openLeaderArchive(); };
+  });
+  // 干部任免动议
+  document.querySelectorAll('[data-act="propose"]').forEach(b=>{
+    b.onclick=()=>{ proposeCadre(parseInt(b.dataset.idx)); };
+  });
+  // 会前做工作
+  document.querySelectorAll('[data-act="lobby"]').forEach(b=>{
+    b.onclick=()=>{ lobbyVotes(b.dataset.way); };
+  });
+  // 召开班子会
+  document.querySelectorAll('[data-act="hold_meeting"]').forEach(b=>{
+    b.onclick=()=>{ holdMeeting(); };
+  });
+  // 撤回议题
+  document.querySelectorAll('[data-act="drop_topic"]').forEach(b=>{
+    b.onclick=()=>{ S.当前议题=null; addToast("议题已撤回"); save(); renderMain(curTab); };
+  });
+  // 财政预算滑块（实时联动，但不立即生效）
+  document.querySelectorAll('[data-budget]').forEach(el=>{
+    el.oninput=()=>{
+      const key = el.dataset.budget;
+      if(!S.预算分配) S.预算分配 = Object.assign({年度:S.year+"年"}, defaultBudget());
+      S.预算分配[key] = parseInt(el.value);
+      // 重绘滑块数值显示（简化：更新合计提示）
+      const card = el.closest('.card-b');
+      if(card){
+        const b = S.预算分配;
+        const total = (b.三保支出||0)+(b.债务还本付息||0)+(b.建设发展支出||0);
+        const ok = Math.abs(total-100)<=1;
+        const btn = card.querySelector('[data-act="set_budget"]');
+        if(btn){
+          btn.disabled = !ok;
+          btn.classList.toggle('primary', ok);
+        }
+      }
+    };
+  });
+  // 确定预算
+  document.querySelectorAll('[data-act="set_budget"]').forEach(b=>{
+    b.onclick=()=>{
+      const b2 = S.预算分配 || defaultBudget();
+      setBudget(b2.三保支出||50, b2.债务还本付息||20, b2.建设发展支出||30);
+    };
   });
   // 部门岗位交流
   document.querySelectorAll('[data-act="transfer_dept"]').forEach(b=>{

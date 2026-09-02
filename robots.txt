@@ -1,0 +1,19 @@
+# 本作品为原创网页游戏，未经授权禁止抓取、镜像与转载
+User-agent: *
+Disallow: /
+
+# 明确拒绝常见的采集与训练爬虫
+User-agent: GPTBot
+Disallow: /
+
+User-agent: CCBot
+Disallow: /
+
+User-agent: Google-Extended
+Disallow: /
+
+User-agent: anthropic-ai
+Disallow: /
+
+User-agent: Bytespider
+Disallow: /

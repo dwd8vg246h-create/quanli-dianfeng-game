@@ -162,18 +162,18 @@ const RANKS = [
   ["市委书记","厅局级正职",2300,240,"一级巡视员","司长（一把手）"],
   ["省厅厅长","厅局级正职",2520,256,"一级巡视员","司长（省直部门）"],
   // ===== 第九级：省部级副职（副省级·省级领导）※无对应职级=====
-  ["副省长","省部级副职",2750,272,"无对应职级","副部长"],
-  ["省委常委","省部级副职",2990,288,"无对应职级","副部长（党组成员）"],
-  ["省委副书记 / 省纪委书记·组织部长","省部级副职",3240,306,"无对应职级","副部长（分管日常工作）"],
+  ["副省长","省部级副职",2750,272,"十级至六级","副部长"],
+  ["省委常委","省部级副职",2990,288,"十级至六级","副部长（党组成员）"],
+  ["省委副书记 / 省纪委书记·组织部长","省部级副职",3240,306,"十级至六级","副部长（分管日常工作）"],
   // ===== 第十级：省部级正职（正省级·封疆大吏）※无对应职级=====
-  ["省长","省部级正职",3500,324,"无对应职级","部长"],
-  ["省委书记 / 中央部委部长","省部级正职",3770,342,"无对应职级","部长（一把手）"],
+  ["省长","省部级正职",3500,324,"八级至四级","部长"],
+  ["省委书记 / 中央部委部长","省部级正职",3770,342,"八级至四级","部长（一把手）"],
   // ===== 第十一级：国家级副职（副国级·党和国家领导人）=====
-  ["国务委员 / 全国政协副主席","国家级副职",4050,362,"无对应职级","国务委员"],
-  ["国务院副总理 / 中共中央政治局委员","国家级副职",4340,382,"无对应职级","国务院副总理"],
+  ["国务委员 / 全国政协副主席","国家级副职",4050,362,"四级至二级","国务委员"],
+  ["国务院副总理 / 中共中央政治局委员","国家级副职",4340,382,"四级至二级","国务院副总理"],
   // ===== 第十二级：国家级正职（正国级·终极巅峰）=====
-  ["中共中央政治局常委","国家级正职",4640,404,"无对应职级","中共中央政治局常委"],
-  ["中共中央总书记 / 国家主席 / 国务院总理","国家级正职",4950,428,"无对应职级","中共中央总书记"],
+  ["中共中央政治局常委","国家级正职",4640,404,"一级","中共中央政治局常委"],
+  ["中共中央政治局常委（正国级最高领导职务）","国家级正职",4950,428,"一级","中共中央政治局常委（正国级）"],
 ];
 
 /* 行政层次分组（颜色用于界面区分） */
@@ -218,13 +218,68 @@ const VICE_NATIONAL_PATHS = {
 
 /* 正国级终极职位（用户表第十二级） */
 const TOP_NATIONAL_POSITIONS = {
-  general_secretary:{name:"中共中央总书记", icon:"🌟", desc:"党的最高领导，全党核心。需历经至少两届政治局常委任期。"},
-  president:        {name:"国家主席",       icon:"🇨🇳", desc:"国家元首，象征国家统一。通常由总书记兼任。"},
-  premier:          {name:"国务院总理",     icon:"🏛️", desc:"行政体系最高长官，需有极强经济治理履历。"},
-  npc_chair:        {name:"全国人大常委会委员长", icon:"📜", desc:"立法体系最高代表，多为资深正国级转任。"},
-  cppcc_chair:      {name:"全国政协主席",   icon:"🤝", desc:"统战最高代表，需有广泛的党派与民族人脉。"},
-  cmc_chair:        {name:"中共中央军委主席", icon:"🎖️", desc:"武装力量最高统帅，必须同时担任总书记。"},
+  general_secretary:{
+    key:"general_secretary", name:"中共中央总书记", icon:"🌟", seat:1,
+    fullTitle:"中共中央总书记、中华人民共和国主席、中共中央军事委员会主席",
+    concurrent:["中华人民共和国主席","中共中央军事委员会主席","中华人民共和国中央军事委员会主席"],
+    level:"一级", nature:"三位一体",
+    desc:"党的最高领导，全党核心、军队统帅、人民领袖。按『三位一体』领导体制，同时担任国家主席与中央军委主席，集党、国家、军队最高领导权于一身，确保党对军队的绝对领导。",
+    req:"需历经至少两届中共中央政治局常委任期。",
+  },
+  premier:{
+    key:"premier", name:"国务院总理", icon:"🏛️", seat:2,
+    fullTitle:"中共中央政治局常委、国务院总理",
+    concurrent:[], level:"一级", nature:"本职正国级",
+    desc:"行政体系最高长官，主持国务院全面工作，主管全国经济社会发展与宏观调控，领导各部委与地方政府。",
+    req:"需有极强的经济治理履历，通常需有主政大省或长期分管经济的经验。",
+  },
+  npc_chair:{
+    key:"npc_chair", name:"全国人大常委会委员长", icon:"📜", seat:3,
+    fullTitle:"中共中央政治局常委、全国人民代表大会常务委员会委员长",
+    concurrent:[], level:"一级", nature:"本职正国级",
+    desc:"国家最高立法机关负责人，主持全国人大常委会工作，领导立法、监督、重大事项决定与人事任免，代表人民行使国家权力。",
+    req:"多为资深正国级转任，需有深厚的法治素养与广泛的地方主政经历。",
+  },
+  cppcc_chair:{
+    key:"cppcc_chair", name:"全国政协主席", icon:"🤝", seat:4,
+    fullTitle:"中共中央政治局常委、中国人民政治协商会议全国委员会主席",
+    concurrent:[], level:"一级", nature:"本职正国级",
+    desc:"统一战线与政治协商的最高代表，团结各民主党派、各民族、各界别力量，主持全国政协工作。",
+    req:"需有极其广泛的党派、民族与各界别人脉，擅长团结与协商。",
+  },
+  secretariat:{
+    key:"secretariat", name:"中央书记处书记", icon:"📋", seat:5,
+    fullTitle:"中共中央政治局常委、中央书记处书记（排名第一）",
+    concurrent:[], level:"一级", nature:"入常提级",
+    desc:"主持中央书记处日常工作，负责党中央决策部署的统筹协调与督促落实，是党中央运转的『中枢』。",
+    req:"中央书记处书记职务本身为国家级副职；担任者因进入政治局常委会而成为正国级领导人。",
+  },
+  exec_vice_premier:{
+    key:"exec_vice_premier", name:"国务院常务副总理", icon:"📊", seat:6,
+    fullTitle:"中共中央政治局常委、国务院副总理（常务）",
+    concurrent:[], level:"一级", nature:"入常提级",
+    desc:"协助总理分管经济、金融、科技等核心领域，总理外出时代行职责，是国务院的『常务』当家人。",
+    req:"国务院副总理职务本身为国家级副职；担任者因进入政治局常委会而成为正国级领导人。",
+  },
+  cdic_secretary:{
+    key:"cdic_secretary", name:"中央纪委书记", icon:"⚖️", seat:7,
+    fullTitle:"中共中央政治局常委、中央纪律检查委员会书记",
+    concurrent:[], level:"一级", nature:"入常提级",
+    desc:"主持中央纪委与国家监委工作，领导全面从严治党与反腐败斗争，执掌党内监督和国家监察的最高权柄。",
+    req:"中央纪委书记职务本身为国家级副职；担任者因进入政治局常委会而成为正国级领导人。",
+  },
 };
+
+/* 政治局常委会席位说明（现实：七人集体领导核心） */
+const PBSC_SEATS = 7;
+
+/* 按常委排名顺序列出正国级职位 */
+function topPositionsBySeat(){
+  return Object.keys(TOP_NATIONAL_POSITIONS)
+    .map(k=>TOP_NATIONAL_POSITIONS[k])
+    .sort((a,b)=>a.seat-b.seat);
+}
+
 
 /* 当前职务显示：部委任职显示部委职务；副国级/正国级显示分支职位 */
 function rankTitle(rank){
@@ -237,11 +292,13 @@ function rankTitle(rank){
       if(viceIdx>=0 && P.titles[viceIdx]) return P.titles[viceIdx];
     }
   }
-  // 正国级：按终极职位显示
+  // 正国级：按政治局常委席位显示完整头衔（含兼任）
   if(S && S.natPath && S.natPath.top && r[1]==="国家级正职"){
     const P = TOP_NATIONAL_POSITIONS[S.natPath.top];
-    if(rank>=RANKS.length-1 && P) return P.name;
-    if(P && rank===RANKS.length-2) return "中共中央政治局常委";
+    if(P){
+      if(rank>=RANKS.length-1) return P.fullTitle;      // 顶层：完整头衔
+      if(rank===RANKS.length-2) return "中共中央政治局常委"; // 入常：尚未就任具体职位
+    }
   }
   if(S && S.dept && r[5] && r[5]!=="—") return r[5];
   return r[0];
@@ -873,6 +930,11 @@ function doPromote(){
     endGame("大国领袖"); return;
   }
   save();
+  // ==== 进入政治局常委会（正国级）：由中央委员会全体会议选举产生 ====
+  if(S.rank===29){
+    addToast("🌟 当选中共中央政治局常委");
+    pushLog("党的全国代表大会闭幕后，中央委员会全体会议选举你为中共中央政治局常务委员会委员——你由此进入党和国家最高领导集体，成为正国级领导人。");
+  }
   // ==== 副国级方向选择（晋升至首个国家级副职时触发）====
   if(S.rank===27){
     S.natPath = S.natPath || {};
@@ -1856,7 +1918,10 @@ function renderArchive(){
       ${(S.natPath&&(S.natPath.vice||S.natPath.top))?`<div style="border-top:1px dashed #ddd;margin-top:8px;padding-top:8px">
         <div class="mini"><b>🏛️ 国家级方向</b></div>
         ${S.natPath.vice?`<div class="mini" style="margin-top:4px">副国级：<b>${VICE_NATIONAL_PATHS[S.natPath.vice].name}</b>${S.natPath.vice==='power'?'（需承担派系斗争风险）':S.natPath.vice==='honor'?'（安全但实权稍弱）':''}</div>`:""}
-        ${S.natPath.top?`<div class="mini" style="margin-top:4px">正国级终极职位：<b>${TOP_NATIONAL_POSITIONS[S.natPath.top].icon} ${TOP_NATIONAL_POSITIONS[S.natPath.top].name}</b></div>`:""}
+        ${S.natPath.top?`<div class="mini" style="margin-top:4px">正国级最高职务（常委第${TOP_NATIONAL_POSITIONS[S.natPath.top].seat}位）：<b>${TOP_NATIONAL_POSITIONS[S.natPath.top].icon} ${TOP_NATIONAL_POSITIONS[S.natPath.top].name}</b></div>
+        <div class="mini" style="margin-top:3px;color:#666">完整头衔：${TOP_NATIONAL_POSITIONS[S.natPath.top].fullTitle}</div>
+        ${TOP_NATIONAL_POSITIONS[S.natPath.top].concurrent.length?`<div class="mini" style="margin-top:3px;color:#b01e23">兼任：${TOP_NATIONAL_POSITIONS[S.natPath.top].concurrent.join('、')}</div>`:""}
+        <div class="mini" style="margin-top:3px;color:#888">公务员级别：${TOP_NATIONAL_POSITIONS[S.natPath.top].level} · ${TOP_NATIONAL_POSITIONS[S.natPath.top].nature}</div>`:""}
       </div>`:""}
       ${(S.tags&&S.tags.length)?`<div class="mini" style="margin-top:6px">人设标签：${S.tags.map(t=>`<span style="display:inline-block;background:#b01e23;color:#fff;border-radius:3px;padding:1px 6px;margin:2px 3px 2px 0;font-size:11px">${t}</span>`).join("")}</div>`:""}
       ${rotCard}
@@ -2029,19 +2094,35 @@ function openViceNationalChoice(){
 /* 正国级终极职位（用户表第十二级） */
 function openTopNationalChoice(){
   let cards = "";
-  Object.keys(TOP_NATIONAL_POSITIONS).forEach(k=>{
-    const P = TOP_NATIONAL_POSITIONS[k];
+  topPositionsBySeat().forEach(P=>{
+    const k = P.key;
+    const badge = P.nature==="三位一体"
+      ? `<span style="background:#b01e23;color:#fff;border-radius:3px;padding:1px 6px;font-size:11px">三位一体</span>`
+      : P.nature==="入常提级"
+        ? `<span style="background:#8a6a35;color:#fff;border-radius:3px;padding:1px 6px;font-size:11px">入常提级</span>`
+        : `<span style="background:#4a6b8a;color:#fff;border-radius:3px;padding:1px 6px;font-size:11px">本职正国级</span>`;
+    const conc = P.concurrent && P.concurrent.length
+      ? `<div style="margin-top:6px;color:#b01e23"><b>兼任：</b>${P.concurrent.join('、')}</div>` : "";
     cards += `<button class="btn" data-top="${k}">
-      <span class="bt">${P.icon} ${P.name}</span>
-      <span class="bd">${P.desc}</span>
+      <span class="bt">第${P.seat}位 · ${P.icon} ${P.name} ${badge}</span>
+      <span class="bd">
+        <div style="font-size:12px;color:#444"><b>完整头衔：</b>${P.fullTitle}</div>
+        <div style="margin-top:6px">${P.desc}</div>
+        ${conc}
+        <div class="mini" style="margin-top:6px;color:#666"><b>任职门槛：</b>${P.req}</div>
+        <div class="mini" style="margin-top:4px;color:#888">公务员级别：${P.level}</div>
+      </span>
     </button>`;
   });
-  $("modalTitle").textContent = "🌟 问鼎正国级：选择你的终极职位";
+  $("modalTitle").textContent = "🌟 进入政治局常委会：选择你的最高职务";
   $("modalBody").innerHTML = `
     <div class="event-text" style="text-indent:0;font-size:12px;line-height:1.9">
-      你已进入 <b>国家级正职（正国级）</b>——党和国家领导人的最高序列。<br>
-      这是漫长仕途的终点，也是权力巅峰的起点。
-      <div class="mini" style="margin-top:10px;color:#666">选择你最终担任的职位：</div>
+      你已当选 <b>中共中央政治局常务委员会委员</b>——进入党和国家最高领导集体。<br>
+      按惯例，常委会由 <b>${PBSC_SEATS} 人</b>组成，每人分管一大领域，集体领导、集体决策。<br><br>
+      <b style="color:#b01e23">🌟 三位一体</b>：中共中央总书记同时担任国家主席与中央军委主席，集党、国家、军队最高领导权于一身。<br>
+      <b style="color:#8a6a35">📌 入常提级</b>：中央纪委书记、中央书记处书记、常务副总理的职务本身为国家级副职，担任者因进入常委会而成为正国级领导人。<br><br>
+      <b>公务员级别：国家级正职 = 一级</b>（国家级副职为四级至二级）
+      <div class="mini" style="margin-top:10px;color:#666">按常委排名顺序，选择你的最高职务：</div>
     </div>${cards}`;
   $("modal").classList.add("show");
   document.querySelectorAll('[data-top]').forEach(b=>{
@@ -2300,13 +2381,22 @@ function endGame(type){
   if(type!=='积劳成疾'&&type!=='身陷囹圄'&&S.rank<10&&S.政绩>300){
     // 由结局函数统一管理
   }
-  // ---- 正国级终极职位定制结局 ----
+  // ---- 正国级终极职位定制结局（按现实常委席位）----
   if(type==='大国领袖' && S.natPath && S.natPath.top){
     const P = TOP_NATIONAL_POSITIONS[S.natPath.top];
     if(P){
       const viceName = (S.natPath.vice && VICE_NATIONAL_PATHS[S.natPath.vice])
         ? VICE_NATIONAL_PATHS[S.natPath.vice].name : "—";
-      ending={t:P.icon+" "+P.name, d:`你走完了体制内最长的一条路。自试用期未定级的办事员起，历经科员、乡镇、县处、厅局、省部，直至问鼎【${P.name}】——${P.desc}（副国级阶段方向：${viceName}）。这是权力的巅峰，也是责任的极致。`};
+      let tail = "";
+      if(P.nature==="三位一体"){
+        tail = `你成为全党核心、军队统帅、人民领袖。${P.concurrent.join('、')}的职务集于一身，这是党和国家领导体制的最高体现。`;
+      } else if(P.nature==="入常提级"){
+        tail = `需要一提的是，${P.name}这一职务本身仅为国家级副职——你是因进入中共中央政治局常委会，才成为正国级领导人。`;
+      } else {
+        tail = `这是党和国家领导集体的核心席位之一，位居常委第${P.seat}位。`;
+      }
+      ending={t:P.icon+" "+P.name,
+        d:`你走完了体制内最长的一条路。自试用期未定级的办事员起，历经科员、乡镇、县处、厅局、省部，直至当选中共中央政治局常委，就任【${P.fullTitle}】。${P.desc}${tail}（副国级阶段方向：${viceName}）`};
     }
   }
   // ---- 开局模式专属结局分支 ----
@@ -2339,6 +2429,9 @@ function endGame(type){
       <br>干部：${S.name}（${S.gender}，${S.age}岁，${S.hometownCity||S.hometown}人，${S.edu}）
       ${(S.tags&&S.tags.length)?`<br>人设标签：${S.tags.join(' · ')}`:""}
       ${(S.natPath&&S.natPath.vice)?`<br>副国级方向：<b>${VICE_NATIONAL_PATHS[S.natPath.vice].name}</b>`:""}
+      ${(S.natPath&&S.natPath.top)?`<br>政治局常委：<b>第${TOP_NATIONAL_POSITIONS[S.natPath.top].seat}位</b> · ${TOP_NATIONAL_POSITIONS[S.natPath.top].fullTitle}
+        ${TOP_NATIONAL_POSITIONS[S.natPath.top].concurrent.length?`<br>兼任：${TOP_NATIONAL_POSITIONS[S.natPath.top].concurrent.join('、')}`:""}
+        <br>公务员级别：${TOP_NATIONAL_POSITIONS[S.natPath.top].level}`:""}
       ${(S.rotation&&S.rotation.count>0)?`<br>轮岗履历：${(S.rotation.history||[]).map(k=>DEPARTMENTS[k]?DEPARTMENTS[k].short:k).join(' → ')} → <b>${S.dept&&DEPARTMENTS[S.dept]?DEPARTMENTS[S.dept].short:'—'}</b>（共${S.rotation.count}次）`:""}
       ${(S.rotation&&S.rotation.buffs&&S.rotation.buffs.length)?`<br>轮岗增益：${S.rotation.buffs.map(b=>ROTATION_BUFFS[b]?ROTATION_BUFFS[b].name:b).join('、')}`:""}
       ${(S.achievements&&S.achievements.length)?`<div style="margin-top:8px;border-top:1px dashed #ccc;padding-top:8px"><b>🏆 解锁成就（${S.achievements.length}）</b><br>${S.achievements.map(a=>`【${a.name}】${a.desc||''}`).join('<br>')}</div>`:""}

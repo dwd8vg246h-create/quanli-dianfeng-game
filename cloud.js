@@ -381,6 +381,31 @@ var Cloud = (function(){
     });
   }
 
+  /* 批量读取存档摘要，供后台档案名录展示"存档进度"。
+     ------------------------------------------------------------
+     此前后台只读 game_users，从未读 game_saves，
+     而 buildSummary 已把职务/年份/政绩等写入 summary 字段——
+     数据一直在存，后台却从不取，管理员看不到任何人的进度。
+
+     只取摘要不取整份 data：整份 jsonb 体积大（可达数百 KB），
+     几十人同屏会把响应拖垮，且后台并不需要完整存档。 */
+  function adminSaves(){
+    if(!isReady()) return Promise.resolve({ok:false, offline:true});
+    return req("GET",
+      "game_saves?select=user_id,summary,saved_at&limit=1000",
+      null, null, 15000).then(function(res){
+      /* 表不存在或无权限时降级：存档进度整列显示"—"，
+         其余功能不受影响——不能让一个附属字段拖垮整个名录。 */
+      if(res.error) return {ok:false, msg:res.error.message};
+      var map = {};
+      (res.data||[]).forEach(function(r){
+        if(!r || !r.user_id) return;
+        map[r.user_id] = {summary: r.summary||{}, savedAt: r.saved_at};
+      });
+      return {ok:true, saves:map};
+    });
+  }
+
 
 
   function adminSetStatus(userId, status){
@@ -468,6 +493,7 @@ var Cloud = (function(){
     pushSave: pushSave,
     retryPending: retryPending,
     adminList: adminList,
+    adminSaves: adminSaves,
     adminSetStatus: adminSetStatus,
     adminResetPwd: adminResetPwd,
     adminDeleteUser: adminDeleteUser,

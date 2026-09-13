@@ -88,6 +88,8 @@ th{background:#faf8f2;font-weight:700;color:#666;white-space:nowrap}
     <div><b id="sOnline" style="color:#2f7d4f">—</b><span class="mini">在线人数</span><span class="mini" id="onlineTip" style="display:block;opacity:.75;font-size:9px"></span></div>
     <div><b id="sTotal">—</b><span class="mini">档案总数</span></div>
     <div><b id="sActive">—</b><span class="mini">状态正常</span></div>
+    <div><b id="sToday">—</b><span class="mini">今日登录</span></div>
+    <div><b id="sSaved">—</b><span class="mini">有存档</span></div>
     <div><b id="sLatency">—</b><span class="mini">云端延迟</span></div>
   </div>
 
@@ -104,10 +106,11 @@ th{background:#faf8f2;font-weight:700;color:#666;white-space:nowrap}
       <div class="scroll">
         <table>
           <thead><tr>
-            <th>在线</th><th>工号</th><th>姓名</th><th>联系方式</th><th>状态</th>
+            <th>在线</th><th>工号</th><th>姓名</th><th>联系方式</th>
+            <th>存档进度</th><th>状态</th>
             <th>登录</th><th>建档 / 最近登录</th><th>操作</th>
           </tr></thead>
-          <tbody id="tb"><tr><td colspan="8" class="mini">加载中…</td></tr></tbody>
+          <tbody id="tb"><tr><td colspan="9" class="mini">加载中…</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -150,14 +153,14 @@ th{background:#faf8f2;font-weight:700;color:#666;white-space:nowrap}
      是自己填错还是服务不通。 -->
 <script>
 /* 后台版本：与 version.json 保持一致，由 build.js 同步 */
-var ADMIN_VERSION = "20260913.1441";
+var ADMIN_VERSION = "20260913.1505";
 var CLOUD_CONFIG = {
   enabled: true,
   url: "https://zgkovjgkkvxoajcqxwfw.supabase.co",
   key: "sb_publishable_CtDImUOKxPCR6IPgM79Rhw_dRwDjqbl"
 };
 </script>
-<script src="cloud.js?v=5"></script>
+<script src="cloud.js?v=6"></script>
 <script>
 /* eslint-disable */
 var $ = function(id){ return document.getElementById(id); };
@@ -244,8 +247,23 @@ $("btnPwd").onclick = function(){
 
 /* ---------- 载入 ---------- */
 function loadAll(){
+  /* 存档摘要并行读取。失败不阻断——名录照常显示，
+     "存档进度"列整列退化为"—"，并在表头提示原因。 */
+  /* 管理员浏览器可能仍缓存旧版 cloud.js（无 adminSaves），
+     直接调用会抛 "is not a function" 并中断整个 loadAll。
+     先探测再调用：旧版也能正常用，只是没有存档进度。 */
+  if(typeof Cloud.adminSaves !== "function"){
+    window.__saves = {};
+    window.__saveErr = "云端模块版本过旧，请刷新页面";
+  } else {
+  Cloud.adminSaves().then(function(r){
+    window.__saves = (r && r.ok) ? (r.saves||{}) : {};
+    window.__saveErr = (r && !r.ok) ? (r.msg||"读取失败") : "";
+    if(window.__users) render();
+  });
+  }
   Cloud.adminList().then(function(r){
-    if(!r.ok){ $("tb").innerHTML = '<tr><td colspan="8" class="mini">读取失败（'+(r.msg||"离线")+'）</td></tr>'; return; }
+    if(!r.ok){ $("tb").innerHTML = '<tr><td colspan="9" class="mini">读取失败（'+(r.msg||"离线")+'）</td></tr>'; return; }
     window.__users = r.users || [];
     render();
   });
@@ -263,6 +281,33 @@ function loadAll(){
 function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,function(c){
   return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; }); }
 
+/* 存档进度单元格
+   ------------------------------------------------------------
+   summary 由 Cloud.buildSummary 写入，含职务/年龄/年份/政绩/道德/结局。
+   取不到时显示"—"并说明原因，不假装"没玩过"——
+   没存档和读不到是两回事，混淆会误导判断。 */
+function saveCell(u){
+  var saves = window.__saves || {};
+  var s = saves[u.id];
+  if(!s){
+    if(window.__saveErr) return "<span class='mini' style='color:#b01e23'>—（读取失败）</span>";
+    return "<span class='mini'>—（尚无存档）</span>";
+  }
+  var m = s.summary || {};
+  var pos = m.职务 || m.姓名 || "";
+  var ym  = m.年份 || "";
+  var sc  = (m.政绩 !== undefined && m.政绩 !== null) ? m.政绩 : null;
+  if(!pos && !ym && sc === null){
+    return "<span class='mini'>有新存档</span>";
+  }
+  var html = "";
+  if(pos) html += esc(pos);
+  if(ym)  html += (html ? "<br>" : "") + "<span class='mini'>"+esc(ym)+"</span>";
+  if(sc !== null) html += (html ? "<br>" : "") + "<span class='mini'>政绩 "+esc(String(sc))+"</span>";
+  if(m.结局) html += "<br><span class='mini' style='color:#9e1b20'>"+esc(m.结局)+"</span>";
+  return html;
+}
+
 function render(){
   var users = window.__users || [];
   var q = ($("q").value||"").trim().toLowerCase();
@@ -273,7 +318,6 @@ function render(){
     return ((u.emp_id||"")+" "+(u.name||"")+" "+(u.contact||"")).toLowerCase().indexOf(q) >= 0;
   });
   // 统计
-  var today = new Date().toDateString();
   /* 在线判定：最近 5 分钟内有心跳上报。
      心跳由游戏端登录后每 2 分钟发一次，关掉页面即停止，
      故无需登出逻辑，5 分钟后自然显示为离线。 */
@@ -305,9 +349,20 @@ function render(){
   }
   $("sTotal").textContent = users.length;
   $("sActive").textContent = users.filter(function(u){return u.status==="正常";}).length;
-  $("listTip").textContent = "共 "+filtered.length+" 条";
+  /* 今日登录：last_login_at 落在今天。
+     "今天"按本地时区判断，与列表里展示的时间口径一致。 */
+  var today = new Date().toDateString();
+  $("sToday").textContent = users.filter(function(u){
+    return u.last_login_at && new Date(u.last_login_at).toDateString() === today;
+  }).length + " 人";
+  var saves = window.__saves || {};
+  $("sSaved").textContent = users.filter(function(u){ return !!saves[u.id]; }).length + " 人";
+  $("listTip").textContent = "共 "+filtered.length+" 条"
+    + (window.__saveErr ? "（存档读取失败："+esc(window.__saveErr)+"）" : "");
 
-  if(!filtered.length){ $("tb").innerHTML = '<tr><td colspan="8" class="mini">无匹配档案</td></tr>'; return; }
+  if(!filtered.length){
+    $("tb").innerHTML = '<tr><td colspan="9" class="mini">无匹配档案</td></tr>'; return;
+  }
   $("tb").innerHTML = filtered.map(function(u){
     var c = u.created_at ? new Date(u.created_at).toLocaleDateString("zh-CN") : "—";
     var l = u.last_login_at ? new Date(u.last_login_at).toLocaleString("zh-CN") : "从未登录";
@@ -318,6 +373,7 @@ function render(){
       "<td><b>"+esc(u.emp_id)+"</b></td>"+
       "<td>"+esc(u.name||"—")+"</td>"+
       "<td class='mini'>"+esc(u.contact||"—")+"</td>"+
+      "<td class='mini'>"+saveCell(u)+"</td>"+
       "<td><span class='tag tag-"+esc(u.status)+"'>"+esc(u.status)+"</span></td>"+
       "<td>"+(u.login_count||0)+" 次</td>"+
       "<td class='mini'>建 "+c+"<br>"+l+"</td>"+

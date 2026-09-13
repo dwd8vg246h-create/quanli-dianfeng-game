@@ -347,13 +347,8 @@ var Cloud = (function(){
      后台需要读全部用户；RLS 当前对 anon 放开读写，故这些调用可工作。
      若你收紧了 RLS，这些调用会失败并明确提示，不会静默改坏数据。
      ============================================================ */
-  /* 在线判定窗口（分钟）。
-     心跳间隔 2 分钟，窗口取 5 分钟：
-     容忍一两次心跳失败（跨境网络抖动常见），
-     又不会把早就关掉页面的算作在线。 */
-  var ONLINE_WINDOW_MIN = 5;
-  var HEARTBEAT_MS = 120000;
-
+  /* 在线判定窗口：见 admin.html。
+     后台自己统计（需同时用于列表逐行标记），此处不重复实现。 */
   function adminList(){
     if(!isReady()) return Promise.resolve({ok:false, offline:true});
     var cols = "id,emp_id,name,contact,status,created_at,login_count,last_login_at,last_active_at";
@@ -377,18 +372,7 @@ var Cloud = (function(){
     });
   }
 
-  /* 统计在线人数：最近 ONLINE_WINDOW_MIN 分钟内有活动的 */
-  function onlineCount(users){
-    var now = Date.now(), win = ONLINE_WINDOW_MIN * 60000, n = 0;
-    (users||[]).forEach(function(u){
-      var t = u.last_active_at || u.last_login_at;
-      if(!t) return;
-      var ts = new Date(t).getTime();
-      if(isNaN(ts)) return;
-      if(now - ts <= win) n++;
-    });
-    return n;
-  }
+
 
   function adminSetStatus(userId, status){
     if(!isReady()) return Promise.resolve({ok:false, offline:true});
@@ -467,10 +451,6 @@ var Cloud = (function(){
     findUser: findUser,
     findByContact: findByContact,
     touchLogin: touchLogin,
-    heartbeat: heartbeat,
-    onlineCount: onlineCount,
-    ONLINE_WINDOW_MIN: ONLINE_WINDOW_MIN,
-    HEARTBEAT_MS: HEARTBEAT_MS,
     heartbeat: heartbeat,
     startHeartbeat: startHeartbeat,
     stopHeartbeat: stopHeartbeat,

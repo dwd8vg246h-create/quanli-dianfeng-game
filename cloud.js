@@ -233,6 +233,58 @@ var Cloud = (function(){
   }
 
   /* ============================================================
+     在线心跳
+     ------------------------------------------------------------
+     "在线"无法由服务端直接判定（HTTP 无连接状态），
+     故由客户端定期上报活动时刻，后台统计近 N 分钟内有上报的人数。
+     玩家关掉页面后心跳自然停止，N 分钟后显示为离线——无需登出逻辑。
+
+     ⚠️ 依赖 game_users.last_active_at 列。
+     若该列不存在（未执行 ALTER TABLE），此处静默失败：
+     不提示、不重试、不影响其余云端功能。
+     后台会把在线人数显示为"—"并提示补列。
+     ============================================================ */
+  var HEARTBEAT_MS = 120000;   // 2 分钟
+  var _hbTimer = null;
+  var _hbMissing = false;      // 列缺失 → 不再反复重试，避免无谓请求
+
+  function heartbeat(userId){
+    if(!isReady()) return Promise.resolve({ok:false, offline:true});
+    var uid = userId || (state && state.uid);
+    if(!uid) return Promise.resolve({ok:false, msg:"未登录"});
+    if(_hbMissing) return Promise.resolve({ok:false, missing:true});
+    return req("PATCH", "game_users?id=eq."+eqv(uid), {
+      last_active_at: new Date().toISOString()
+    }, null, 8000).then(function(res){
+      if(res.error){
+        // 42703 = 列不存在；PGRST204 = PostgREST 未缓存到该列
+        if(res.error.code === "42703" || res.error.code === "PGRST204"){
+          _hbMissing = true;
+          return {ok:false, missing:true};
+        }
+        return {ok:false, msg:res.error.message};
+      }
+      if(state.mode !== "online" && !state.pending) setState("online");
+      return {ok:true};
+    });
+  }
+
+  /* 启动心跳。重复调用只会保留一个定时器。 */
+  function startHeartbeat(userId){
+    try{
+      if(_hbTimer) clearInterval(_hbTimer);
+      heartbeat(userId);                       // 立即上报一次
+      _hbTimer = setInterval(function(){ heartbeat(userId); }, HEARTBEAT_MS);
+      return true;
+    }catch(e){ return false; }
+  }
+  function stopHeartbeat(){
+    try{ if(_hbTimer) clearInterval(_hbTimer); }catch(e){}
+    _hbTimer = null;
+  }
+  function heartbeatSupported(){ return !_hbMissing; }
+
+  /* ============================================================
      存档
      ============================================================ */
   function pullSave(userId){
@@ -295,14 +347,47 @@ var Cloud = (function(){
      后台需要读全部用户；RLS 当前对 anon 放开读写，故这些调用可工作。
      若你收紧了 RLS，这些调用会失败并明确提示，不会静默改坏数据。
      ============================================================ */
+  /* 在线判定窗口（分钟）。
+     心跳间隔 2 分钟，窗口取 5 分钟：
+     容忍一两次心跳失败（跨境网络抖动常见），
+     又不会把早就关掉页面的算作在线。 */
+  var ONLINE_WINDOW_MIN = 5;
+  var HEARTBEAT_MS = 120000;
+
   function adminList(){
     if(!isReady()) return Promise.resolve({ok:false, offline:true});
+    var cols = "id,emp_id,name,contact,status,created_at,login_count,last_login_at,last_active_at";
     return req("GET",
-      "game_users?select=id,emp_id,name,contact,status,created_at,login_count,last_login_at"
-      + "&order=last_login_at.desc.nullslast&limit=500", null, null, 12000).then(function(res){
+      "game_users?select="+cols+"&order=last_login_at.desc.nullslast&limit=500",
+      null, null, 12000).then(function(res){
+      /* last_active_at 是后加字段；管理员若没执行 ALTER TABLE，
+         PostgREST 会报列不存在。此时降级为不含该字段再取一次，
+         在线人数改用 last_login_at 近似 —— 不能让统计整个挂掉。 */
+      if(res.error && (res.error.code === "42703" || res.error.code === "PGRST204")){
+        return req("GET",
+          "game_users?select=id,emp_id,name,contact,status,created_at,login_count,last_login_at"
+          + "&order=last_login_at.desc.nullslast&limit=500", null, null, 12000)
+          .then(function(r2){
+            if(r2.error) return {ok:false, msg:r2.error.message};
+            return {ok:true, users:r2.data||[], noActiveColumn:true};
+          });
+      }
       if(res.error) return {ok:false, msg:res.error.message};
       return {ok:true, users:res.data||[]};
     });
+  }
+
+  /* 统计在线人数：最近 ONLINE_WINDOW_MIN 分钟内有活动的 */
+  function onlineCount(users){
+    var now = Date.now(), win = ONLINE_WINDOW_MIN * 60000, n = 0;
+    (users||[]).forEach(function(u){
+      var t = u.last_active_at || u.last_login_at;
+      if(!t) return;
+      var ts = new Date(t).getTime();
+      if(isNaN(ts)) return;
+      if(now - ts <= win) n++;
+    });
+    return n;
   }
 
   function adminSetStatus(userId, status){
@@ -382,6 +467,14 @@ var Cloud = (function(){
     findUser: findUser,
     findByContact: findByContact,
     touchLogin: touchLogin,
+    heartbeat: heartbeat,
+    onlineCount: onlineCount,
+    ONLINE_WINDOW_MIN: ONLINE_WINDOW_MIN,
+    HEARTBEAT_MS: HEARTBEAT_MS,
+    heartbeat: heartbeat,
+    startHeartbeat: startHeartbeat,
+    stopHeartbeat: stopHeartbeat,
+    heartbeatSupported: heartbeatSupported,
     pullSave: pullSave,
     pushSave: pushSave,
     retryPending: retryPending,

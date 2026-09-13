@@ -140,6 +140,18 @@ th{background:#faf8f2;font-weight:700;color:#666;white-space:nowrap}
 
 </div>
 
+<!-- 默认配置：与游戏本体一致。
+     后台不再要求手填 URL / key —— 手填极易出错（多粘路径、
+     混入空格或隐藏字符），一旦 URL 非法，浏览器 fetch 会直接抛
+     "URL is not valid or contains user credentials"，而玩家无从判断
+     是自己填错还是服务不通。 -->
+<script>
+var CLOUD_CONFIG = {
+  enabled: true,
+  url: "https://zgkovjgkkvxoajcqxwfw.supabase.co",
+  key: "sb_publishable_CtDImUOKxPCR6IPgM79Rhw_dRwDjqbl"
+};
+</script>
 <script src="cloud.js"></script>
 <script>
 /* eslint-disable */
@@ -162,11 +174,28 @@ function simple(s){ var h=0; for(var i=0;i<s.length;i++){h=(h*31+s.charCodeAt(i)
 function msg(el, text, type){ $(el).innerHTML = '<div class="msg msg-'+type+'">'+text+'</div>'; }
 
 /* ---------- 连接 ---------- */
+/* 清洗 URL：
+   只保留协议 + 主机名。粘贴时极易混入路径（如 /auth/v1/.well-known/...）、
+   尾部斜杠、空格或不可见字符，浏览器 fetch 会直接拒绝并抛出
+   "URL is not valid or contains user credentials"，
+   看起来像服务不通，实为输入有误。 */
+function cleanUrl(u){
+  u = String(u||"").trim().replace(/[\u200b-\u200f\ufeff]/g, "");
+  u = u.replace(/\s+/g, "");
+  var m = u.match(/^(https?:\/\/[^\/]+)/i);
+  return m ? m[1] : u.replace(/\/+$/, "");
+}
+
 $("btnConn").onclick = function(){
-  var url = $("url").value.trim(), key = $("key").value.trim();
+  var url = cleanUrl($("url").value), key = $("key").value.trim();
   if(!url || !key){ msg("connMsg","请填写 URL 与 key","err"); return; }
+  if(!/^https:\/\/.+/i.test(url)){
+    msg("connMsg","URL 格式不对，应以 https:// 开头且只到域名，例如：https://xxxx.supabase.co","err");
+    return;
+  }
+  $("url").value = url;
   var ok = Cloud.init(url, key);
-  if(!ok){ msg("connMsg","初始化失败：Supabase 客户端未加载或参数有误","err"); return; }
+  if(!ok){ msg("connMsg","初始化失败：云端模块未加载或参数有误","err"); return; }
   Cloud.ping().then(function(r){
     if(r.ok){
       msg("connMsg","✅ 连接成功（延迟 "+r.ms+"ms）","ok");
@@ -180,6 +209,19 @@ $("btnConn").onclick = function(){
     }
   });
 };
+
+/* ---------- 打开即用默认配置自动连接 ----------
+   已内置与游戏一致的配置，管理员不必手填。 */
+(function autoConnect(){
+  try{
+    if(typeof CLOUD_CONFIG === "undefined" || !CLOUD_CONFIG.url) return;
+    $("url").value = CLOUD_CONFIG.url;
+    $("key").value = CLOUD_CONFIG.key || "";
+    if(CLOUD_CONFIG.enabled && CLOUD_CONFIG.url && CLOUD_CONFIG.key){
+      setTimeout(function(){ $("btnConn").click(); }, 60);
+    }
+  }catch(e){}
+})();
 
 /* ---------- 口令 ---------- */
 $("btnPwd").onclick = function(){

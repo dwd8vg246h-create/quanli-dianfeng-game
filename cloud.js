@@ -132,8 +132,17 @@ var Cloud = (function(){
       saveCfg(opts.url, opts.key);
     }
     if(!cfg){ setState("off"); return false; }
-    URL = String(cfg.url).replace(/\/+$/, "");
-    KEY = cfg.key;
+    /* 清洗 URL：只保留协议 + 主机。
+       粘贴配置时极易混入路径、空格或不可见字符（零宽空格等），
+       浏览器 fetch 会直接抛 "URL is not valid or contains user credentials"，
+       看起来像服务不通，实为输入有误——且没有任何提示指向真正原因。 */
+    URL = String(cfg.url)
+            .replace(/[\u200b-\u200f\ufeff]/g, "")
+            .replace(/\s+/g, "")
+            .replace(/\/+$/, "");
+    var m = URL.match(/^(https?:\/\/[^\/]+)/i);
+    if(m) URL = m[1];
+    KEY = String(cfg.key || "").replace(/[\u200b-\u200f\ufeff]/g, "").replace(/\s+/g, "");
     ready = true;
     setState(state.pending ? "syncing" : "online");
     return true;

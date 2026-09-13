@@ -52,13 +52,17 @@ th{background:#faf8f2;font-weight:700;color:#666;white-space:nowrap}
 
 <div class="hd">
   <h1>🏛️ 组织部门管理后台</h1>
-  <div class="sub">权路巅峰 · 云端档案库</div>
+  <div class="sub">权路巅峰 · 云端档案库 <span id="adminVer" style="opacity:.7;font-size:11px"></span></div>
 </div>
 
 <!-- 连接配置 -->
 <div class="card" id="cfgCard">
-  <div class="card-h">🔌 连接配置</div>
-  <div class="card-b">
+  <div class="card-h" id="cfgHead" style="cursor:pointer;display:flex;align-items:center;gap:6px">
+    <span style="flex:1">🔌 连接配置</span>
+    <span class="mini" id="cfgSummary" style="font-weight:400"></span>
+    <span class="mini" id="cfgArrow" style="font-weight:400">展开 ▾</span>
+  </div>
+  <div class="card-b" id="cfgBody" style="display:none">
     <div class="row" style="margin-bottom:8px">
       <input id="url" placeholder="Supabase Project URL，如 https://xxx.supabase.co" style="flex:2;min-width:220px">
       <input id="key" placeholder="anon public key" style="flex:2;min-width:220px">
@@ -153,7 +157,7 @@ th{background:#faf8f2;font-weight:700;color:#666;white-space:nowrap}
      是自己填错还是服务不通。 -->
 <script>
 /* 后台版本：与 version.json 保持一致，由 build.js 同步 */
-var ADMIN_VERSION = "20260913.1505";
+var ADMIN_VERSION = "20260913.1518";
 var CLOUD_CONFIG = {
   enabled: true,
   url: "https://zgkovjgkkvxoajcqxwfw.supabase.co",
@@ -166,6 +170,14 @@ var CLOUD_CONFIG = {
 var $ = function(id){ return document.getElementById(id); };
 var ADMIN_PWD_KEY = "qlp_admin_pwd_hash";
 var filtered = [];
+/* 页头显示版本号：管理员一眼能确认自己看的是哪一版，
+   避免"明明改了却看着旧的"时无从判断是缓存还是没部署。 */
+(function showVer(){
+  try{
+    var el = document.getElementById("adminVer");
+    if(el && window.ADMIN_VERSION) el.textContent = "v" + window.ADMIN_VERSION;
+  }catch(e){}
+})();
 
 function sha256(s){
   // 与游戏内一致的加盐哈希
@@ -207,6 +219,9 @@ $("btnConn").onclick = function(){
   Cloud.ping().then(function(r){
     if(r.ok){
       msg("connMsg","✅ 连接成功（延迟 "+r.ms+"ms）","ok");
+      /* 连接成功后折叠配置区：配置已内置、自动连接，
+         手填框常年占一整屏高度，真正需要改的情况极少。 */
+      setCfgFold(true, "✅ 已连接 · "+r.ms+"ms");
       $("pwdCard").style.display = "";
       // 管理员口令是否已设置
       var set = !!localStorage.getItem(ADMIN_PWD_KEY);
@@ -217,6 +232,27 @@ $("btnConn").onclick = function(){
     }
   });
 };
+
+/* ---------- 配置区折叠 ----------
+   连接成功后自动收起，需要修改时点标题栏展开。 */
+function setCfgFold(fold, summary){
+  try{
+    var body = $("cfgBody"), arrow = $("cfgArrow"), sum = $("cfgSummary");
+    if(body) body.style.display = fold ? "none" : "";
+    if(arrow) arrow.textContent = fold ? "展开 ▾" : "收起 ▴";
+    if(summary !== undefined && sum) sum.textContent = summary || "";
+  }catch(e){}
+}
+(function bindCfgToggle(){
+  try{
+    var h = $("cfgHead");
+    if(!h) return;
+    h.onclick = function(){
+      var body = $("cfgBody");
+      setCfgFold(body && body.style.display !== "none");
+    };
+  }catch(e){}
+})();
 
 /* ---------- 打开即用默认配置自动连接 ----------
    已内置与游戏一致的配置，管理员不必手填。 */
@@ -426,27 +462,41 @@ $("q").oninput = render;
 function checkAdminUpdate(){
   try{
     if(typeof fetch !== "function") return;
-    var base = (location.href||"").split("#")[0].split("?")[0].replace(/[^\/]*$/, "");
+    var href = location.href || "";
+    var pure = href.split("#")[0].split("?")[0];
+    var base = pure.replace(/[^\/]*$/, "");
+    /* URL 是否已带过破缓存参数：带过说明已经刷新过一次，
+       若版本仍落后则是 CDN 尚未更新，此时绝不能再自动刷新——
+       否则会陷入"刷新→还是旧版→再刷新"的死循环。 */
+    var alreadyBusted = /\?.*_t=/.test(href);
     fetch(base + "version.json?t=" + Date.now(), {cache:"no-store", headers:{"Cache-Control":"no-cache"}})
       .then(function(r){ return r.ok ? r.json() : null; })
       .catch(function(){ return null; })
       .then(function(d){
         if(!d || !d.v) return;
         if(String(d.v) === String(window.ADMIN_VERSION||"")) return;
+        /* 首次发现落后：直接自动刷新，不必等管理员点按钮。
+           后台页面被浏览器缓存是常态，靠人工点"刷新"总有漏网，
+           几次下来管理员就会以为功能没做。 */
+        if(!alreadyBusted){
+          try{ sessionStorage.setItem("qlp_admin_bust","1"); }catch(e){}
+          location.replace(pure + "?_v=" + encodeURIComponent(String(d.v)) + "&_t=" + Date.now());
+          return;
+        }
         var old = document.getElementById("adminUpdBar");
         if(old && old.parentNode) old.parentNode.removeChild(old);
         var bar = document.createElement("div");
         bar.id = "adminUpdBar";
         bar.style.cssText = "position:fixed;left:0;right:0;bottom:0;z-index:99999;background:#b01e23;"+
           "color:#fff;padding:10px 12px;font-size:13px;display:flex;align-items:center;gap:8px;box-shadow:0 -2px 12px rgba(0,0,0,.3)";
-        bar.innerHTML = '<div style="flex:1">后台有新版本（'+String(d.v)+'）</div>';
+        bar.innerHTML = '<div style="flex:1">后台有新版本（'+String(d.v)+
+          '），页面缓存尚未刷新</div>';
         var b = document.createElement("button");
-        b.textContent = "刷新";
+        b.textContent = "手动刷新";
         b.style.cssText = "background:#fff;color:#b01e23;border:0;border-radius:6px;padding:6px 12px;font-weight:700";
         b.onclick = function(){
           try{
-            var u = (location.href||"").split("#")[0].split("?")[0];
-            location.replace(u + "?_v=" + encodeURIComponent(String(d.v)) + "&_t=" + Date.now());
+            location.replace(pure + "?_v=" + encodeURIComponent(String(d.v)) + "&_t=" + Date.now());
           }catch(e){ try{ location.reload(true); }catch(e2){} }
         };
         bar.appendChild(b);

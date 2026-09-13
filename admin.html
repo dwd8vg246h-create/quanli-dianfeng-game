@@ -82,9 +82,10 @@ th{background:#faf8f2;font-weight:700;color:#666;white-space:nowrap}
 <!-- 主体 -->
 <div id="main" style="display:none">
   <div class="stat">
+    <div><b id="sOnline" style="color:#2f7d4f">—</b><span class="mini">在线人数</span></div>
     <div><b id="sTotal">—</b><span class="mini">档案总数</span></div>
     <div><b id="sActive">—</b><span class="mini">状态正常</span></div>
-    <div><b id="sToday">—</b><span class="mini">今日登录</span></div>
+    <div><b id="sOnline">—</b><span class="mini">在线人数</span><span class="mini" id="onlineTip" style="display:block;opacity:.7"></span></div>
     <div><b id="sLatency">—</b><span class="mini">云端延迟</span></div>
   </div>
 
@@ -101,10 +102,10 @@ th{background:#faf8f2;font-weight:700;color:#666;white-space:nowrap}
       <div class="scroll">
         <table>
           <thead><tr>
-            <th>工号</th><th>姓名</th><th>联系方式</th><th>状态</th>
+            <th>在线</th><th>工号</th><th>姓名</th><th>联系方式</th><th>状态</th>
             <th>登录</th><th>建档 / 最近登录</th><th>操作</th>
           </tr></thead>
-          <tbody id="tb"><tr><td colspan="7" class="mini">加载中…</td></tr></tbody>
+          <tbody id="tb"><tr><td colspan="8" class="mini">加载中…</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -152,7 +153,7 @@ var CLOUD_CONFIG = {
   key: "sb_publishable_CtDImUOKxPCR6IPgM79Rhw_dRwDjqbl"
 };
 </script>
-<script src="cloud.js"></script>
+<script src="cloud.js?v=4"></script>
 <script>
 /* eslint-disable */
 var $ = function(id){ return document.getElementById(id); };
@@ -240,7 +241,7 @@ $("btnPwd").onclick = function(){
 /* ---------- 载入 ---------- */
 function loadAll(){
   Cloud.adminList().then(function(r){
-    if(!r.ok){ $("tb").innerHTML = '<tr><td colspan="7" class="mini">读取失败（'+(r.msg||"离线")+'）</td></tr>'; return; }
+    if(!r.ok){ $("tb").innerHTML = '<tr><td colspan="8" class="mini">读取失败（'+(r.msg||"离线")+'）</td></tr>'; return; }
     window.__users = r.users || [];
     render();
   });
@@ -269,17 +270,47 @@ function render(){
   });
   // 统计
   var today = new Date().toDateString();
+  /* 在线判定：最近 5 分钟内有心跳上报。
+     心跳由游戏端登录后每 2 分钟发一次，关掉页面即停止，
+     故无需登出逻辑，5 分钟后自然显示为离线。 */
+  var ONLINE_MS = 5*60000;
+  var now = Date.now();
+  function isOnline(u){
+    if(!u.last_active_at) return false;
+    var t = new Date(u.last_active_at).getTime();
+    return (now - t) < ONLINE_MS;
+  }
+  var hasActiveCol = users.some(function(u){ return u.last_active_at !== undefined; });
+  if(!hasActiveCol){
+    $("sOnline").textContent = "—";
+    $("sOnline").style.color = "#8a8170";
+    $("sOnline").title = "需在 Supabase 执行：alter table game_users add column last_active_at timestamptz;";
+  } else {
+    var n = users.filter(isOnline).length;
+    $("sOnline").textContent = n + " 人";
+    $("sOnline").style.color = n>0 ? "#2f7d4f" : "#8a8170";
+  }
   $("sTotal").textContent = users.length;
   $("sActive").textContent = users.filter(function(u){return u.status==="正常";}).length;
-  $("sToday").textContent = users.filter(function(u){
-    return u.last_login_at && new Date(u.last_login_at).toDateString()===today; }).length;
+  /* 在线人数：最近 N 分钟内有心跳的。
+     last_active_at 缺列时（未执行 ALTER TABLE）退回 last_login_at 近似，
+     并在卡片下方标注口径，避免把近似值当精确值看。 */
+  var onlineN = Cloud.onlineCount(users);
+  $("sOnline").textContent = onlineN;
+  var winMin = (typeof Cloud.ONLINE_WINDOW_MIN === "number") ? Cloud.ONLINE_WINDOW_MIN : 5;
+  $("onlineTip").textContent = noActiveCol
+    ? "（缺 last_active_at 字段，暂按最后登录时间近似）"
+    : "（最近 "+winMin+" 分钟内有活动）";
   $("listTip").textContent = "共 "+filtered.length+" 条";
 
-  if(!filtered.length){ $("tb").innerHTML = '<tr><td colspan="7" class="mini">无匹配档案</td></tr>'; return; }
+  if(!filtered.length){ $("tb").innerHTML = '<tr><td colspan="8" class="mini">无匹配档案</td></tr>'; return; }
   $("tb").innerHTML = filtered.map(function(u){
     var c = u.created_at ? new Date(u.created_at).toLocaleDateString("zh-CN") : "—";
     var l = u.last_login_at ? new Date(u.last_login_at).toLocaleString("zh-CN") : "从未登录";
+    var on = hasActiveCol && isOnline(u);
     return "<tr>"+
+      "<td>"+(on ? "<span class='tag' style='background:#2f7d4f'>在线</span>"
+                 : "<span class='mini'>—</span>")+"</td>"+
       "<td><b>"+esc(u.emp_id)+"</b></td>"+
       "<td>"+esc(u.name||"—")+"</td>"+
       "<td class='mini'>"+esc(u.contact||"—")+"</td>"+
@@ -328,6 +359,20 @@ function onAct(act, id){
 }
 
 $("q").oninput = render;
+
+/* ---------- 自动刷新 ----------
+   在线状态会随时间变化，需定期重取。
+   用户在搜索框里打字时不刷新，避免打断输入。 */
+setInterval(function(){
+  try{
+    if(!$("main") || $("main").style.display === "none") return;
+    var ae = document.activeElement;
+    if(ae && (ae.tagName === "INPUT" || ae.tagName === "SELECT" || ae.tagName === "TEXTAREA")) return;
+    var q = $("q").value, fs = $("fStatus").value;
+    loadAll();
+    $("q").value = q; $("fStatus").value = fs;
+  }catch(e){}
+}, 60000);
 $("fStatus").onchange = render;
 $("btnRefresh").onclick = loadAll;
 

@@ -85,3 +85,8 @@ create policy "logs_select" on admin_logs
 -- delete from admin_logs where id not in (
 --   select id from admin_logs order by created_at desc limit 500
 -- );
+
+/* 在线心跳列（2026-09 追加）
+   游戏端登录后每 2 分钟上报一次，后台据此统计在线人数。
+   已有项目执行本句即可，不必重建表。 */
+alter table game_users add column if not exists last_active_at timestamptz;

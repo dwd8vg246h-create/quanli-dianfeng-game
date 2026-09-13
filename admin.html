@@ -157,7 +157,7 @@ th{background:#faf8f2;font-weight:700;color:#666;white-space:nowrap}
      是自己填错还是服务不通。 -->
 <script>
 /* 后台版本：与 version.json 保持一致，由 build.js 同步 */
-var ADMIN_VERSION = "20260913.1518";
+var ADMIN_VERSION = "20260913.1538";
 var CLOUD_CONFIG = {
   enabled: true,
   url: "https://zgkovjgkkvxoajcqxwfw.supabase.co",
@@ -290,11 +290,15 @@ function loadAll(){
      先探测再调用：旧版也能正常用，只是没有存档进度。 */
   if(typeof Cloud.adminSaves !== "function"){
     window.__saves = {};
-    window.__saveErr = "云端模块版本过旧，请刷新页面";
+    window.__savesLoaded = true;
+    window.__saveStale = true;
+    window.__saveErr = "";
   } else {
   Cloud.adminSaves().then(function(r){
     window.__saves = (r && r.ok) ? (r.saves||{}) : {};
     window.__saveErr = (r && !r.ok) ? (r.msg||"读取失败") : "";
+    window.__saveStale = false;
+    window.__savesLoaded = true;
     if(window.__users) render();
   });
   }
@@ -326,7 +330,16 @@ function saveCell(u){
   var saves = window.__saves || {};
   var s = saves[u.id];
   if(!s){
+    /* 版本过旧要单独说：此前与"读取失败"共用一个分支，
+       显示成"（读取失败）"会让管理员去查权限和网络，
+       而真正原因只是浏览器还缓存着旧模块。 */
+    if(window.__saveStale)
+      return "<span class='mini' style='color:#8a6a35'>—（<a href='' onclick='location.reload();return false;'"
+        +" style='color:#8a6a35'>刷新页面</a>）</span>";
     if(window.__saveErr) return "<span class='mini' style='color:#b01e23'>—（读取失败）</span>";
+    /* 存档摘要尚未取回时（adminList 先返回），不能显示"尚无存档"——
+       那会让管理员误判某人从未玩过。先显示"…"，取回后再定。 */
+    if(!window.__savesLoaded) return "<span class='mini'>…</span>";
     return "<span class='mini'>—（尚无存档）</span>";
   }
   var m = s.summary || {};

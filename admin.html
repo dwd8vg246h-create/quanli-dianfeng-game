@@ -82,10 +82,9 @@ th{background:#faf8f2;font-weight:700;color:#666;white-space:nowrap}
 <!-- 主体 -->
 <div id="main" style="display:none">
   <div class="stat">
-    <div><b id="sOnline" style="color:#2f7d4f">—</b><span class="mini">在线人数</span></div>
+    <div><b id="sOnline" style="color:#2f7d4f">—</b><span class="mini">在线人数</span><span class="mini" id="onlineTip" style="display:block;opacity:.75;font-size:9px"></span></div>
     <div><b id="sTotal">—</b><span class="mini">档案总数</span></div>
     <div><b id="sActive">—</b><span class="mini">状态正常</span></div>
-    <div><b id="sOnline">—</b><span class="mini">在线人数</span><span class="mini" id="onlineTip" style="display:block;opacity:.7"></span></div>
     <div><b id="sLatency">—</b><span class="mini">云端延迟</span></div>
   </div>
 
@@ -285,22 +284,19 @@ function render(){
     $("sOnline").textContent = "—";
     $("sOnline").style.color = "#8a8170";
     $("sOnline").title = "需在 Supabase 执行：alter table game_users add column last_active_at timestamptz;";
+    var tip2 = $("onlineTip");
+    if(tip2) tip2.textContent = "缺字段，暂无法统计";
   } else {
     var n = users.filter(isOnline).length;
     $("sOnline").textContent = n + " 人";
     $("sOnline").style.color = n>0 ? "#2f7d4f" : "#8a8170";
+    /* 标注口径：这是"最近 5 分钟有活动"的近似，不是真实的在线会话。
+       纯前端 + REST 没有会话概念，服务端无从得知玩家是否还开着页面。 */
+    var tip = $("onlineTip");
+    if(tip) tip.textContent = "最近 5 分钟有活动";
   }
   $("sTotal").textContent = users.length;
   $("sActive").textContent = users.filter(function(u){return u.status==="正常";}).length;
-  /* 在线人数：最近 N 分钟内有心跳的。
-     last_active_at 缺列时（未执行 ALTER TABLE）退回 last_login_at 近似，
-     并在卡片下方标注口径，避免把近似值当精确值看。 */
-  var onlineN = Cloud.onlineCount(users);
-  $("sOnline").textContent = onlineN;
-  var winMin = (typeof Cloud.ONLINE_WINDOW_MIN === "number") ? Cloud.ONLINE_WINDOW_MIN : 5;
-  $("onlineTip").textContent = noActiveCol
-    ? "（缺 last_active_at 字段，暂按最后登录时间近似）"
-    : "（最近 "+winMin+" 分钟内有活动）";
   $("listTip").textContent = "共 "+filtered.length+" 条";
 
   if(!filtered.length){ $("tb").innerHTML = '<tr><td colspan="8" class="mini">无匹配档案</td></tr>'; return; }

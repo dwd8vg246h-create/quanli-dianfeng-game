@@ -1,6 +1,9 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <title>组织部门管理后台 · 权路巅峰</title>
@@ -146,6 +149,8 @@ th{background:#faf8f2;font-weight:700;color:#666;white-space:nowrap}
      "URL is not valid or contains user credentials"，而玩家无从判断
      是自己填错还是服务不通。 -->
 <script>
+/* 后台版本：与 version.json 保持一致，由 build.js 同步 */
+var ADMIN_VERSION = "20260913.1316";
 var CLOUD_CONFIG = {
   enabled: true,
   url: "https://zgkovjgkkvxoajcqxwfw.supabase.co",
@@ -358,6 +363,42 @@ function onAct(act, id){
 }
 
 $("q").oninput = render;
+
+/* ---------- 版本检测 ----------
+   后台同样会被浏览器缓存（cloud.js 曾因旧缓存导致 URL 清洗失效）。
+   与游戏共用同一个 version.json，不一致时提示刷新。 */
+function checkAdminUpdate(){
+  try{
+    if(typeof fetch !== "function") return;
+    var base = (location.href||"").split("#")[0].split("?")[0].replace(/[^\/]*$/, "");
+    fetch(base + "version.json?t=" + Date.now(), {cache:"no-store", headers:{"Cache-Control":"no-cache"}})
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .catch(function(){ return null; })
+      .then(function(d){
+        if(!d || !d.v) return;
+        if(String(d.v) === String(window.ADMIN_VERSION||"")) return;
+        var old = document.getElementById("adminUpdBar");
+        if(old && old.parentNode) old.parentNode.removeChild(old);
+        var bar = document.createElement("div");
+        bar.id = "adminUpdBar";
+        bar.style.cssText = "position:fixed;left:0;right:0;bottom:0;z-index:99999;background:#b01e23;"+
+          "color:#fff;padding:10px 12px;font-size:13px;display:flex;align-items:center;gap:8px;box-shadow:0 -2px 12px rgba(0,0,0,.3)";
+        bar.innerHTML = '<div style="flex:1">后台有新版本（'+String(d.v)+'）</div>';
+        var b = document.createElement("button");
+        b.textContent = "刷新";
+        b.style.cssText = "background:#fff;color:#b01e23;border:0;border-radius:6px;padding:6px 12px;font-weight:700";
+        b.onclick = function(){
+          try{
+            var u = (location.href||"").split("#")[0].split("?")[0];
+            location.replace(u + "?_v=" + encodeURIComponent(String(d.v)) + "&_t=" + Date.now());
+          }catch(e){ try{ location.reload(true); }catch(e2){} }
+        };
+        bar.appendChild(b);
+        document.body.appendChild(bar);
+      });
+  }catch(e){}
+}
+try{ checkAdminUpdate(); }catch(e){}
 
 /* ---------- 自动刷新 ----------
    在线状态会随时间变化，需定期重取。

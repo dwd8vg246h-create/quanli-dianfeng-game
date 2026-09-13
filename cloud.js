@@ -245,14 +245,21 @@ var Cloud = (function(){
      后台会把在线人数显示为"—"并提示补列。
      ============================================================ */
   var HEARTBEAT_MS = 120000;   // 2 分钟
+  var _HB_MIN_GAP = 60000;     // 两次上报最小间隔
   var _hbTimer = null;
   var _hbMissing = false;      // 列缺失 → 不再反复重试，避免无谓请求
+  var _hbLast = 0;
 
-  function heartbeat(userId){
+  function heartbeat(userId, force){
     if(!isReady()) return Promise.resolve({ok:false, offline:true});
     var uid = userId || (state && state.uid);
     if(!uid) return Promise.resolve({ok:false, msg:"未登录"});
     if(_hbMissing) return Promise.resolve({ok:false, missing:true});
+    /* 节流：心跳与存档推送都会调用，60 秒内只上报一次。
+       没有它，玩家每 60 秒存一次档就会多发一个请求。 */
+    var now = Date.now();
+    if(!force && (now - _hbLast) < _HB_MIN_GAP) return Promise.resolve({ok:true, skipped:true});
+    _hbLast = now;
     return req("PATCH", "game_users?id=eq."+eqv(uid), {
       last_active_at: new Date().toISOString()
     }, null, 8000).then(function(res){
@@ -269,11 +276,13 @@ var Cloud = (function(){
     });
   }
 
-  /* 启动心跳。重复调用只会保留一个定时器。 */
-  function startHeartbeat(userId){
+  /* 启动心跳。重复调用只会保留一个定时器。
+     force=true 时强制立即上报一次（绕开节流）——
+     用于刚登录/刚注册，否则玩家要等一个节流周期才会显示为在线。 */
+  function startHeartbeat(userId, force){
     try{
       if(_hbTimer) clearInterval(_hbTimer);
-      heartbeat(userId);                       // 立即上报一次
+      heartbeat(userId, force);                // 立即上报一次
       _hbTimer = setInterval(function(){ heartbeat(userId); }, HEARTBEAT_MS);
       return true;
     }catch(e){ return false; }

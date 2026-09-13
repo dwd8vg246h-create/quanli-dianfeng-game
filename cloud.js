@@ -1,28 +1,37 @@
 /* ============================================================
-   云端存档同步（Supabase）
+   云端存档同步 —— 原生 fetch 直连 PostgREST
    ------------------------------------------------------------
-   设计原则：**云永远不能拖垮本地**。
+   【为什么不用 supabase-js】
+   原实现依赖 CDN 加载 @supabase/supabase-js。
+   国内访问 jsdelivr / unpkg 常被拦或极慢，一旦加载失败，
+   Cloud 会静默降级为 off —— 玩家界面上看不到任何提示，
+   注册和存档永远不会同步，且极难排查。
 
-   游戏原本是纯 localStorage 单机网页。接入云端后，若网络不通
-   （国内访问海外 Supabase 延迟 250–800ms，晚高峰可能超时），
-   游戏必须照常能玩——进度先存本地，联网后再补传。
+   Supabase 的数据接口本质是 PostgREST，用 fetch 直连即可，
+   无需任何第三方库：
+     GET    /rest/v1/表?select=&列=eq.值
+     POST   /rest/v1/表          (Prefer: return=representation)
+     PATCH  /rest/v1/表?列=eq.值
+     DELETE /rest/v1/表?列=eq.值
+   去掉这层依赖后，代码更小、启动更快、失败路径更可控。
 
-   因此：
-     ① 所有云调用均异步，失败静默降级，绝不阻塞游戏流程
-     ② 本地始终写入，云端作为一份可恢复的副本
-     ③ 登录时双向比对，取较新的一份（防止换设备后进度倒退）
-     ④ 未上传的进度进入待同步队列，联网后自动重试
+   【核心设计：云永远不能拖垮本地】
+     ① 所有云调用异步，失败静默降级，绝不阻塞游戏
+     ② 本地 localStorage 始终权威，云端只是可恢复的副本
+     ③ 登录时双向比对，取较新的一份（防换设备后进度倒退）
+     ④ 未上传的进度进待同步队列，联网后自动重试
    ============================================================ */
 var Cloud = (function(){
 
-  var URL = "", KEY = "", client = null, ready = false;
+  var URL = "", KEY = "", ready = false;
   var CFG_KEY = "qlp_cloud_cfg";
   var PENDING_KEY = "qlp_cloud_pending";
   var state = {
-    mode: "off",        // off / local / online / syncing / error
+    mode: "off",        // off / online / syncing / error
     lastError: "",
     lastSyncAt: null,
-    pending: false
+    pending: false,
+    uid: null
   };
   var listeners = [];
 
@@ -31,6 +40,15 @@ var Cloud = (function(){
     for(var i=0;i<listeners.length;i++){
       try{ listeners[i](state); }catch(e){}
     }
+    /* 直接改徽标，避免整块重绘顶栏（顶栏很重，频繁重绘会卡） */
+    try{
+      var b = document.getElementById("cloudBadge");
+      if(b){
+        var st = statusText();
+        b.style.background = st.color;
+        b.textContent = st.icon + " " + st.text;
+      }
+    }catch(e){}
   }
   function setState(mode, err){
     state.mode = mode;
@@ -51,14 +69,59 @@ var Cloud = (function(){
     try{ localStorage.setItem(CFG_KEY, JSON.stringify({url:url, key:key})); }catch(e){}
   }
 
-  /* ---------- 初始化 ---------- */
-  /* 兼容两种调用：init({url,key}) 与 init(url, key)。
-     此前的缺陷：只认对象形式，而调用方（initCloudAuto）写的是
-     Cloud.init(cfg.url, cfg.key)——
-     opts 收到的是字符串，opts.url 恒为 undefined，
-     于是永远走不到配置分支，静默 setState("off") 返回 false。
-     结果：即便填了 URL 和 key，云端也永远启用不了，
-     且不报任何错，极难察觉。 */
+  /* ============================================================
+     PostgREST 请求封装
+     ============================================================ */
+  function req(method, path, body, prefer, timeoutMs){
+    var url = URL + "/rest/v1/" + path;
+    var headers = {
+      "apikey": KEY,
+      "Authorization": "Bearer " + KEY,
+      "Accept": "application/json"
+    };
+    if(body) headers["Content-Type"] = "application/json";
+    if(prefer) headers["Prefer"] = prefer;
+
+    var ctrl = null, to = null;
+    if(typeof AbortController !== "undefined"){
+      ctrl = new AbortController();
+      to = setTimeout(function(){ try{ ctrl.abort(); }catch(e){} }, timeoutMs || 8000);
+    }
+
+    return fetch(url, {
+      method: method,
+      headers: headers,
+      body: body ? JSON.stringify(body) : undefined,
+      signal: ctrl ? ctrl.signal : undefined
+    }).then(function(r){
+      if(to) clearTimeout(to);
+      return r.text().then(function(t){
+        var data = null;
+        try{ data = t ? JSON.parse(t) : null; }catch(e){ data = t; }
+        if(!r.ok){
+          return { error: { message: (data && (data.message||data.hint||data.detail)) || ("HTTP "+r.status), code: (data&&data.code)||String(r.status), status: r.status } };
+        }
+        return { data: data };
+      });
+    }).catch(function(e){
+      if(to) clearTimeout(to);
+      return { error: { message: (e && e.name === "AbortError") ? "请求超时" : ("网络不可达："+((e&&e.message)||"")) } };
+    });
+  }
+
+  /* URL 编码，避免中文姓名/联系方式破坏查询串 */
+  function enc(v){ return encodeURIComponent(String(v==null?"":v)); }
+  /* PostgREST 的 eq 值需转义部分字符 */
+  function eqv(v){
+    return String(v==null?"":v).replace(/[.,:*()]/g, function(c){ return "%"+c.charCodeAt(0).toString(16); });
+  }
+
+  /* ---------- 初始化 ----------
+     兼容两种调用：init({url,key}) 与 init(url, key)。
+     此前的缺陷：只认对象形式，而调用方写的是 init(url, key)，
+     opts 收到字符串 → opts.url 恒为 undefined → 永远走不到配置分支，
+     静默 setState("off") 返回 false。
+     结果：即便填了 URL 和 key 也永远启用不了，且不报错，极难察觉。 */
   function init(a, b){
     var opts = {};
     if(typeof a === "string"){ opts.url = a; opts.key = b; }
@@ -69,26 +132,14 @@ var Cloud = (function(){
       saveCfg(opts.url, opts.key);
     }
     if(!cfg){ setState("off"); return false; }
-    if(typeof window.supabase === "undefined" || !window.supabase.createClient){
-      setState("error", "Supabase 客户端未加载");
-      return false;
-    }
-    try{
-      client = window.supabase.createClient(cfg.url, cfg.key, {
-        auth:{ persistSession:false }
-      });
-      URL = cfg.url; KEY = cfg.key;
-      ready = true;
-      setState(state.pending ? "syncing" : "online");
-      return true;
-    }catch(e){
-      ready = false;
-      setState("error", e.message || "初始化失败");
-      return false;
-    }
+    URL = String(cfg.url).replace(/\/+$/, "");
+    KEY = cfg.key;
+    ready = true;
+    setState(state.pending ? "syncing" : "online");
+    return true;
   }
 
-  function isReady(){ return ready && !!client; }
+  function isReady(){ return ready; }
   function isEnabled(){ return ready; }
 
   /* ---------- 待同步队列 ---------- */
@@ -106,119 +157,82 @@ var Cloud = (function(){
     try{ return !!localStorage.getItem(PENDING_KEY); }catch(e){ return false; }
   }
 
-  /* ---------- 超时包装 ----------
-     国内跨境访问可能长时间无响应，不能让玩家干等。 */
-  function withTimeout(promise, ms){
-    ms = ms || 8000;
-    return new Promise(function(resolve, reject){
-      var done = false;
-      var t = setTimeout(function(){
-        if(!done){ done = true; reject(new Error("请求超时")); }
-      }, ms);
-      promise.then(function(r){
-        if(!done){ done = true; clearTimeout(t); resolve(r); }
-      }, function(e){
-        if(!done){ done = true; clearTimeout(t); reject(e); }
-      });
-    });
-  }
-
   /* ============================================================
      注册
      ============================================================ */
   function register(empId, name, contact, pwdHash){
     if(!isReady()) return Promise.resolve({ok:false, offline:true, msg:"云端未启用，仅保存在本机。"});
-    return withTimeout(
-      client.from("game_users").insert({
-        emp_id: empId,
-        name: name || "",
-        contact: contact || "",
-        pwd_hash: pwdHash,
-        status: "正常",
-        login_count: 0
-      }).select().single()
-    ).then(function(res){
+    return req("POST", "game_users", {
+      emp_id: empId,
+      name: name || "",
+      contact: contact || "",
+      pwd_hash: pwdHash,
+      status: "正常",
+      login_count: 0
+    }, "return=representation", 10000).then(function(res){
       if(res.error){
         // 工号重复是最常见的失败，须给出可行动的提示
-        if(res.error.code === "23505"){
+        if(res.error.code === "23505" || res.error.status === 409){
           return {ok:false, msg:"该工号已被注册，请换一个。"};
         }
         return {ok:false, msg:"建档失败：" + (res.error.message||"未知错误")};
       }
-      return {ok:true, user:res.data};
-    }).catch(function(e){
-      return {ok:false, offline:true, msg:"云端不可达，已仅保存在本机。"};
+      var row = (res.data && res.data.length) ? res.data[0] : null;
+      return {ok:true, user:row || {}};
     });
   }
 
   /* ============================================================
-     登录：逐字段取回，避免 select * 在表结构变化后报错
+     登录查询
      ============================================================ */
+  var USER_COLS = "id,emp_id,name,contact,pwd_hash,status,created_at,login_count";
+
   function findUser(empId){
     if(!isReady()) return Promise.resolve({ok:false, offline:true});
-    return withTimeout(
-      client.from("game_users")
-        .select("id,emp_id,name,contact,pwd_hash,status,created_at,login_count")
-        .eq("emp_id", empId)
-        .limit(1)
-    ).then(function(res){
+    return req("GET", "game_users?select="+USER_COLS+"&emp_id=eq."+eqv(empId)+"&limit=1",
+      null, null, 8000).then(function(res){
       if(res.error) return {ok:false, msg:res.error.message};
       if(!res.data || !res.data.length) return {ok:false, notFound:true};
       return {ok:true, user:res.data[0]};
-    }).catch(function(e){
-      return {ok:false, offline:true, msg:"云端不可达"};
     });
   }
 
-  /* 按联系方式查找 —— 与游戏内 findUser(contact) 保持一致。
-     游戏登录用的是联系方式而非工号，云端若按 emp_id 查会对不上。 */
+  /* 游戏内登录按"联系方式"匹配，云端须一致 */
   function findByContact(contact){
     if(!isReady()) return Promise.resolve({ok:false, offline:true});
-    return withTimeout(
-      client.from("game_users")
-        .select("id,emp_id,name,contact,pwd_hash,status,created_at,login_count")
-        .eq("contact", contact)
-        .limit(1)
-    ).then(function(res){
+    return req("GET", "game_users?select="+USER_COLS+"&contact=eq."+eqv(contact)+"&limit=1",
+      null, null, 8000).then(function(res){
       if(res.error) return {ok:false, msg:res.error.message};
       if(!res.data || !res.data.length) return {ok:false, notFound:true};
       return {ok:true, user:res.data[0]};
-    }).catch(function(e){
-      return {ok:false, offline:true, msg:"云端不可达"};
     });
   }
 
-  /* 登录成功后的回执：更新登录次数与时间 */
+  /* 登录回执：更新登录次数与时间（读-改-写，登录场景并发极低） */
   function touchLogin(userId){
     if(!isReady()) return;
     try{
-      // 先用 rpc 递增最稳妥；此处退化为读-改-写，登录场景并发极低，可接受
-      client.from("game_users").select("login_count")
-        .eq("id", userId).single()
+      req("GET", "game_users?select=login_count&id=eq."+eqv(userId), null, null, 8000)
         .then(function(r){
-          if(r.error || !r.data) return;
-          client.from("game_users").update({
-            login_count: (r.data.login_count||0) + 1,
+          if(r.error || !r.data || !r.data.length) return;
+          req("PATCH", "game_users?id=eq."+eqv(userId), {
+            login_count: (r.data[0].login_count||0) + 1,
             last_login_at: new Date().toISOString()
-          }).eq("id", userId).then(function(){});
+          }, null, 8000);
         });
     }catch(e){}
   }
 
   /* ============================================================
-     存档：拉取 / 上传
+     存档
      ============================================================ */
   function pullSave(userId){
     if(!isReady()) return Promise.resolve({ok:false, offline:true});
-    return withTimeout(
-      client.from("game_saves").select("data,saved_at,version")
-        .eq("user_id", userId).limit(1)
-    ).then(function(res){
+    return req("GET", "game_saves?select=data,saved_at,version&user_id=eq."+eqv(userId)+"&limit=1",
+      null, null, 10000).then(function(res){
       if(res.error) return {ok:false, msg:res.error.message};
       if(!res.data || !res.data.length) return {ok:true, empty:true};
       return {ok:true, data:res.data[0].data, savedAt:res.data[0].saved_at};
-    }).catch(function(e){
-      return {ok:false, offline:true, msg:"云端不可达"};
     });
   }
 
@@ -240,24 +254,23 @@ var Cloud = (function(){
   function pushSave(userId, S){
     if(!isReady()){ markPending(); return Promise.resolve({ok:false, offline:true}); }
     setState("syncing");
-    return withTimeout(
-      client.from("game_saves").upsert({
-        user_id: userId,
-        data: S,
-        summary: buildSummary(S),
-        saved_at: new Date().toISOString(),
-        version: 1
-      }, { onConflict: "user_id" }), 10000
-    ).then(function(res){
-      if(res.error){ markPending(); setState("error", res.error.message); return {ok:false, msg:res.error.message}; }
+    /* upsert：PostgREST 用 POST + resolution=merge-duplicates 实现。
+       注意 jsonb 字段直接传对象，JSON.stringify 后即为其值。 */
+    return req("POST", "game_saves", {
+      user_id: userId,
+      data: S,
+      summary: buildSummary(S),
+      saved_at: new Date().toISOString(),
+      version: 1
+    }, "return=representation,resolution=merge-duplicates", 12000).then(function(res){
+      if(res.error){
+        markPending(); setState("error", res.error.message);
+        return {ok:false, msg:res.error.message};
+      }
       clearPending();
       state.lastSyncAt = Date.now();
       setState("online");
       return {ok:true};
-    }).catch(function(e){
-      markPending();
-      setState("error", "网络不通，进度已存本机");
-      return {ok:false, offline:true};
     });
   }
 
@@ -268,93 +281,76 @@ var Cloud = (function(){
   }
 
   /* ============================================================
-     后台：用户列表 / 处置 / 日志
+     后台
      ------------------------------------------------------------
-     后台需要读全部用户，anon key 在 RLS 允许下可读。
-     但**注销与删档属于高危操作**，此处同样调用，
-     依赖服务端 RLS 收敛权限——若你收紧了 RLS，
-     这些调用会失败并提示，不会静默改坏数据。
+     后台需要读全部用户；RLS 当前对 anon 放开读写，故这些调用可工作。
+     若你收紧了 RLS，这些调用会失败并明确提示，不会静默改坏数据。
      ============================================================ */
   function adminList(){
     if(!isReady()) return Promise.resolve({ok:false, offline:true});
-    return withTimeout(
-      client.from("game_users")
-        .select("id,emp_id,name,contact,status,created_at,login_count,last_login_at")
-        .order("last_login_at", {ascending:false, nullsFirst:false})
-        .limit(500), 10000
-    ).then(function(res){
+    return req("GET",
+      "game_users?select=id,emp_id,name,contact,status,created_at,login_count,last_login_at"
+      + "&order=last_login_at.desc.nullslast&limit=500", null, null, 12000).then(function(res){
       if(res.error) return {ok:false, msg:res.error.message};
       return {ok:true, users:res.data||[]};
-    }).catch(function(e){
-      return {ok:false, offline:true};
     });
   }
 
   function adminSetStatus(userId, status){
     if(!isReady()) return Promise.resolve({ok:false, offline:true});
-    return withTimeout(
-      client.from("game_users").update({status:status}).eq("id", userId)
-    ).then(function(res){
-      if(res.error) return {ok:false, msg:res.error.message};
-      return {ok:true};
-    }).catch(function(e){ return {ok:false, offline:true}; });
+    return req("PATCH", "game_users?id=eq."+eqv(userId), {status:status}, null, 10000)
+      .then(function(res){
+        if(res.error) return {ok:false, msg:res.error.message};
+        return {ok:true};
+      });
   }
 
   function adminResetPwd(userId, pwdHash){
     if(!isReady()) return Promise.resolve({ok:false, offline:true});
-    return withTimeout(
-      client.from("game_users").update({pwd_hash:pwdHash}).eq("id", userId)
-    ).then(function(res){
-      if(res.error) return {ok:false, msg:res.error.message};
-      return {ok:true};
-    }).catch(function(e){ return {ok:false, offline:true}; });
+    return req("PATCH", "game_users?id=eq."+eqv(userId), {pwd_hash:pwdHash}, null, 10000)
+      .then(function(res){
+        if(res.error) return {ok:false, msg:res.error.message};
+        return {ok:true};
+      });
   }
 
   function adminDeleteUser(userId){
     if(!isReady()) return Promise.resolve({ok:false, offline:true});
     // 存档表设了 on delete cascade，删用户即连带清档
-    return withTimeout(
-      client.from("game_users").delete().eq("id", userId)
-    ).then(function(res){
-      if(res.error) return {ok:false, msg:res.error.message};
-      return {ok:true};
-    }).catch(function(e){ return {ok:false, offline:true}; });
+    return req("DELETE", "game_users?id=eq."+eqv(userId), null, null, 10000)
+      .then(function(res){
+        if(res.error) return {ok:false, msg:res.error.message};
+        return {ok:true};
+      });
   }
 
   function adminLog(action, target, detail){
     if(!isReady()) return Promise.resolve({ok:false, offline:true});
-    return withTimeout(
-      client.from("admin_logs").insert({
-        action:action, target:target||"", detail:detail||""
-      })
-    ).then(function(res){
+    return req("POST", "admin_logs", {
+      action:action, target:target||"", detail:detail||""
+    }, "return=minimal", 8000).then(function(res){
       if(res.error) return {ok:false, msg:res.error.message};
       return {ok:true};
-    }).catch(function(e){ return {ok:false, offline:true}; });
+    });
   }
 
   function adminLogs(){
     if(!isReady()) return Promise.resolve({ok:false, offline:true});
-    return withTimeout(
-      client.from("admin_logs").select("action,target,detail,created_at")
-        .order("created_at", {ascending:false}).limit(200)
-    ).then(function(res){
+    return req("GET",
+      "admin_logs?select=action,target,detail,created_at&order=created_at.desc&limit=200",
+      null, null, 10000).then(function(res){
       if(res.error) return {ok:false, msg:res.error.message};
       return {ok:true, logs:res.data||[]};
-    }).catch(function(e){ return {ok:false, offline:true}; });
+    });
   }
 
   /* ---------- 连通性自检 ---------- */
   function ping(){
     if(!isReady()) return Promise.resolve({ok:false, msg:"未初始化"});
     var t0 = Date.now();
-    return withTimeout(
-      client.from("game_users").select("id").limit(1), 8000
-    ).then(function(res){
+    return req("GET", "game_users?select=id&limit=1", null, null, 8000).then(function(res){
       if(res.error) return {ok:false, msg:res.error.message};
       return {ok:true, ms:(Date.now()-t0)};
-    }).catch(function(e){
-      return {ok:false, msg:"超时或不可达"};
     });
   }
 

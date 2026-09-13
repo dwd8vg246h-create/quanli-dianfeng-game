@@ -152,7 +152,7 @@ var CLOUD_CONFIG = {
   key: "sb_publishable_CtDImUOKxPCR6IPgM79Rhw_dRwDjqbl"
 };
 </script>
-<script src="cloud.js?v=4"></script>
+<script src="cloud.js?v=5"></script>
 <script>
 /* eslint-disable */
 var $ = function(id){ return document.getElementById(id); };
@@ -291,9 +291,12 @@ function render(){
     $("sOnline").textContent = n + " 人";
     $("sOnline").style.color = n>0 ? "#2f7d4f" : "#8a8170";
     /* 标注口径：这是"最近 5 分钟有活动"的近似，不是真实的在线会话。
-       纯前端 + REST 没有会话概念，服务端无从得知玩家是否还开着页面。 */
+       纯前端 + REST 没有会话概念，服务端无从得知玩家是否还开着页面。
+       全表无人上报过，多半是玩家客户端还是旧版（尚未含心跳），
+       刷新一次即可——不明说会让人误以为功能坏了。 */
     var tip = $("onlineTip");
-    if(tip) tip.textContent = "最近 5 分钟有活动";
+    var anyVal = users.some(function(u){ return !!u.last_active_at; });
+    if(tip) tip.textContent = anyVal ? "近 5 分钟有活动" : "待玩家刷新页面";
   }
   $("sTotal").textContent = users.length;
   $("sActive").textContent = users.filter(function(u){return u.status==="正常";}).length;

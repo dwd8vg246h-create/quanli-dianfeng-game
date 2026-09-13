@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>组织部门管理后台 · 权路巅峰</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+  background:#f5f3ee;color:#2b2b2b;font-size:14px;line-height:1.6}
+.wrap{max-width:960px;margin:0 auto;padding:12px}
+.hd{background:#9e1b20;color:#fff;padding:14px 16px;border-radius:6px;margin-bottom:12px}
+.hd h1{margin:0;font-size:17px}
+.hd .sub{font-size:12px;opacity:.85;margin-top:3px}
+.card{background:#fff;border-radius:6px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.06);overflow:hidden}
+.card-h{background:#faf8f2;padding:9px 12px;font-weight:800;font-size:13px;
+  border-bottom:1px solid #eee;border-left:3px solid #9e1b20}
+.card-b{padding:11px 12px}
+input,select,button{font-family:inherit;font-size:14px}
+input,select{padding:7px 9px;border:1px solid #ccc;border-radius:4px;width:100%}
+button{padding:7px 13px;border:1px solid #ccc;background:#fff;border-radius:4px;cursor:pointer}
+button.pri{background:#9e1b20;color:#fff;border-color:#9e1b20}
+button.sm{padding:4px 9px;font-size:12px}
+button:disabled{opacity:.5;cursor:not-allowed}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th,td{padding:7px 6px;text-align:left;border-bottom:1px solid #f0f0f0;vertical-align:top}
+th{background:#faf8f2;font-weight:700;color:#666;white-space:nowrap}
+.tag{display:inline-block;padding:1px 6px;border-radius:3px;font-size:11px}
+.tag-正常{background:#e8f3ea;color:#2f7d4f}
+.tag-冻结{background:#fdeaea;color:#b01e23}
+.tag-注销{background:#eee;color:#888}
+.msg{padding:8px 11px;border-radius:4px;margin-bottom:10px;font-size:13px}
+.msg-ok{background:#e8f3ea;color:#2f7d4f;border:1px solid #9dc4a8}
+.msg-err{background:#fdeaea;color:#b01e23;border:1px solid #e0a0a0}
+.msg-info{background:#f0f4f8;color:#35618a;border:1px solid #a8c0d8}
+.mini{font-size:11px;color:#8a8170}
+.scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.stat{display:flex;gap:9px;flex-wrap:wrap;margin-bottom:12px}
+.stat div{flex:1;min-width:88px;background:#fff;border-radius:6px;padding:10px;text-align:center;
+  box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.stat b{display:block;font-size:20px;color:#9e1b20}
+.warn{background:#fff8e6;border:1px solid #e0c068;padding:9px 11px;border-radius:4px;
+  font-size:12px;color:#8a6a35;line-height:1.7}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="hd">
+  <h1>🏛️ 组织部门管理后台</h1>
+  <div class="sub">权路巅峰 · 云端档案库</div>
+</div>
+
+<!-- 连接配置 -->
+<div class="card" id="cfgCard">
+  <div class="card-h">🔌 连接配置</div>
+  <div class="card-b">
+    <div class="row" style="margin-bottom:8px">
+      <input id="url" placeholder="Supabase Project URL，如 https://xxx.supabase.co" style="flex:2;min-width:220px">
+      <input id="key" placeholder="anon public key" style="flex:2;min-width:220px">
+      <button class="pri" id="btnConn">连接</button>
+    </div>
+    <div class="mini">配置保存在本机浏览器，不会上传。首次使用请填入 Supabase 项目的 URL 与 anon key。</div>
+    <div id="connMsg"></div>
+  </div>
+</div>
+
+<!-- 管理员口令 -->
+<div class="card" id="pwdCard" style="display:none">
+  <div class="card-h">🔐 管理员口令</div>
+  <div class="card-b">
+    <div class="row">
+      <input id="adminPwd" type="password" placeholder="请输入管理员口令" style="flex:1;min-width:180px">
+      <button class="pri" id="btnPwd">登录</button>
+    </div>
+    <div id="pwdMsg"></div>
+    <div class="mini" style="margin-top:6px" id="pwdHint"></div>
+  </div>
+</div>
+
+<!-- 主体 -->
+<div id="main" style="display:none">
+  <div class="stat">
+    <div><b id="sTotal">—</b><span class="mini">档案总数</span></div>
+    <div><b id="sActive">—</b><span class="mini">状态正常</span></div>
+    <div><b id="sToday">—</b><span class="mini">今日登录</span></div>
+    <div><b id="sLatency">—</b><span class="mini">云端延迟</span></div>
+  </div>
+
+  <div class="card">
+    <div class="card-h">📇 档案名录 <span class="mini" id="listTip"></span></div>
+    <div class="card-b" style="padding:8px">
+      <div class="row" style="margin-bottom:9px">
+        <input id="q" placeholder="搜索工号 / 姓名 / 联系方式" style="flex:1;min-width:160px">
+        <select id="fStatus" style="width:auto">
+          <option value="">全部状态</option><option>正常</option><option>冻结</option><option>注销</option>
+        </select>
+        <button id="btnRefresh">刷新</button>
+      </div>
+      <div class="scroll">
+        <table>
+          <thead><tr>
+            <th>工号</th><th>姓名</th><th>联系方式</th><th>状态</th>
+            <th>登录</th><th>建档 / 最近登录</th><th>操作</th>
+          </tr></thead>
+          <tbody id="tb"><tr><td colspan="7" class="mini">加载中…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-h">📜 操作留痕</div>
+    <div class="card-b" style="padding:8px">
+      <div class="scroll">
+        <table>
+          <thead><tr><th>时间</th><th>操作</th><th>对象</th><th>详情</th></tr></thead>
+          <tbody id="logTb"><tr><td colspan="4" class="mini">加载中…</td></tr></tbody>
+        </table>
+      </div>
+      <div class="warn" style="margin-top:9px">
+        留痕属审计记录，本后台不提供删除功能（与游戏内管理员台一致）。
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-h">⚠️ 能力边界</div>
+  <div class="card-b">
+    <div class="warn">
+      本后台管理的是<b>云端档案库</b>。玩家若处于离线状态（网络不通或尚未配置云端），
+      其进度仅存在于本人设备的浏览器中，此处无法查看或处置。<br><br>
+      口令校验在前端进行——纯前端页面无法真正保密。若需严格鉴权，
+      应在 Supabase 收紧 RLS 策略，或改用服务端接口（如 Edge Function + service_role）。
+    </div>
+  </div>
+</div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="cloud.js"></script>
+<script>
+/* eslint-disable */
+var $ = function(id){ return document.getElementById(id); };
+var ADMIN_PWD_KEY = "qlp_admin_pwd_hash";
+var filtered = [];
+
+function sha256(s){
+  // 与游戏内一致的加盐哈希
+  return new Promise(function(res){
+    if(window.crypto && crypto.subtle){
+      crypto.subtle.digest("SHA-256", new TextEncoder().encode("qlp_admin_" + s))
+        .then(function(b){
+          res(Array.from(new Uint8Array(b)).map(function(x){return x.toString(16).padStart(2,"0");}).join(""));
+        }).catch(function(){ res(simple(s)); });
+    } else { res(simple(s)); }
+  });
+}
+function simple(s){ var h=0; for(var i=0;i<s.length;i++){h=(h*31+s.charCodeAt(i))|0;} return "h"+h; }
+function msg(el, text, type){ $(el).innerHTML = '<div class="msg msg-'+type+'">'+text+'</div>'; }
+
+/* ---------- 连接 ---------- */
+$("btnConn").onclick = function(){
+  var url = $("url").value.trim(), key = $("key").value.trim();
+  if(!url || !key){ msg("connMsg","请填写 URL 与 key","err"); return; }
+  var ok = Cloud.init(url, key);
+  if(!ok){ msg("connMsg","初始化失败：Supabase 客户端未加载或参数有误","err"); return; }
+  Cloud.ping().then(function(r){
+    if(r.ok){
+      msg("connMsg","✅ 连接成功（延迟 "+r.ms+"ms）","ok");
+      $("pwdCard").style.display = "";
+      // 管理员口令是否已设置
+      var set = !!localStorage.getItem(ADMIN_PWD_KEY);
+      $("pwdHint").textContent = set ? "已设置口令，请输入。" : "首次使用：请输入并记住该口令，之后凭此进入。";
+    } else {
+      msg("connMsg","⚠️ 已配置但无法连通："+r.msg,"err");
+      $("pwdCard").style.display = "";
+    }
+  });
+};
+
+/* ---------- 口令 ---------- */
+$("btnPwd").onclick = function(){
+  var v = $("adminPwd").value;
+  if(!v){ msg("pwdMsg","请输入口令","err"); return; }
+  sha256(v).then(function(h){
+    var saved = localStorage.getItem(ADMIN_PWD_KEY);
+    if(!saved){ localStorage.setItem(ADMIN_PWD_KEY, h); saved = h; }
+    if(h !== saved){ msg("pwdMsg","口令有误","err"); return; }
+    $("main").style.display = "";
+    $("pwdCard").style.display = "none";
+    loadAll();
+  });
+};
+
+/* ---------- 载入 ---------- */
+function loadAll(){
+  Cloud.adminList().then(function(r){
+    if(!r.ok){ $("tb").innerHTML = '<tr><td colspan="7" class="mini">读取失败（'+(r.msg||"离线")+'）</td></tr>'; return; }
+    window.__users = r.users || [];
+    render();
+  });
+  Cloud.adminLogs().then(function(r){
+    var tb = $("logTb");
+    if(!r.ok || !r.logs.length){ tb.innerHTML = '<tr><td colspan="4" class="mini">暂无记录</td></tr>'; return; }
+    tb.innerHTML = r.logs.map(function(l){
+      var t = l.created_at ? new Date(l.created_at).toLocaleString("zh-CN") : "—";
+      return "<tr><td class='mini'>"+t+"</td><td>"+esc(l.action)+"</td><td>"+esc(l.target||"—")+
+             "</td><td class='mini'>"+esc(l.detail||"")+"</td></tr>";
+    }).join("");
+  });
+  Cloud.ping().then(function(r){ $("sLatency").textContent = r.ok ? (r.ms+"ms") : "超时"; });
+}
+function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,function(c){
+  return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; }); }
+
+function render(){
+  var users = window.__users || [];
+  var q = ($("q").value||"").trim().toLowerCase();
+  var fs = $("fStatus").value;
+  filtered = users.filter(function(u){
+    if(fs && u.status !== fs) return false;
+    if(!q) return true;
+    return ((u.emp_id||"")+" "+(u.name||"")+" "+(u.contact||"")).toLowerCase().indexOf(q) >= 0;
+  });
+  // 统计
+  var today = new Date().toDateString();
+  $("sTotal").textContent = users.length;
+  $("sActive").textContent = users.filter(function(u){return u.status==="正常";}).length;
+  $("sToday").textContent = users.filter(function(u){
+    return u.last_login_at && new Date(u.last_login_at).toDateString()===today; }).length;
+  $("listTip").textContent = "共 "+filtered.length+" 条";
+
+  if(!filtered.length){ $("tb").innerHTML = '<tr><td colspan="7" class="mini">无匹配档案</td></tr>'; return; }
+  $("tb").innerHTML = filtered.map(function(u){
+    var c = u.created_at ? new Date(u.created_at).toLocaleDateString("zh-CN") : "—";
+    var l = u.last_login_at ? new Date(u.last_login_at).toLocaleString("zh-CN") : "从未登录";
+    return "<tr>"+
+      "<td><b>"+esc(u.emp_id)+"</b></td>"+
+      "<td>"+esc(u.name||"—")+"</td>"+
+      "<td class='mini'>"+esc(u.contact||"—")+"</td>"+
+      "<td><span class='tag tag-"+esc(u.status)+"'>"+esc(u.status)+"</span></td>"+
+      "<td>"+(u.login_count||0)+" 次</td>"+
+      "<td class='mini'>建 "+c+"<br>"+l+"</td>"+
+      "<td nowrap>"+
+        (u.status==="冻结"
+          ? "<button class='sm' data-act='恢复' data-id='"+u.id+"'>恢复</button> "
+          : "<button class='sm' data-act='冻结' data-id='"+u.id+"'>冻结</button> ")+
+        "<button class='sm' data-act='重置口令' data-id='"+u.id+"'>重置口令</button> "+
+        "<button class='sm' data-act='注销' data-id='"+u.id+"'>注销</button>"+
+      "</td></tr>";
+  }).join("");
+
+  Array.prototype.forEach.call($("tb").querySelectorAll("button[data-act]"), function(b){
+    b.onclick = function(){ onAct(b.getAttribute("data-act"), b.getAttribute("data-id")); };
+  });
+}
+
+function onAct(act, id){
+  var u = (window.__users||[]).filter(function(x){return x.id===id;})[0];
+  if(!u) return;
+  if(act === "注销"){
+    if(!confirm("确认注销【"+u.emp_id+"】？其云端存档将一并清除，且不可恢复。")) return;
+  } else if(act === "冻结" || act === "恢复"){
+    if(!confirm("确认"+act+"【"+u.emp_id+"】？")) return;
+  } else if(act === "重置口令"){
+    var np = prompt("为【"+u.emp_id+"】设置新口令：");
+    if(!np) return;
+    sha256(np).then(function(h){
+      Cloud.adminResetPwd(id, h).then(function(r){
+        Cloud.adminLog("重置口令", u.emp_id, r.ok?"成功":("失败："+(r.msg||"")));
+        alert(r.ok ? "口令已重置" : ("失败："+(r.msg||"离线"))); loadAll();
+      });
+    });
+    return;
+  }
+  var fn = (act==="注销") ? Cloud.adminDeleteUser(id)
+         : Cloud.adminSetStatus(id, act==="冻结"?"冻结":"正常");
+  fn.then(function(r){
+    Cloud.adminLog(act, u.emp_id, r.ok?"成功":("失败："+(r.msg||"")));
+    alert(r.ok ? (act+"成功") : (act+"失败："+(r.msg||"离线")));
+    loadAll();
+  });
+}
+
+$("q").oninput = render;
+$("fStatus").onchange = render;
+$("btnRefresh").onclick = loadAll;
+
+/* 恢复上次配置 */
+(function(){
+  try{
+    var raw = localStorage.getItem("qlp_cloud_cfg");
+    if(raw){ var c = JSON.parse(raw); $("url").value = c.url||""; $("key").value = c.key||""; }
+  }catch(e){}
+})();
+</script>
+</body>
+</html>

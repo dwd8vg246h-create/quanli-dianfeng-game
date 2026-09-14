@@ -94,6 +94,9 @@ th{background:#faf8f2;font-weight:700;color:#666;white-space:nowrap}
     <div><b id="sActive">—</b><span class="mini">状态正常</span></div>
     <div><b id="sToday">—</b><span class="mini">今日登录</span></div>
     <div><b id="sSaved">—</b><span class="mini">有存档</span></div>
+    <div><b id="sMil" style="color:#3a5f8a">—</b><span class="mini">军线</span></div>
+    <div><b id="sJw" style="color:#8a6a35">—</b><span class="mini">纪委线</span></div>
+    <div><b id="sEnd" style="color:#b01e23">—</b><span class="mini">已结局</span></div>
     <div><b id="sLatency">—</b><span class="mini">云端延迟</span></div>
   </div>
 
@@ -101,12 +104,25 @@ th{background:#faf8f2;font-weight:700;color:#666;white-space:nowrap}
     <div class="card-h">📇 档案名录 <span class="mini" id="listTip"></span></div>
     <div class="card-b" style="padding:8px">
       <div class="row" style="margin-bottom:9px">
-        <input id="q" placeholder="搜索工号 / 姓名 / 联系方式" style="flex:1;min-width:160px">
+        <input id="q" placeholder="搜索工号 / 姓名 / 联系方式 / 职务" style="flex:1;min-width:160px">
         <select id="fStatus" style="width:auto">
           <option value="">全部状态</option><option>正常</option><option>冻结</option><option>注销</option>
         </select>
+        <select id="fTrack" style="width:auto">
+          <option value="">全部序列</option><option value="行政">行政</option>
+          <option value="军事">军事</option><option value="纪检">纪检</option>
+        </select>
+        <select id="fSave" style="width:auto">
+          <option value="">有无存档</option><option value="1">有存档</option><option value="0">无存档</option>
+        </select>
+        <select id="fSort" style="width:auto">
+          <option value="login">按最近登录</option><option value="score">按政绩</option>
+          <option value="new">按建档时间</option><option value="emp">按工号</option>
+        </select>
+        <button id="btnCsv">导出CSV</button>
         <button id="btnRefresh">刷新</button>
       </div>
+      <div class="mini" id="sortTip" style="margin-bottom:6px"></div>
       <div class="scroll">
         <table>
           <thead><tr>
@@ -142,6 +158,8 @@ th{background:#faf8f2;font-weight:700;color:#666;white-space:nowrap}
     <div class="warn">
       本后台管理的是<b>云端档案库</b>。玩家若处于离线状态（网络不通或尚未配置云端），
       其进度仅存在于本人设备的浏览器中，此处无法查看或处置。<br><br>
+      序列、军种、学历、财政、健康等项取自<b>存档摘要</b>：玩家须<b>重新上传一次存档</b>
+      （打开游戏即自动同步）后才会出现，此前建档的老档案显示为"—"属正常。<br><br>
       口令校验在前端进行——纯前端页面无法真正保密。若需严格鉴权，
       应在 Supabase 收紧 RLS 策略，或改用服务端接口（如 Edge Function + service_role）。
     </div>
@@ -157,7 +175,7 @@ th{background:#faf8f2;font-weight:700;color:#666;white-space:nowrap}
      是自己填错还是服务不通。 -->
 <script>
 /* 后台版本：与 version.json 保持一致，由 build.js 同步 */
-var ADMIN_VERSION = "20260914.1415";
+var ADMIN_VERSION = "20260914.1502";
 var CLOUD_CONFIG = {
   enabled: true,
   url: "https://zgkovjgkkvxoajcqxwfw.supabase.co",
@@ -180,7 +198,8 @@ var filtered = [];
 })();
 
 function sha256(s){
-  // 与游戏内一致的加盐哈希
+  /* 仅用于管理员本地口令（存 localStorage，不与游戏账号体系交互）。
+     玩家口令必须用 Cloud.userPwdHash —— 见 onAct 里的说明。 */
   return new Promise(function(res){
     if(window.crypto && crypto.subtle){
       crypto.subtle.digest("SHA-256", new TextEncoder().encode("qlp_admin_" + s))
@@ -350,22 +369,161 @@ function saveCell(u){
     return "<span class='mini'>有新存档</span>";
   }
   var html = "";
-  if(pos) html += esc(pos);
-  if(ym)  html += (html ? "<br>" : "") + "<span class='mini'>"+esc(ym)+"</span>";
-  if(sc !== null) html += (html ? "<br>" : "") + "<span class='mini'>政绩 "+esc(String(sc))+"</span>";
+  if(pos) html += esc(pos) + trackTag(m.序列, m.军种);
+  if(ym || m.年龄) html += (html ? "<br>" : "")
+    + "<span class='mini'>"+esc(ym||"")+(m.年龄?(" · "+m.年龄+"岁"):"")+"</span>";
+  var nums = [];
+  if(sc !== null) nums.push("政绩 "+esc(String(sc)));
+  if(m.道德 !== undefined && m.道德 !== null) nums.push("道德 "+esc(String(m.道德)));
+  if(nums.length) html += (html ? "<br>" : "") + "<span class='mini'>"+nums.join(" · ")+"</span>";
   if(m.结局) html += "<br><span class='mini' style='color:#9e1b20'>"+esc(m.结局)+"</span>";
   return html;
 }
 
+/* 序列标签：军线 / 纪委线是后来新增的身份序列，
+   此前后台一律按行政显示，看不出某人走的是哪条线。
+   行政不占版面（占绝大多数），只标两条特殊线。 */
+function trackTag(track, svc){
+  if(track === "军事") return " <span class='tag' style='background:#e8eef6;color:#3a5f8a'>军"
+    + (svc ? "·"+esc(svc) : "") + "</span>";
+  if(track === "纪检") return " <span class='tag' style='background:#fdf3e3;color:#8a6a35'>纪委</span>";
+  return "";
+}
+
+/* ---------- 档案详情 ----------
+   名录一行放不下全部信息（学历、财政、健康、世代…），
+   点工号展开完整档案。此前只能看到职务与政绩，
+   想知道某人玩到什么程度只能靠猜。 */
+function showDetail(id){
+  var u = (window.__users||[]).filter(function(x){ return x.id===id; })[0];
+  if(!u) return;
+  var s = (window.__saves||{})[id];
+  var m = (s && s.summary) || {};
+  function row(k, v){
+    if(v===undefined||v===null||v==="") return "";
+    return "<tr><th style='width:74px;color:#8a8170;font-weight:400'>"+esc(k)+
+           "</th><td>"+String(v)+"</td></tr>";
+  }
+  var body = "";
+  body += row("工号", "<b>"+esc(u.emp_id)+"</b>");
+  body += row("姓名", esc(u.name||"—"));
+  body += row("联系方式", esc(u.contact||"—"));
+  body += row("状态", "<span class='tag tag-"+esc(u.status)+"'>"+esc(u.status)+"</span>");
+  body += row("登录次数", (u.login_count||0)+" 次");
+  body += row("建档时间", u.created_at ? new Date(u.created_at).toLocaleString("zh-CN") : "—");
+  body += row("最近登录", u.last_login_at ? new Date(u.last_login_at).toLocaleString("zh-CN") : "从未登录");
+  var arch = "";
+  if(s){
+    arch += row("职务", esc(m.职务||"—") + trackTag(m.序列, m.军种));
+    arch += row("序列", esc(m.序列||"行政") + (m.军种 ? "（"+esc(m.军种)+"）" : ""));
+    arch += row("学历", esc(m.学历||"—"));
+    arch += row("年龄 / 时间", esc(m.年份||"—") + (m.年龄 ? " · "+m.年龄+"岁" : ""));
+    arch += row("政绩 / 道德", (m.政绩===undefined?"—":m.政绩) + " / " + (m.道德===undefined?"—":m.道德));
+    arch += row("财政 / 健康", (m.财政===undefined||m.财政===null?"—":m.财政) + " / "
+                             + (m.健康===undefined||m.健康===null?"—":m.健康));
+    arch += row("任职地", esc(m.任职地||"—"));
+    arch += row("出身", esc(m.出身||"—"));
+    if(m.世代) arch += row("家族传承", "第 "+esc(String(m.世代))+" 代 · 底蕴 "+esc(String(m.底蕴||0)));
+    arch += row("结局", m.结局 ? "<b style='color:#9e1b20'>"+esc(m.结局)+"</b>" : "—（进行中）");
+    arch += row("存档时间", s.savedAt ? new Date(s.savedAt).toLocaleString("zh-CN") : "—");
+  } else {
+    arch = "<tr><td class='mini' colspan='2'>尚无云端存档"
+      + (window.__saveErr ? "（"+esc(window.__saveErr)+"）" : "") + "</td></tr>";
+  }
+  var box = document.createElement("div");
+  box.id = "detailBox";
+  box.style.cssText = "position:fixed;inset:0;z-index:99998;background:rgba(0,0,0,.45);"+
+    "display:flex;align-items:center;justify-content:center;padding:16px";
+  box.innerHTML = "<div style='background:#fff;border-radius:8px;max-width:420px;width:100%;"+
+    "max-height:82vh;overflow:auto;box-shadow:0 8px 32px rgba(0,0,0,.3)'>"+
+    "<div style='background:#9e1b20;color:#fff;padding:11px 14px;font-weight:700;border-radius:8px 8px 0 0'>"+
+    "📇 干部档案详情</div>"+
+    "<div style='padding:6px 14px 14px'><table style='width:100%'>"+body+"</table>"+
+    "<div class='mini' style='margin:10px 0 4px;color:#9e1b20;font-weight:700'>游戏进度</div>"+
+    "<table style='width:100%'>"+arch+"</table>"+
+    "<div style='margin-top:12px;text-align:right'><button id='dtlClose' class='pri'>关闭</button></div>"+
+    "</div></div>";
+  box.onclick = function(e){ if(e.target === box) box.parentNode.removeChild(box); };
+  document.body.appendChild(box);
+  $("dtlClose").onclick = function(){ box.parentNode.removeChild(box); };
+}
+
+/* ---------- 导出 CSV ----------
+   导当前筛选结果，便于离线查阅或留档。
+   加 BOM，否则 Excel 打开中文乱码。 */
+function exportCsv(){
+  var rows = [["工号","姓名","联系方式","状态","登录次数","建档时间","最近登录",
+               "职务","序列","军种","学历","年龄","年份","政绩","道德","财政","健康","结局"]];
+  filtered.forEach(function(u){
+    var s = (window.__saves||{})[u.id], m = (s && s.summary) || {};
+    rows.push([
+      u.emp_id||"", u.name||"", u.contact||"", u.status||"", u.login_count||0,
+      u.created_at ? new Date(u.created_at).toLocaleString("zh-CN") : "",
+      u.last_login_at ? new Date(u.last_login_at).toLocaleString("zh-CN") : "从未登录",
+      m.职务||"", m.序列||"行政", m.军种||"", m.学历||"", m.年龄||"", m.年份||"",
+      (m.政绩===undefined?"":m.政绩), (m.道德===undefined?"":m.道德),
+      (m.财政===undefined||m.财政===null?"":m.财政), (m.健康===undefined||m.健康===null?"":m.健康),
+      m.结局||""
+    ]);
+  });
+  var csv = rows.map(function(r){
+    return r.map(function(c){
+      c = String(c==null?"":c);
+      return /[",\n]/.test(c) ? '"'+c.replace(/"/g,'""')+'"' : c;
+    }).join(",");
+  }).join("\r\n");
+  var blob = new Blob(["\ufeff"+csv], {type:"text/csv;charset=utf-8"});
+  var a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "干部档案_" + new Date().toISOString().slice(0,10) + ".csv";
+  document.body.appendChild(a); a.click();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); a.parentNode.removeChild(a); }, 500);
+}
+
 function render(){
   var users = window.__users || [];
+  var saves = window.__saves || {};
   var q = ($("q").value||"").trim().toLowerCase();
   var fs = $("fStatus").value;
+  var ft = ($("fTrack") && $("fTrack").value) || "";
+  var fv = ($("fSave") && $("fSave").value) || "";
+  var so = ($("fSort") && $("fSort").value) || "login";
+  /* 取某人的存档摘要，供筛选、排序、统计共用 */
+  function sumOf(u){ var s = saves[u.id]; return (s && s.summary) || {}; }
   filtered = users.filter(function(u){
     if(fs && u.status !== fs) return false;
+    /* 序列筛选：老存档没有 序列 字段，一律视为行政，
+       否则筛"行政"时会把全部老玩家筛掉。 */
+    var m = sumOf(u);
+    var tk = m.序列 || "行政";
+    if(ft && tk !== ft) return false;
+    if(fv === "1" && !saves[u.id]) return false;
+    if(fv === "0" && saves[u.id]) return false;
     if(!q) return true;
-    return ((u.emp_id||"")+" "+(u.name||"")+" "+(u.contact||"")).toLowerCase().indexOf(q) >= 0;
+    /* 搜索含职务：管理员往往记得的是"那个当上市长的"，
+       而不是工号。存档没取回时职务为空，不影响其余字段匹配。 */
+    var hay = ((u.emp_id||"")+" "+(u.name||"")+" "+(u.contact||"")+" "+(m.职务||"")+" "+(m.任职地||""));
+    return hay.toLowerCase().indexOf(q) >= 0;
   });
+  /* 排序：默认按最近登录（服务端已排，但筛选后需重排，
+     且新增的政绩/建档/工号三种排序服务端不支持） */
+  filtered.sort(function(a,b){
+    if(so === "score"){
+      var sa = sumOf(a).政绩, sb = sumOf(b).政绩;
+      sa = (typeof sa === "number") ? sa : -1;
+      sb = (typeof sb === "number") ? sb : -1;
+      return sb - sa;
+    }
+    if(so === "new"){
+      return new Date(b.created_at||0).getTime() - new Date(a.created_at||0).getTime();
+    }
+    if(so === "emp") return String(a.emp_id||"").localeCompare(String(b.emp_id||""));
+    return new Date(b.last_login_at||b.created_at||0).getTime()
+         - new Date(a.last_login_at||a.created_at||0).getTime();
+  });
+  var st = $("sortTip");
+  if(st) st.textContent = so === "score"
+    ? "按政绩降序（无存档者排末尾）" : (so === "new" ? "按建档时间，新的在前" : "");
   // 统计
   /* 在线判定：最近 5 分钟内有心跳上报。
      心跳由游戏端登录后每 2 分钟发一次，关掉页面即停止，
@@ -404,8 +562,22 @@ function render(){
   $("sToday").textContent = users.filter(function(u){
     return u.last_login_at && new Date(u.last_login_at).toDateString() === today;
   }).length + " 人";
-  var saves = window.__saves || {};
   $("sSaved").textContent = users.filter(function(u){ return !!saves[u.id]; }).length + " 人";
+  /* 序列与结局统计：只在有存档的人里算——
+     没上传过存档的人序列未知，计进"行政"会让数字虚高。 */
+  var nMil=0, nJw=0, nEnd=0, nHave=0;
+  users.forEach(function(u){
+    if(!saves[u.id]) return;
+    nHave++;
+    var m = sumOf(u);
+    if(m.序列 === "军事") nMil++;
+    else if(m.序列 === "纪检") nJw++;
+    if(m.结局) nEnd++;
+  });
+  $("sMil").textContent = nMil + " 人";
+  $("sJw").textContent  = nJw + " 人";
+  $("sEnd").textContent = nEnd + " 人";
+  $("sMil").title = $("sJw").title = "仅统计已上传存档的档案（共 "+nHave+" 份）";
   $("listTip").textContent = "共 "+filtered.length+" 条"
     + (window.__saveErr ? "（存档读取失败："+esc(window.__saveErr)+"）" : "");
 
@@ -419,7 +591,8 @@ function render(){
     return "<tr>"+
       "<td>"+(on ? "<span class='tag' style='background:#2f7d4f'>在线</span>"
                  : "<span class='mini'>—</span>")+"</td>"+
-      "<td><b>"+esc(u.emp_id)+"</b></td>"+
+      "<td><b><a href='' data-detail='"+esc(u.id)+"' style='color:#2b2b2b;text-decoration:underline dotted'>"
+        +esc(u.emp_id)+"</a></b></td>"+
       "<td>"+esc(u.name||"—")+"</td>"+
       "<td class='mini'>"+esc(u.contact||"—")+"</td>"+
       "<td class='mini'>"+saveCell(u)+"</td>"+
@@ -438,6 +611,9 @@ function render(){
   Array.prototype.forEach.call($("tb").querySelectorAll("button[data-act]"), function(b){
     b.onclick = function(){ onAct(b.getAttribute("data-act"), b.getAttribute("data-id")); };
   });
+  Array.prototype.forEach.call($("tb").querySelectorAll("a[data-detail]"), function(a){
+    a.onclick = function(){ showDetail(a.getAttribute("data-detail")); return false; };
+  });
 }
 
 function onAct(act, id){
@@ -450,11 +626,19 @@ function onAct(act, id){
   } else if(act === "重置口令"){
     var np = prompt("为【"+u.emp_id+"】设置新口令：");
     if(!np) return;
-    sha256(np).then(function(h){
-      Cloud.adminResetPwd(id, h).then(function(r){
-        Cloud.adminLog("重置口令", u.emp_id, r.ok?"成功":("失败："+(r.msg||"")));
-        alert(r.ok ? "口令已重置" : ("失败："+(r.msg||"离线"))); loadAll();
-      });
+    /* 必须用与游戏本体一致的哈希算法。
+       此前用 sha256("qlp_admin_"+pwd)，而游戏是 sha256Hex(SALT+pwd+SALT)，
+       两者不同 —— 提示"口令已重置"，玩家却用新口令永远登不进去，
+       等于管理员亲手把账号锁死，且界面报成功，极难排查。
+       旧版 cloud.js 没有 userPwdHash 时拒绝执行，宁可不做也不能做错。 */
+    if(typeof Cloud.userPwdHash !== "function"){
+      alert("云端模块版本过旧，无法重置口令。请刷新页面后重试。"); return;
+    }
+    var h2 = Cloud.userPwdHash(np);
+    Cloud.adminResetPwd(id, h2).then(function(r){
+      Cloud.adminLog("重置口令", u.emp_id, r.ok?"成功":("失败："+(r.msg||"")));
+      alert(r.ok ? ("口令已重置，【"+u.emp_id+"】可用新口令登录") : ("失败："+(r.msg||"离线")));
+      loadAll();
     });
     return;
   }
@@ -527,12 +711,20 @@ setInterval(function(){
     if(!$("main") || $("main").style.display === "none") return;
     var ae = document.activeElement;
     if(ae && (ae.tagName === "INPUT" || ae.tagName === "SELECT" || ae.tagName === "TEXTAREA")) return;
-    var q = $("q").value, fs = $("fStatus").value;
+    var q = $("q").value, fs = $("fStatus").value, ft = $("fTrack").value,
+        fv = $("fSave").value, so = $("fSort").value;
     loadAll();
-    $("q").value = q; $("fStatus").value = fs;
+    /* 新增的筛选器同样要还原，否则每 60 秒自动刷新
+       会把管理员选的"只看军线"悄悄重置掉。 */
+    $("q").value = q; $("fStatus").value = fs; $("fTrack").value = ft;
+    $("fSave").value = fv; $("fSort").value = so;
   }catch(e){}
 }, 60000);
 $("fStatus").onchange = render;
+if($("fTrack")) $("fTrack").onchange = render;
+if($("fSave"))  $("fSave").onchange  = render;
+if($("fSort"))  $("fSort").onchange  = render;
+if($("btnCsv")) $("btnCsv").onclick  = exportCsv;
 $("btnRefresh").onclick = loadAll;
 
 /* 恢复上次配置 */

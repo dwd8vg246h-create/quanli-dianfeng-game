@@ -92,8 +92,10 @@ th{background:#faf8f2;font-weight:700;color:#666;white-space:nowrap}
     </div>
     <div class="row" style="margin-top:6px">
       <button class="sm" id="btnDiag">🩺 诊断连接</button>
-      <span class="mini">登录失败时点它，会把服务端的原始回应原样显示出来。</span>
+      <button class="sm" id="btnFallback" style="display:none">⚠️ 改用本机口令</button>
+      <span class="mini">登录失败时点「诊断连接」，会把服务端的原始回应原样显示出来。</span>
     </div>
+    <div class="mini" id="fbTip" style="display:none;margin-top:4px;color:#a33"></div>
     <div id="pwdMsg"></div>
     <div class="mini" style="margin-top:6px" id="pwdHint"></div>
     <div class="mini" style="margin-top:4px" id="guardState"></div>
@@ -332,6 +334,8 @@ $("btnPwd").onclick = function(){
       if(!r || !r.ok){
         var m = (r && r.msg) || "登录失败";
         if(r && r._http) m = "（HTTP "+r._http+"）"+m;
+        guardFallbackShow();
+        m += "\n\n若一时修不好服务端鉴权，可点「改用本机口令」先进后台。";
         msg("pwdMsg", m, "err");
         return;
       }
@@ -346,7 +350,16 @@ $("btnPwd").onclick = function(){
   }
   sha256(v).then(function(h){
     var saved = localStorage.getItem(ADMIN_PWD_KEY);
-    if(!saved){ localStorage.setItem(ADMIN_PWD_KEY, h); saved = h; }
+    if(!saved){
+      /* 只有走「改用本机口令」这条兜底路径时才允许自设；
+         常规路径下首个打开者自设即放行，等于把钥匙交给第一个推门的人。 */
+      if(!FALLBACK_OK){
+        msg("pwdMsg","本机未设置口令。请启用服务端鉴权，或点「改用本机口令」后自设。","err");
+        return;
+      }
+      localStorage.setItem(ADMIN_PWD_KEY, h); saved = h;
+      msg("pwdMsg","本机口令已设置，今后用这个口令登录本机。","ok");
+    }
     if(h !== saved){ msg("pwdMsg","口令有误","err"); return; }
     $("main").style.display = "";
     $("pwdCard").style.display = "none";
@@ -354,6 +367,38 @@ $("btnPwd").onclick = function(){
     loadAll();
   });
 };
+
+/* ---------- 服务端不可用时的兜底 ----------
+   服务端鉴权要依赖 Supabase 网关放行；网关策略、CORS 预检、
+   JWT 校验任何一环卡住，后台就完全打不开 —— 管理员被自己锁在门外。
+   所以留一条退路：确认连不上时退回本机口令，至少能进后台看档案。
+   代价必须写在脸上：本机口令只挡误触，不防拿到链接的人。 */
+var FALLBACK_OK = false;
+function guardFallback(){
+  FALLBACK_OK = true;
+  try{ localStorage.removeItem("qlp_admin_guard_url"); }catch(e){}
+  GUARD.on = false; GUARD.url = ""; GUARD.session = "";
+  try{
+    var el = $("btnFallback"); if(el) el.style.display = "none";
+    var t = $("fbTip");
+    if(t){
+      t.style.display = "";
+      t.innerHTML = "⚠️ 已退回本机口令：口令只存在这台设备，能挡家人误触，"
+                  + "<b>挡不住拿到后台链接的人</b>。服务端鉴权修好后，"
+                  + "在「连接配置」重新填入函数地址即可切回。";
+    }
+    var h = $("pwdHint");
+    if(h) h.textContent = "本机口令模式：首次登录时输入的口令会被设为本机口令。";
+  }catch(e){}
+  msg("pwdMsg","已改为本机口令模式。请输入要设置的口令后点登录。","");
+  refreshGuardState();
+}
+function guardFallbackShow(){
+  try{
+    var el = $("btnFallback");
+    if(el){ el.style.display = ""; el.onclick = guardFallback; }
+  }catch(e){}
+}
 
 /* ---------- 网关鉴权头 ----------
    Supabase 的 Edge Functions 网关默认要求请求带 Authorization 头，

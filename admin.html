@@ -190,7 +190,7 @@ th{background:#faf8f2;font-weight:700;color:#666;white-space:nowrap}
      是自己填错还是服务不通。 -->
 <script>
 /* 后台版本：与 version.json 保持一致，由 build.js 同步 */
-var ADMIN_VERSION = "20260914.1738";
+var ADMIN_VERSION = "20260914.1743";
 var CLOUD_CONFIG = {
   enabled: true,
   url: "https://zgkovjgkkvxoajcqxwfw.supabase.co",
@@ -355,6 +355,23 @@ $("btnPwd").onclick = function(){
   });
 };
 
+/* ---------- 网关鉴权头 ----------
+   Supabase 的 Edge Functions 网关默认要求请求带 Authorization 头，
+   否则不等我们的代码执行就先返回 401 UNAUTHORIZED_NO_AUTH_HEADER。
+   publishable(anon) key 本身就是一枚合法 JWT，带上它即可通过网关；
+   真正的口令校验仍在函数内部用 ADMIN_TOKEN 比对，两者不是一回事。 */
+function guardHeaders(){
+  var h = {"Content-Type":"application/json"};
+  try{
+    var raw = localStorage.getItem("qlp_cloud_cfg");
+    var key = "";
+    if(raw){ key = (JSON.parse(raw).key || "").trim(); }
+    if(!key && typeof Cloud !== "undefined" && Cloud.CONFIG) key = String(Cloud.CONFIG.key || "").trim();
+    if(key) h["Authorization"] = "Bearer " + key;
+  }catch(e){}
+  return h;
+}
+
 /* ---------- 诊断：把服务端的原始回应原样摊开 ----------
    登录失败最常见的三类原因，界面上长得一模一样（都是"登录失败"）：
      ① 函数没部署 / 名字不对      → 404，且返回体不是我们的 JSON
@@ -370,7 +387,7 @@ function guardDiag(){
   msg("pwdMsg","正在探测 "+GUARD.url+" …","");
   fetch(GUARD.url, {
     method:"POST",
-    headers:{"Content-Type":"application/json"},
+    headers:guardHeaders(),
     body:JSON.stringify({action:"__diag__", session:""})
   }).then(function(r){
     var st = r.status;
@@ -383,7 +400,9 @@ function guardDiag(){
     if(x.st === 404) tip = "函数不存在 —— 检查函数名是否为 admin-guard，以及是否已 Deploy。";
     else if(x.st === 403) tip = "平台层拦截 —— 多为项目策略或未公开访问限制。";
     else if(x.st >= 500) tip = "函数内部错误 —— 看下面原文里是否提到 ADMIN_TOKEN；若提到，说明 Secret 设了但没 Redeploy。";
-    else if(x.st === 401) tip = "函数已通 —— 这一步只说明路是通的，401 是预期的（没带会话）。";
+    else if(x.st === 401 && /NO_AUTH_HEADER|authorization/i.test(txt))
+      tip = "通路正常，但网关要求 Authorization 头 —— 现在会自动带上连接配置里的密钥，若仍如此请确认密钥已填。";
+    else if(x.st === 401) tip = "函数已通 —— 401 是预期的（未带会话），说明部署没问题。";
     msg("pwdMsg", head+"\n"+txt+(tip?("\n\n判断："+tip):""), "err");
   }).catch(function(e){
     if(btn) btn.disabled = false;
@@ -442,7 +461,7 @@ function api(action, params){
     : { action:action, session:GUARD.session, params:params };
   return fetch(GUARD.url, {
     method:"POST",
-    headers:{"Content-Type":"application/json"},
+    headers:guardHeaders(),
     body:JSON.stringify(body)
   }).then(function(r){
     var st = r.status;

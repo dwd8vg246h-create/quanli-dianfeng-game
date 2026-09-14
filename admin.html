@@ -4,6 +4,8 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
+<meta name="robots" content="noindex,nofollow,noarchive">
+<meta name="referrer" content="no-referrer">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <title>组织部门管理后台 · 权路巅峰</title>
@@ -69,6 +71,13 @@ th{background:#faf8f2;font-weight:700;color:#666;white-space:nowrap}
       <button class="pri" id="btnConn">连接</button>
     </div>
     <div class="mini">配置保存在本机浏览器，不会上传。首次使用请填入 Supabase 项目的 URL 与 anon key。</div>
+    <div class="row" style="margin-top:8px">
+      <input id="guardUrl" placeholder="服务端鉴权函数地址（强烈建议启用），如 https://xxx.supabase.co/functions/v1/admin-guard" style="flex:2;min-width:220px">
+      <button id="btnGuard">启用</button>
+      <button id="btnGuardClr">停用</button>
+    </div>
+    <div class="mini">启用后口令改由服务端校验，浏览器不再直接持有数据库写入权限。需先部署 <b>admin-guard</b> 函数并在项目环境变量里设置 <b>ADMIN_TOKEN</b>。</div>
+    <div id="guardMsg"></div>
     <div id="connMsg"></div>
   </div>
 </div>
@@ -83,11 +92,13 @@ th{background:#faf8f2;font-weight:700;color:#666;white-space:nowrap}
     </div>
     <div id="pwdMsg"></div>
     <div class="mini" style="margin-top:6px" id="pwdHint"></div>
+    <div class="mini" style="margin-top:4px" id="guardState"></div>
   </div>
 </div>
 
 <!-- 主体 -->
 <div id="main" style="display:none">
+  <div id="guardWarn" class="msg msg-err" style="display:none"></div>
   <div class="stat">
     <div><b id="sOnline" style="color:#2f7d4f">—</b><span class="mini">在线人数</span><span class="mini" id="onlineTip" style="display:block;opacity:.75;font-size:9px"></span></div>
     <div><b id="sTotal">—</b><span class="mini">档案总数</span></div>
@@ -175,7 +186,7 @@ th{background:#faf8f2;font-weight:700;color:#666;white-space:nowrap}
      是自己填错还是服务不通。 -->
 <script>
 /* 后台版本：与 version.json 保持一致，由 build.js 同步 */
-var ADMIN_VERSION = "20260914.1502";
+var ADMIN_VERSION = "20260914.1522";
 var CLOUD_CONFIG = {
   enabled: true,
   url: "https://zgkovjgkkvxoajcqxwfw.supabase.co",
@@ -281,27 +292,176 @@ function setCfgFold(fold, summary){
     $("url").value = CLOUD_CONFIG.url;
     $("key").value = CLOUD_CONFIG.key || "";
     if(CLOUD_CONFIG.enabled && CLOUD_CONFIG.url && CLOUD_CONFIG.key){
-      setTimeout(function(){ $("btnConn").click(); }, 60);
+      setTimeout(function(){
+        $("btnConn").click();
+        setTimeout(function(){
+          refreshGuardState();
+          guardLoad();
+          if(GUARD.on){
+            var ph = $("pwdHint");
+            if(ph) ph.textContent = "口令由服务端校验，不会保存在本机。";
+            if(GUARD.session){ $("main").style.display=""; $("pwdCard").style.display="none"; loadAll(); }
+          }
+        }, 200);
+      }, 60);
     }
   }catch(e){}
 })();
 
-/* ---------- 口令 ---------- */
+/* ---------- 口令 ----------
+   两种模式：
+   ① 启用服务端鉴权 —— 口令发到 Edge Function 比对，
+      浏览器只保留一个短期会话，关掉标签页即失效；
+      连错 5 次服务端会锁定 10 分钟。
+   ② 未启用 —— 退回本机口令。它能挡住家人误触，
+      但挡不住拿到链接的人：旧逻辑里"首个打开者自设口令即放行"，
+      等于把钥匙交给第一个推门的人。所以此时常驻红色警告。 */
 $("btnPwd").onclick = function(){
   var v = $("adminPwd").value;
   if(!v){ msg("pwdMsg","请输入口令","err"); return; }
+  var btn = $("btnPwd");
+  guardLoad();
+  if(GUARD.on){
+    btn.disabled = true;
+    api("login", {token:v}).then(function(r){
+      btn.disabled = false;
+      if(!r || !r.ok){ msg("pwdMsg", (r && r.msg) || "登录失败", "err"); return; }
+      guardSessSet(r.session);
+      $("adminPwd").value = "";
+      $("main").style.display = "";
+      $("pwdCard").style.display = "none";
+      refreshGuardState();
+      loadAll();
+    });
+    return;
+  }
   sha256(v).then(function(h){
     var saved = localStorage.getItem(ADMIN_PWD_KEY);
     if(!saved){ localStorage.setItem(ADMIN_PWD_KEY, h); saved = h; }
     if(h !== saved){ msg("pwdMsg","口令有误","err"); return; }
     $("main").style.display = "";
     $("pwdCard").style.display = "none";
+    refreshGuardState();
     loadAll();
   });
 };
 
+/* ---------- 管理数据通道 ----------
+   默认走 Cloud 直连（与旧版行为完全一致）；
+   一旦配置了服务端鉴权函数，全部读写改由该函数代理：
+   口令只在服务端比对，浏览器不再直接持有数据库写入权限。 */
+var GUARD = { url:"", session:"", on:false };
+function guardLoad(){
+  try{
+    GUARD.url = String(localStorage.getItem("qlp_admin_guard_url")||"").trim();
+    GUARD.session = String(sessionStorage.getItem("qlp_admin_session")||"");
+  }catch(e){ GUARD.url=""; GUARD.session=""; }
+  GUARD.on = !!GUARD.url;
+  return GUARD.on;
+}
+function guardSessSet(v){
+  try{ if(v) sessionStorage.setItem("qlp_admin_session", v);
+       else sessionStorage.removeItem("qlp_admin_session"); }catch(e){}
+  GUARD.session = v || "";
+}
+function guardRelogin(tip){
+  guardSessSet("");
+  try{ $("main").style.display="none"; $("pwdCard").style.display=""; }catch(e){}
+  setCfgFold(false);
+  msg("pwdMsg", (tip||"会话已失效")+"，请重新登录", "err");
+}
+function api(action, params){
+  params = params || {};
+  guardLoad();
+  if(!GUARD.on){
+    /* 未启用服务端鉴权：沿用旧路径 */
+    if(action==="list")  return Cloud.adminList();
+    if(action==="saves") return (typeof Cloud.adminSaves==="function")
+                                ? Cloud.adminSaves()
+                                : Promise.resolve({ok:false, msg:"云端模块过旧"});
+    if(action==="logs")  return Cloud.adminLogs();
+    if(action==="setStatus")  return Cloud.adminSetStatus(params.id, params.status);
+    if(action==="resetPwd")   return Cloud.adminResetPwd(params.id, params.pwdHash);
+    if(action==="deleteUser") return Cloud.adminDeleteUser(params.id);
+    if(action==="log")        return Cloud.adminLog(params.action, params.target, params.detail);
+    return Promise.resolve({ok:false, msg:"未知动作："+action});
+  }
+  var body = (action==="login")
+    ? { action:"login", token:String(params.token||"") }
+    : { action:action, session:GUARD.session, params:params };
+  return fetch(GUARD.url, {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify(body)
+  }).then(function(r){
+    return r.json().catch(function(){ return {ok:false, msg:"响应解析失败"}; });
+  }).then(function(d){
+    d = d || {ok:false, msg:"无响应"};
+    if(d.relogin) guardRelogin(d.msg);
+    return d;
+  }).catch(function(e){
+    return {ok:false, msg:String((e && e.message) || e || "网络失败")};
+  });
+}
+
+/* ---------- 鉴权状态呈现 ----------
+   未启用服务端鉴权时必须把风险写在脸上：
+   页面上任何"已登录"的观感都会让人误以为后台是安全的。 */
+function refreshGuardState(){
+  guardLoad();
+  var w = $("guardWarn"), st = $("guardState");
+  if(w){
+    if(GUARD.on){
+      w.style.display = "none";
+    } else {
+      w.style.display = "";
+      w.innerHTML = "<b>⚠️ 未启用服务端鉴权</b><br>"+
+        "当前任何拿到本页链接的人，都可以自设口令进入并操作全部档案；"+
+        "数据库密钥也写在页面里，可被直接调用。<br>"+
+        "要真正挡住，请部署 <b>admin-guard</b> 函数后在此填入地址（见 后台鉴权配置指南.md）。";
+    }
+  }
+  if(st){
+    st.innerHTML = GUARD.on
+      ? "🔒 服务端鉴权已启用" + (GUARD.session ? " · 会话有效" : " · 未登录")
+      : "🔓 服务端鉴权未启用";
+  }
+}
+
+/* ---------- 鉴权函数地址绑定 ---------- */
+(function bindGuard(){
+  function cur(){ return String(($("guardUrl") && $("guardUrl").value) || "").trim(); }
+  var urlEl = $("guardUrl");
+  if(urlEl){
+    try{ urlEl.value = String(localStorage.getItem("qlp_admin_guard_url")||""); }catch(e){}
+  }
+  var b = $("btnGuard");
+  if(b) b.onclick = function(){
+    var u = cur();
+    if(!u){ msg("guardMsg","请填写函数地址","err"); return; }
+    if(!/^https:\/\/.+/i.test(u)){ msg("guardMsg","地址应以 https:// 开头","err"); return; }
+    try{ localStorage.setItem("qlp_admin_guard_url", u); }catch(e){}
+    guardSessSet("");
+    msg("guardMsg","✅ 已启用服务端鉴权，请用服务端口令登录","ok");
+    refreshGuardState();
+    try{ $("pwdCard").style.display=""; $("main").style.display="none"; }catch(e){}
+    try{ var hs = localStorage.getItem("qlp_admin_pwd_hash"); if(hs) localStorage.removeItem("qlp_admin_pwd_hash"); }catch(e){}
+    var ph = $("pwdHint"); if(ph) ph.textContent = "口令由服务端校验，不会保存在本机。";
+  };
+  var c = $("btnGuardClr");
+  if(c) c.onclick = function(){
+    try{ localStorage.removeItem("qlp_admin_guard_url"); }catch(e){}
+    guardSessSet("");
+    if(urlEl) urlEl.value = "";
+    msg("guardMsg","已停用服务端鉴权，回退为直连模式（不安全）","err");
+    refreshGuardState();
+    try{ $("pwdCard").style.display=""; $("main").style.display="none"; }catch(e){}
+  };
+})();
+
 /* ---------- 载入 ---------- */
 function loadAll(){
+  refreshGuardState();
   /* 存档摘要并行读取。失败不阻断——名录照常显示，
      "存档进度"列整列退化为"—"，并在表头提示原因。 */
   /* 管理员浏览器可能仍缓存旧版 cloud.js（无 adminSaves），
@@ -313,7 +473,7 @@ function loadAll(){
     window.__saveStale = true;
     window.__saveErr = "";
   } else {
-  Cloud.adminSaves().then(function(r){
+  api("saves").then(function(r){
     window.__saves = (r && r.ok) ? (r.saves||{}) : {};
     window.__saveErr = (r && !r.ok) ? (r.msg||"读取失败") : "";
     window.__saveStale = false;
@@ -321,12 +481,12 @@ function loadAll(){
     if(window.__users) render();
   });
   }
-  Cloud.adminList().then(function(r){
+  api("list").then(function(r){
     if(!r.ok){ $("tb").innerHTML = '<tr><td colspan="9" class="mini">读取失败（'+(r.msg||"离线")+'）</td></tr>'; return; }
     window.__users = r.users || [];
     render();
   });
-  Cloud.adminLogs().then(function(r){
+  api("logs").then(function(r){
     var tb = $("logTb");
     if(!r.ok || !r.logs.length){ tb.innerHTML = '<tr><td colspan="4" class="mini">暂无记录</td></tr>'; return; }
     tb.innerHTML = r.logs.map(function(l){
@@ -635,17 +795,17 @@ function onAct(act, id){
       alert("云端模块版本过旧，无法重置口令。请刷新页面后重试。"); return;
     }
     var h2 = Cloud.userPwdHash(np);
-    Cloud.adminResetPwd(id, h2).then(function(r){
-      Cloud.adminLog("重置口令", u.emp_id, r.ok?"成功":("失败："+(r.msg||"")));
+    api("resetPwd", {id:id, pwdHash:h2}).then(function(r){
+      api("log", {action:"重置口令", target:u.emp_id, detail:(r.ok?"成功":("失败："+(r.msg||"")))});
       alert(r.ok ? ("口令已重置，【"+u.emp_id+"】可用新口令登录") : ("失败："+(r.msg||"离线")));
       loadAll();
     });
     return;
   }
-  var fn = (act==="注销") ? Cloud.adminDeleteUser(id)
-         : Cloud.adminSetStatus(id, act==="冻结"?"冻结":"正常");
+  var fn = (act==="注销") ? api("deleteUser", {id:id, empId:u.emp_id})
+         : api("setStatus", {id:id, status:(act==="冻结"?"冻结":"正常")});
   fn.then(function(r){
-    Cloud.adminLog(act, u.emp_id, r.ok?"成功":("失败："+(r.msg||"")));
+    api("log", {action:act, target:u.emp_id, detail:(r.ok?"成功":("失败："+(r.msg||"")))});
     alert(r.ok ? (act+"成功") : (act+"失败："+(r.msg||"离线")));
     loadAll();
   });

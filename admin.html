@@ -445,14 +445,19 @@ function guardDiag(){
       msg("pwdMsg", "三种方式都连不通（多半是 CORS 预检被网关挡下）：\n"+x.tried, "err");
       return;
     }
-    var head = "HTTP " + x.st + "　投递方式：" + x.mode;
+    var head = "HTTP " + x.st + "　投递方式：" + x.mode
+             + (x.tried ? "\n（失败过的：" + x.tried + "）" : "");
     var txt = String(x.t || "").slice(0, 300) || "（无响应内容）";
     var tip = "";
     if(x.st === 404) tip = "函数不存在 —— 检查函数名是否为 admin-guard，以及是否已 Deploy。";
     else if(x.st === 403) tip = "平台层拦截 —— 多为项目策略或未公开访问限制。";
     else if(x.st >= 500) tip = "函数内部错误 —— 看原文里是否提到 ADMIN_TOKEN；若提到，说明 Secret 设了但没 Redeploy。";
-    else if(x.st === 401 && /NO_AUTH_HEADER|authorization/i.test(x.t))
-      tip = "网关要求鉴权头，但带头的请求被浏览器预检拦下了。请到 Supabase 项目里关掉本函数的 JWT 校验后重新部署。";
+    else if(x.st === 401 && /NO_AUTH_HEADER|authorization/i.test(x.t)){
+      tip = "网关要求请求带 Authorization 头，而带头的请求会先触发浏览器预检（OPTIONS）。\n"
+          + "现在是以「" + x.mode + "」方式到达的，说明带头的那几种方式预检没通过。\n"
+          + "请重新部署一次 admin-guard：新版源码的 CORS 头已加入 authorization，"
+          + "预检通过后才可能真正走通。若重部署后仍如此，再关掉函数的 JWT 校验。";
+    }
     else if(x.st === 401) tip = "函数已通 —— 401 是预期的（未带会话），说明部署没问题，直接输口令登录即可。";
     msg("pwdMsg", head + "\n" + txt + (tip ? ("\n\n判断：" + tip) : ""), "err");
   });

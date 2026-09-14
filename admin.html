@@ -186,7 +186,7 @@ th{background:#faf8f2;font-weight:700;color:#666;white-space:nowrap}
      是自己填错还是服务不通。 -->
 <script>
 /* 后台版本：与 version.json 保持一致，由 build.js 同步 */
-var ADMIN_VERSION = "20260914.1522";
+var ADMIN_VERSION = "20260914.1541";
 var CLOUD_CONFIG = {
   enabled: true,
   url: "https://zgkovjgkkvxoajcqxwfw.supabase.co",
@@ -255,7 +255,7 @@ $("btnConn").onclick = function(){
       $("pwdCard").style.display = "";
       // 管理员口令是否已设置
       var set = !!localStorage.getItem(ADMIN_PWD_KEY);
-      $("pwdHint").textContent = set ? "已设置口令，请输入。" : "首次使用：请输入并记住该口令，之后凭此进入。";
+      $("pwdHint").textContent = set ? "已设置本机口令，请输入。" : "本机未设置口令（已停用自设），请启用服务端鉴权后登录。";
     } else {
       msg("connMsg","⚠️ 已配置但无法连通："+r.msg,"err");
       $("pwdCard").style.display = "";
@@ -886,6 +886,18 @@ if($("fSave"))  $("fSave").onchange  = render;
 if($("fSort"))  $("fSort").onchange  = render;
 if($("btnCsv")) $("btnCsv").onclick  = exportCsv;
 $("btnRefresh").onclick = loadAll;
+
+/* 恢复上次配置 */
+(function(){
+  try{
+    var raw = localStorage.getItem("qlp_cloud_cfg");
+    if(raw){ var c = JSON.parse(raw); $("url").value = c.url||""; $("key").value = c.key||""; }
+  }catch(e){}
+})();
+</script>
+</body>
+</html>
+ick = loadAll;
 
 /* 恢复上次配置 */
 (function(){

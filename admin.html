@@ -186,7 +186,7 @@ th{background:#faf8f2;font-weight:700;color:#666;white-space:nowrap}
      是自己填错还是服务不通。 -->
 <script>
 /* 后台版本：与 version.json 保持一致，由 build.js 同步 */
-var ADMIN_VERSION = "20260914.1541";
+var ADMIN_VERSION = "20260914.1726";
 var CLOUD_CONFIG = {
   enabled: true,
   url: "https://zgkovjgkkvxoajcqxwfw.supabase.co",
@@ -394,13 +394,24 @@ function api(action, params){
     headers:{"Content-Type":"application/json"},
     body:JSON.stringify(body)
   }).then(function(r){
-    return r.json().catch(function(){ return {ok:false, msg:"响应解析失败"}; });
+    var st = r.status;
+    return r.text().then(function(t){
+      var d = null;
+      try{ d = JSON.parse(t); }catch(e){ d = null; }
+      if(!d || typeof d !== "object"){
+        /* 非 JSON 多半是平台层拦截或函数未部署，
+           此时必须把状态码和原文亮出来，否则只剩一句"登录失败"无从排查 */
+        return {ok:false, msg:"HTTP "+st+" · "+(String(t||"").slice(0,160)||"无响应内容")};
+      }
+      d._http = st;
+      return d;
+    });
   }).then(function(d){
     d = d || {ok:false, msg:"无响应"};
     if(d.relogin) guardRelogin(d.msg);
     return d;
   }).catch(function(e){
-    return {ok:false, msg:String((e && e.message) || e || "网络失败")};
+    return {ok:false, msg:"网络失败："+String((e && e.message) || e || "")};
   });
 }
 

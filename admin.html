@@ -190,7 +190,7 @@ th{background:#faf8f2;font-weight:700;color:#666;white-space:nowrap}
      是自己填错还是服务不通。 -->
 <script>
 /* 后台版本：与 version.json 保持一致，由 build.js 同步 */
-var ADMIN_VERSION = "20260914.1743";
+var ADMIN_VERSION = "20260914.1753";
 var CLOUD_CONFIG = {
   enabled: true,
   url: "https://zgkovjgkkvxoajcqxwfw.supabase.co",
@@ -360,16 +360,66 @@ $("btnPwd").onclick = function(){
    否则不等我们的代码执行就先返回 401 UNAUTHORIZED_NO_AUTH_HEADER。
    publishable(anon) key 本身就是一枚合法 JWT，带上它即可通过网关；
    真正的口令校验仍在函数内部用 ADMIN_TOKEN 比对，两者不是一回事。 */
-function guardHeaders(){
-  var h = {"Content-Type":"application/json"};
+function guardKey(){
   try{
     var raw = localStorage.getItem("qlp_cloud_cfg");
     var key = "";
-    if(raw){ key = (JSON.parse(raw).key || "").trim(); }
+    if(raw){ key = String((JSON.parse(raw).key || "")).trim(); }
     if(!key && typeof Cloud !== "undefined" && Cloud.CONFIG) key = String(Cloud.CONFIG.key || "").trim();
-    if(key) h["Authorization"] = "Bearer " + key;
-  }catch(e){}
-  return h;
+    return key;
+  }catch(e){ return ""; }
+}
+
+/* ---------- 三种投递方式，实测试探择优 ----------
+   Supabase 网关对函数的放行方式因项目而异：
+     auth   → 带 Authorization: Bearer <anon key>
+     apikey → 带 apikey 头（Supabase 网关同样认可）
+     plain → 不带任何自定义头（最简单，不触发预检）
+     query → 密钥放在 URL 的 ?apikey= 上
+   麻烦在于：一旦加了自定义头，浏览器会先发 OPTIONS 预检；
+   预检若被网关挡下，fetch 只会抛一句 "Load failed"，
+   连 HTTP 状态码都看不到。所以这里按顺序实测试探，通了就记住。 */
+var GUARD_MODE = "";
+function guardModeLoad(){
+  try{ GUARD_MODE = String(localStorage.getItem("qlp_guard_mode") || ""); }catch(e){ GUARD_MODE = ""; }
+  return GUARD_MODE;
+}
+function guardModeSave(m){
+  GUARD_MODE = m;
+  try{ localStorage.setItem("qlp_guard_mode", m); }catch(e){}
+}
+function guardRaw(url, body, mode){
+  var headers = {"Content-Type":"application/json"};
+  var target = url, k = guardKey();
+  if(mode === "auth" && k) headers["Authorization"] = "Bearer " + k;
+  else if(mode === "apikey" && k) headers["apikey"] = k;
+  else if(mode === "query" && k) target = url + (url.indexOf("?") >= 0 ? "&" : "?") + "apikey=" + encodeURIComponent(k);
+  return fetch(target, {
+    method:"POST", headers:headers, body:JSON.stringify(body)
+  }).then(function(r){
+    return r.text().then(function(t){ return {reach:true, st:r.status, t:String(t || "")}; });
+  }, function(e){
+    return {reach:false, mode:mode, msg:String((e && e.message) || e || "Load failed")};
+  });
+}
+function guardFetch(body){
+  guardLoad(); guardModeLoad();
+  var all = ["auth","apikey","query","plain"];
+  var order = (GUARD_MODE && all.indexOf(GUARD_MODE) >= 0)
+    ? [GUARD_MODE].concat(all.filter(function(m){ return m !== GUARD_MODE; }))
+    : all;
+  var tried = [];
+  function step(i){
+    if(i >= order.length){
+      return Promise.resolve({reach:false, st:0, t:"", mode:"", tried:tried.join("；")});
+    }
+    return guardRaw(GUARD.url, body, order[i]).then(function(x){
+      if(x.reach){ guardModeSave(order[i]); x.mode = order[i]; x.tried = tried.join("；"); return x; }
+      tried.push(order[i] + "（" + x.msg + "）");
+      return step(i + 1);
+    });
+  }
+  return step(0);
 }
 
 /* ---------- 诊断：把服务端的原始回应原样摊开 ----------
@@ -385,28 +435,22 @@ function guardDiag(){
   if(!GUARD.on){ msg("pwdMsg","尚未启用服务端鉴权：请先在「连接配置」填入函数地址并启用。","err"); return; }
   var btn = $("btnDiag"); if(btn) btn.disabled = true;
   msg("pwdMsg","正在探测 "+GUARD.url+" …","");
-  fetch(GUARD.url, {
-    method:"POST",
-    headers:guardHeaders(),
-    body:JSON.stringify({action:"__diag__", session:""})
-  }).then(function(r){
-    var st = r.status;
-    return r.text().then(function(t){ return {st:st, t:t}; });
-  }).then(function(x){
+  guardFetch({action:"__diag__", session:""}).then(function(x){
     if(btn) btn.disabled = false;
-    var head = "HTTP "+x.st;
-    var txt = String(x.t||"").slice(0,300) || "（无响应内容）";
+    if(!x.reach){
+      msg("pwdMsg", "三种方式都连不通（多半是 CORS 预检被网关挡下）：\n"+x.tried, "err");
+      return;
+    }
+    var head = "HTTP " + x.st + "　投递方式：" + x.mode;
+    var txt = String(x.t || "").slice(0, 300) || "（无响应内容）";
     var tip = "";
     if(x.st === 404) tip = "函数不存在 —— 检查函数名是否为 admin-guard，以及是否已 Deploy。";
     else if(x.st === 403) tip = "平台层拦截 —— 多为项目策略或未公开访问限制。";
-    else if(x.st >= 500) tip = "函数内部错误 —— 看下面原文里是否提到 ADMIN_TOKEN；若提到，说明 Secret 设了但没 Redeploy。";
-    else if(x.st === 401 && /NO_AUTH_HEADER|authorization/i.test(txt))
-      tip = "通路正常，但网关要求 Authorization 头 —— 现在会自动带上连接配置里的密钥，若仍如此请确认密钥已填。";
-    else if(x.st === 401) tip = "函数已通 —— 401 是预期的（未带会话），说明部署没问题。";
-    msg("pwdMsg", head+"\n"+txt+(tip?("\n\n判断："+tip):""), "err");
-  }).catch(function(e){
-    if(btn) btn.disabled = false;
-    msg("pwdMsg","网络失败："+String((e && e.message)||e||""), "err");
+    else if(x.st >= 500) tip = "函数内部错误 —— 看原文里是否提到 ADMIN_TOKEN；若提到，说明 Secret 设了但没 Redeploy。";
+    else if(x.st === 401 && /NO_AUTH_HEADER|authorization/i.test(x.t))
+      tip = "网关要求鉴权头，但带头的请求被浏览器预检拦下了。请到 Supabase 项目里关掉本函数的 JWT 校验后重新部署。";
+    else if(x.st === 401) tip = "函数已通 —— 401 是预期的（未带会话），说明部署没问题，直接输口令登录即可。";
+    msg("pwdMsg", head + "\n" + txt + (tip ? ("\n\n判断：" + tip) : ""), "err");
   });
 }
 (function bindDiag(){
@@ -459,36 +503,28 @@ function api(action, params){
   var body = (action==="login")
     ? { action:"login", token:String(params.token||"") }
     : { action:action, session:GUARD.session, params:params };
-  return fetch(GUARD.url, {
-    method:"POST",
-    headers:guardHeaders(),
-    body:JSON.stringify(body)
-  }).then(function(r){
-    var st = r.status;
-    return r.text().then(function(t){
-      var d = null;
-      try{ d = JSON.parse(t); }catch(e){ d = null; }
-      if(!d || typeof d !== "object"){
-        /* 非 JSON 多半是平台层拦截或函数未部署，
-           此时必须把状态码和原文亮出来，否则只剩一句"登录失败"无从排查 */
-        return {ok:false, msg:"HTTP "+st+" · "+(String(t||"").slice(0,160)||"无响应内容")};
-      }
-      d._http = st;
-      /* 平台层拦截（403 policy_default_denied）返回的也是合法 JSON，
-         但既没有 ok 也没有 msg —— 若不当场拆开，前端只剩一句"登录失败"，
-         真正的 detail 被吞掉，谁也查不出原因。 */
-      if(d.ok === undefined && d.msg === undefined){
-        var why = String(d.detail || d.message || d.title || "").trim();
-        return {ok:false, msg:"HTTP "+st+" · "+(why || JSON.stringify(d).slice(0,160))};
-      }
-      return d;
-    });
-  }).then(function(d){
-    d = d || {ok:false, msg:"无响应"};
+  return guardFetch(body).then(function(x){
+    if(!x.reach){
+      return {ok:false, msg:"连不上鉴权函数（"+x.tried+"）"};
+    }
+    var st = x.st, t = x.t;
+    var d = null;
+    try{ d = JSON.parse(t); }catch(e){ d = null; }
+    if(!d || typeof d !== "object"){
+      /* 非 JSON 多半是平台层拦截或函数未部署，
+         此时必须把状态码和原文亮出来，否则只剩一句"登录失败"无从排查 */
+      return {ok:false, _http:st, msg:"HTTP "+st+" · "+(String(t||"").slice(0,160)||"无响应内容")};
+    }
+    d._http = st;
+    /* 平台层拦截（403 policy_default_denied）返回的也是合法 JSON，
+       但既没有 ok 也没有 msg —— 若不当场拆开，前端只剩一句"登录失败"，
+       真正的 detail 被吞掉，谁也查不出原因。 */
+    if(d.ok === undefined && d.msg === undefined){
+      var why = String(d.detail || d.message || d.title || "").trim();
+      return {ok:false, _http:st, msg:"HTTP "+st+" · "+(why || JSON.stringify(d).slice(0,160))};
+    }
     if(d.relogin) guardRelogin(d.msg);
     return d;
-  }).catch(function(e){
-    return {ok:false, msg:"网络失败："+String((e && e.message) || e || "")};
   });
 }
 

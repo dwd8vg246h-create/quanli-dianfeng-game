@@ -90,6 +90,10 @@ th{background:#faf8f2;font-weight:700;color:#666;white-space:nowrap}
       <input id="adminPwd" type="password" placeholder="请输入管理员口令" style="flex:1;min-width:180px">
       <button class="pri" id="btnPwd">登录</button>
     </div>
+    <div class="row" style="margin-top:6px">
+      <button class="sm" id="btnDiag">🩺 诊断连接</button>
+      <span class="mini">登录失败时点它，会把服务端的原始回应原样显示出来。</span>
+    </div>
     <div id="pwdMsg"></div>
     <div class="mini" style="margin-top:6px" id="pwdHint"></div>
     <div class="mini" style="margin-top:4px" id="guardState"></div>
@@ -186,7 +190,7 @@ th{background:#faf8f2;font-weight:700;color:#666;white-space:nowrap}
      是自己填错还是服务不通。 -->
 <script>
 /* 后台版本：与 version.json 保持一致，由 build.js 同步 */
-var ADMIN_VERSION = "20260914.1726";
+var ADMIN_VERSION = "20260914.1738";
 var CLOUD_CONFIG = {
   enabled: true,
   url: "https://zgkovjgkkvxoajcqxwfw.supabase.co",
@@ -325,7 +329,12 @@ $("btnPwd").onclick = function(){
     btn.disabled = true;
     api("login", {token:v}).then(function(r){
       btn.disabled = false;
-      if(!r || !r.ok){ msg("pwdMsg", (r && r.msg) || "登录失败", "err"); return; }
+      if(!r || !r.ok){
+        var m = (r && r.msg) || "登录失败";
+        if(r && r._http) m = "（HTTP "+r._http+"）"+m;
+        msg("pwdMsg", m, "err");
+        return;
+      }
       guardSessSet(r.session);
       $("adminPwd").value = "";
       $("main").style.display = "";
@@ -345,6 +354,48 @@ $("btnPwd").onclick = function(){
     loadAll();
   });
 };
+
+/* ---------- 诊断：把服务端的原始回应原样摊开 ----------
+   登录失败最常见的三类原因，界面上长得一模一样（都是"登录失败"）：
+     ① 函数没部署 / 名字不对      → 404，且返回体不是我们的 JSON
+     ② ADMIN_TOKEN 没设或没 Redeploy → 500 + "未设置环境变量 ADMIN_TOKEN"
+     ③ 平台层把请求拦了          → 403 policy_default_denied
+   不把原文亮出来，管理员只能猜。 */
+function guardDiag(){
+  var box = $("pwdMsg");
+  if(!box) return;
+  guardLoad();
+  if(!GUARD.on){ msg("pwdMsg","尚未启用服务端鉴权：请先在「连接配置」填入函数地址并启用。","err"); return; }
+  var btn = $("btnDiag"); if(btn) btn.disabled = true;
+  msg("pwdMsg","正在探测 "+GUARD.url+" …","");
+  fetch(GUARD.url, {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({action:"__diag__", session:""})
+  }).then(function(r){
+    var st = r.status;
+    return r.text().then(function(t){ return {st:st, t:t}; });
+  }).then(function(x){
+    if(btn) btn.disabled = false;
+    var head = "HTTP "+x.st;
+    var txt = String(x.t||"").slice(0,300) || "（无响应内容）";
+    var tip = "";
+    if(x.st === 404) tip = "函数不存在 —— 检查函数名是否为 admin-guard，以及是否已 Deploy。";
+    else if(x.st === 403) tip = "平台层拦截 —— 多为项目策略或未公开访问限制。";
+    else if(x.st >= 500) tip = "函数内部错误 —— 看下面原文里是否提到 ADMIN_TOKEN；若提到，说明 Secret 设了但没 Redeploy。";
+    else if(x.st === 401) tip = "函数已通 —— 这一步只说明路是通的，401 是预期的（没带会话）。";
+    msg("pwdMsg", head+"\n"+txt+(tip?("\n\n判断："+tip):""), "err");
+  }).catch(function(e){
+    if(btn) btn.disabled = false;
+    msg("pwdMsg","网络失败："+String((e && e.message)||e||""), "err");
+  });
+}
+(function bindDiag(){
+  try{
+    var b = $("btnDiag");
+    if(b) b.onclick = guardDiag;
+  }catch(e){}
+})();
 
 /* ---------- 管理数据通道 ----------
    默认走 Cloud 直连（与旧版行为完全一致）；
@@ -404,6 +455,13 @@ function api(action, params){
         return {ok:false, msg:"HTTP "+st+" · "+(String(t||"").slice(0,160)||"无响应内容")};
       }
       d._http = st;
+      /* 平台层拦截（403 policy_default_denied）返回的也是合法 JSON，
+         但既没有 ok 也没有 msg —— 若不当场拆开，前端只剩一句"登录失败"，
+         真正的 detail 被吞掉，谁也查不出原因。 */
+      if(d.ok === undefined && d.msg === undefined){
+        var why = String(d.detail || d.message || d.title || "").trim();
+        return {ok:false, msg:"HTTP "+st+" · "+(why || JSON.stringify(d).slice(0,160))};
+      }
       return d;
     });
   }).then(function(d){
@@ -897,18 +955,6 @@ if($("fSave"))  $("fSave").onchange  = render;
 if($("fSort"))  $("fSort").onchange  = render;
 if($("btnCsv")) $("btnCsv").onclick  = exportCsv;
 $("btnRefresh").onclick = loadAll;
-
-/* 恢复上次配置 */
-(function(){
-  try{
-    var raw = localStorage.getItem("qlp_cloud_cfg");
-    if(raw){ var c = JSON.parse(raw); $("url").value = c.url||""; $("key").value = c.key||""; }
-  }catch(e){}
-})();
-</script>
-</body>
-</html>
-ick = loadAll;
 
 /* 恢复上次配置 */
 (function(){

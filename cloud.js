@@ -109,6 +109,73 @@ var Cloud = (function(){
     });
   }
 
+  /* ============================================================
+     口令哈希（必须与游戏本体完全一致）
+     ------------------------------------------------------------
+     此前后台用 sha256("qlp_admin_" + pwd) 计算，而游戏本体是
+     sha256Hex(PWD_SALT + pwd + PWD_SALT)，PWD_SALT = "QLP_GADB_2026"。
+     两者算法不同 —— 管理员在后台"重置口令"成功后提示"口令已重置"，
+     但玩家用新口令登录时算出的哈希与库里的对不上，永远登不进去。
+     这是静默失效：界面报成功，实际把玩家的账号锁死了。
+     ============================================================ */
+  var PWD_SALT = "QLP_GADB_2026";
+  function sha256Hex(msg){
+    // —— UTF-8 编码 ——
+    var utf8 = [];
+    for(var i=0;i<msg.length;i++){
+      var c = msg.charCodeAt(i);
+      if(c < 0x80) utf8.push(c);
+      else if(c < 0x800){ utf8.push(0xc0|(c>>6), 0x80|(c&0x3f)); }
+      else if(c < 0xd800 || c >= 0xe000){
+        utf8.push(0xe0|(c>>12), 0x80|((c>>6)&0x3f), 0x80|(c&0x3f));
+      } else {
+        i++;
+        c = 0x10000 + (((c & 0x3ff)<<10) | (msg.charCodeAt(i) & 0x3ff));
+        utf8.push(0xf0|(c>>18), 0x80|((c>>12)&0x3f), 0x80|((c>>6)&0x3f), 0x80|(c&0x3f));
+      }
+    }
+    var len = utf8.length;
+    utf8.push(0x80);
+    while(utf8.length % 64 !== 56) utf8.push(0);
+    var bitLen = len * 8;
+    for(var s=56;s>=0;s-=8) utf8.push((bitLen / Math.pow(2, s)) & 0xff);
+    var K=[0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+      0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+      0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
+      0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+      0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
+      0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+      0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
+      0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+    var H=[0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+    function rotr(x,n){ return (x>>>n)|(x<<(32-n)); }
+    var w = new Array(64);
+    for(var b=0;b<utf8.length;b+=64){
+      for(var j=0;j<16;j++){
+        w[j] = (utf8[b+j*4]<<24)|(utf8[b+j*4+1]<<16)|(utf8[b+j*4+2]<<8)|utf8[b+j*4+3];
+      }
+      for(j=16;j<64;j++){
+        var s0 = rotr(w[j-15],7)^rotr(w[j-15],18)^(w[j-15]>>>3);
+        var s1 = rotr(w[j-2],17)^rotr(w[j-2],19)^(w[j-2]>>>10);
+        w[j] = (w[j-16] + s0 + w[j-7] + s1) >>> 0;
+      }
+      var a0=H[0],b0=H[1],c0=H[2],d0=H[3],e0=H[4],f0=H[5],g0=H[6],h0=H[7];
+      for(j=0;j<64;j++){
+        var S1 = rotr(e0,6)^rotr(e0,11)^rotr(e0,25);
+        var ch = (e0 & f0) ^ ((~e0) & g0);
+        var t1 = (h0 + S1 + ch + K[j] + w[j]) >>> 0;
+        var S0 = rotr(a0,2)^rotr(a0,13)^rotr(a0,22);
+        var mj = (a0 & b0) ^ (a0 & c0) ^ (b0 & c0);
+        var t2 = (S0 + mj) >>> 0;
+        h0=g0; g0=f0; f0=e0; e0=(d0+t1)>>>0; d0=c0; c0=b0; b0=a0; a0=(t1+t2)>>>0;
+      }
+      H[0]=(H[0]+a0)>>>0; H[1]=(H[1]+b0)>>>0; H[2]=(H[2]+c0)>>>0; H[3]=(H[3]+d0)>>>0;
+      H[4]=(H[4]+e0)>>>0; H[5]=(H[5]+f0)>>>0; H[6]=(H[6]+g0)>>>0; H[7]=(H[7]+h0)>>>0;
+    }
+    return H.map(function(x){ return x.toString(16).padStart(8,"0"); }).join("");
+  }
+  function userPwdHash(pwd){ return sha256Hex(PWD_SALT + pwd + PWD_SALT); }
+
   /* URL 编码，避免中文姓名/联系方式破坏查询串 */
   function enc(v){ return encodeURIComponent(String(v==null?"":v)); }
   /* PostgREST 的 eq 值需转义部分字符 */
@@ -306,9 +373,18 @@ var Cloud = (function(){
     });
   }
 
-  /* 摘要字段：供后台列表直接展示，避免把整个 jsonb 拉下来解析 */
+  /* 摘要字段：供后台列表直接展示，避免把整个 jsonb 拉下来解析
+     ------------------------------------------------------------
+     新增序列 / 军种 / 学历 / 世代 / 底蕴 / 财政 / 健康 / 任职地。
+     游戏这几次迭代加了身份序列（行政·军事·纪检）、九大军种、
+     家族传承（世代与底蕴），后台只显示职务与政绩，
+     管理员无从判断某人走的是哪条线、玩到什么程度。
+
+     一律防御性读取：老存档没有这些字段时返回 undefined，
+     由后台显示为"—"，不能因为新增字段就让整行渲染失败。 */
   function buildSummary(S){
     try{
+      var 户 = (S.family && S.family.出身) || S.出身 || "";
       return {
         姓名: S.name || "",
         职务: (typeof rankTitle === "function") ? rankTitle(S.rank) : "",
@@ -316,7 +392,17 @@ var Cloud = (function(){
         年份: (S.year||0) + "年" + (S.month||0) + "月",
         政绩: Math.round(S.政绩||0),
         道德: Math.round(S.道德||0),
-        结局: S.ending || ""
+        结局: S.ending || "",
+        序列: S.track || "行政",
+        军种: S.军种 || "",
+        学历: S.edu || "",
+        财政: (S.财政===undefined||S.财政===null) ? null : Math.round(S.财政),
+        健康: (S.健康===undefined||S.健康===null) ? null : Math.round(S.健康),
+        世代: (S.传承加成 && S.传承加成.世代) || S.世代 || 0,
+        底蕴: (S.传承加成 && S.传承加成.底蕴) || S.底蕴 || 0,
+        任职地: S.任职地 || "",
+        出身: 户,
+        在职: !S.ending
       };
     }catch(e){ return {}; }
   }
@@ -492,6 +578,10 @@ var Cloud = (function(){
     pullSave: pullSave,
     pushSave: pushSave,
     retryPending: retryPending,
+    /* 玩家口令哈希：必须与游戏本体一致，否则后台"重置口令"
+       会把玩家锁在门外（详见 sha256Hex 处的说明）。 */
+    userPwdHash: userPwdHash,
+    buildSummary: buildSummary,
     adminList: adminList,
     adminSaves: adminSaves,
     adminSetStatus: adminSetStatus,

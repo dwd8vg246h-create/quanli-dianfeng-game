@@ -190,7 +190,7 @@ th{background:#faf8f2;font-weight:700;color:#666;white-space:nowrap}
      是自己填错还是服务不通。 -->
 <script>
 /* 后台版本：与 version.json 保持一致，由 build.js 同步 */
-var ADMIN_VERSION = "20260914.1753";
+var ADMIN_VERSION = "20260914.1758";
 var CLOUD_CONFIG = {
   enabled: true,
   url: "https://zgkovjgkkvxoajcqxwfw.supabase.co",
@@ -372,7 +372,8 @@ function guardKey(){
 
 /* ---------- 三种投递方式，实测试探择优 ----------
    Supabase 网关对函数的放行方式因项目而异：
-     auth   → 带 Authorization: Bearer <anon key>
+     simple → Content-Type 用 text/plain，不触发预检（最优先）
+     auth    → 带 Authorization: Bearer <anon key>
      apikey → 带 apikey 头（Supabase 网关同样认可）
      plain → 不带任何自定义头（最简单，不触发预检）
      query → 密钥放在 URL 的 ?apikey= 上
@@ -389,7 +390,10 @@ function guardModeSave(m){
   try{ localStorage.setItem("qlp_guard_mode", m); }catch(e){}
 }
 function guardRaw(url, body, mode){
-  var headers = {"Content-Type":"application/json"};
+  /* simple：Content-Type 用 text/plain —— 这是 CORS 规范里的"简单请求"之一，
+     浏览器不会为它发 OPTIONS 预检。body 仍是 JSON 字符串，
+     Deno 的 req.json() 按文本解析，不看 Content-Type，所以服务端照收。 */
+  var headers = {"Content-Type": (mode === "simple" ? "text/plain" : "application/json")};
   var target = url, k = guardKey();
   if(mode === "auth" && k) headers["Authorization"] = "Bearer " + k;
   else if(mode === "apikey" && k) headers["apikey"] = k;
@@ -404,7 +408,7 @@ function guardRaw(url, body, mode){
 }
 function guardFetch(body){
   guardLoad(); guardModeLoad();
-  var all = ["auth","apikey","query","plain"];
+  var all = ["simple","auth","apikey","query","plain"];
   var order = (GUARD_MODE && all.indexOf(GUARD_MODE) >= 0)
     ? [GUARD_MODE].concat(all.filter(function(m){ return m !== GUARD_MODE; }))
     : all;

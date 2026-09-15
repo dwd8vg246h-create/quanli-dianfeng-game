@@ -192,7 +192,7 @@ th{background:#faf8f2;font-weight:700;color:#666;white-space:nowrap}
      是自己填错还是服务不通。 -->
 <script>
 /* 后台版本：与 version.json 保持一致，由 build.js 同步 */
-var ADMIN_VERSION = "20260914.2356";
+var ADMIN_VERSION = "20260915.0857";
 var CLOUD_CONFIG = {
   enabled: true,
   url: "https://zgkovjgkkvxoajcqxwfw.supabase.co",
@@ -994,28 +994,52 @@ $("q").oninput = render;
 /* ---------- 版本检测 ----------
    后台同样会被浏览器缓存（cloud.js 曾因旧缓存导致 URL 清洗失效）。
    与游戏共用同一个 version.json，不一致时提示刷新。 */
+/* 强制重载：先让浏览器重新拉取 HTML 并覆盖 HTTP 缓存，再跳转。
+   此前只做 location.replace(url)，手机浏览器（尤其开了"省流量加速"的）
+   会直接命中本地缓存返回旧页面——管理员看到的现象就是"点了没反应"。 */
+function hardReloadAdmin(url){
+  var done = function(){
+    try{ location.replace(url); }
+    catch(e){ try{ location.href = url; }catch(e2){} }
+  };
+  var p = null;
+  try{
+    if(typeof fetch === "function") p = fetch(url, {cache:"reload", credentials:"same-origin"});
+  }catch(e){ p = null; }
+  if(p && p.then){
+    p.then(function(){ setTimeout(done, 80); }, function(){ setTimeout(done, 80); });
+  }else{
+    setTimeout(done, 30);
+  }
+}
+
 function checkAdminUpdate(){
   try{
     if(typeof fetch !== "function") return;
     var href = location.href || "";
     var pure = href.split("#")[0].split("?")[0];
     var base = pure.replace(/[^\/]*$/, "");
-    /* URL 是否已带过破缓存参数：带过说明已经刷新过一次，
-       若版本仍落后则是 CDN 尚未更新，此时绝不能再自动刷新——
-       否则会陷入"刷新→还是旧版→再刷新"的死循环。 */
-    var alreadyBusted = /\?.*_t=/.test(href);
+    var cur = String(window.ADMIN_VERSION||"");
+    /* 已尝试破缓存的次数。超过 1 次仍落后，说明 CDN / 代理尚未生效，
+       此时绝不能再自动刷新——否则"刷新→还是旧版→再刷新"死循环，
+       页面会不停跳转，管理员根本没法操作。 */
+    var tries = 0;
+    try{ tries = parseInt(sessionStorage.getItem("qlp_admin_bust_n")||"0",10)||0; }catch(e){}
     fetch(base + "version.json?t=" + Date.now(), {cache:"no-store", headers:{"Cache-Control":"no-cache"}})
       .then(function(r){ return r.ok ? r.json() : null; })
       .catch(function(){ return null; })
       .then(function(d){
         if(!d || !d.v) return;
-        if(String(d.v) === String(window.ADMIN_VERSION||"")) return;
-        /* 首次发现落后：直接自动刷新，不必等管理员点按钮。
-           后台页面被浏览器缓存是常态，靠人工点"刷新"总有漏网，
-           几次下来管理员就会以为功能没做。 */
-        if(!alreadyBusted){
-          try{ sessionStorage.setItem("qlp_admin_bust","1"); }catch(e){}
-          location.replace(pure + "?_v=" + encodeURIComponent(String(d.v)) + "&_t=" + Date.now());
+        var latest = String(d.v);
+        if(latest === cur){
+          try{ sessionStorage.removeItem("qlp_admin_bust_n"); }catch(e){}
+          return;
+        }
+        if(tries < 1){
+          /* 首次发现落后：自动硬刷新一次。后台被缓存是常态，
+             靠管理员手动点总有漏网。 */
+          try{ sessionStorage.setItem("qlp_admin_bust_n", String(tries+1)); }catch(e){}
+          hardReloadAdmin(pure + "?_v=" + encodeURIComponent(latest) + "&_t=" + Date.now());
           return;
         }
         var old = document.getElementById("adminUpdBar");
@@ -1024,15 +1048,19 @@ function checkAdminUpdate(){
         bar.id = "adminUpdBar";
         bar.style.cssText = "position:fixed;left:0;right:0;bottom:0;z-index:99999;background:#b01e23;"+
           "color:#fff;padding:10px 12px;font-size:13px;display:flex;align-items:center;gap:8px;box-shadow:0 -2px 12px rgba(0,0,0,.3)";
-        bar.innerHTML = '<div style="flex:1">后台有新版本（'+String(d.v)+
-          '），页面缓存尚未刷新</div>';
+        bar.innerHTML = '<div style="flex:1;line-height:1.6">后台有新版本：当前 <b>v'+cur+
+          '</b> → 最新 <b>v'+latest+'</b><br><span style="opacity:.85;font-size:12px">'+
+          (tries>=2
+            ? '已尝试 '+tries+' 次仍未拉到新版，多为 CDN 或手机浏览器的省流量代理缓存。请等待 1–2 分钟，或用无痕模式打开。'
+            : '页面文件被缓存，点右侧按钮强制重新拉取。')+
+          '</span></div>';
         var b = document.createElement("button");
-        b.textContent = "手动刷新";
-        b.style.cssText = "background:#fff;color:#b01e23;border:0;border-radius:6px;padding:6px 12px;font-weight:700";
+        b.textContent = "强制刷新";
+        b.style.cssText = "background:#fff;color:#b01e23;border:0;border-radius:6px;padding:8px 12px;font-weight:700;white-space:nowrap";
         b.onclick = function(){
-          try{
-            location.replace(pure + "?_v=" + encodeURIComponent(String(d.v)) + "&_t=" + Date.now());
-          }catch(e){ try{ location.reload(true); }catch(e2){} }
+          b.disabled = true; b.textContent = "刷新中…";
+          try{ sessionStorage.setItem("qlp_admin_bust_n", String(tries+1)); }catch(e){}
+          hardReloadAdmin(pure + "?_v=" + encodeURIComponent(latest) + "&_t=" + Date.now());
         };
         bar.appendChild(b);
         document.body.appendChild(bar);

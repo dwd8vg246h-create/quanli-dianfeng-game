@@ -192,11 +192,14 @@ th{background:#faf8f2;font-weight:700;color:#666;white-space:nowrap}
      是自己填错还是服务不通。 -->
 <script>
 /* 后台版本：与 version.json 保持一致，由 build.js 同步 */
-var ADMIN_VERSION = "20260915.0857";
+var ADMIN_VERSION = "20260915.0919";
 var CLOUD_CONFIG = {
   enabled: true,
   url: "https://zgkovjgkkvxoajcqxwfw.supabase.co",
-  key: "sb_publishable_CtDImUOKxPCR6IPgM79Rhw_dRwDjqbl"
+  key: "sb_publishable_CtDImUOKxPCR6IPgM79Rhw_dRwDjqbl",
+  /* 服务端鉴权函数地址。内置于此，任意设备打开后台都强制走服务端校验；
+     此前只存在 localStorage，换一台设备打开就没有鉴权，等于门户大开。 */
+  guard: "https://zgkovjgkkvxoajcqxwfw.supabase.co/functions/v1/admin-guard"
 };
 </script>
 <script src="cloud.js?v=6"></script>
@@ -351,14 +354,11 @@ $("btnPwd").onclick = function(){
   sha256(v).then(function(h){
     var saved = localStorage.getItem(ADMIN_PWD_KEY);
     if(!saved){
-      /* 只有走「改用本机口令」这条兜底路径时才允许自设；
-         常规路径下首个打开者自设即放行，等于把钥匙交给第一个推门的人。 */
-      if(!FALLBACK_OK){
-        msg("pwdMsg","本机未设置口令。请启用服务端鉴权，或点「改用本机口令」后自设。","err");
-        return;
-      }
-      localStorage.setItem(ADMIN_PWD_KEY, h); saved = h;
-      msg("pwdMsg","本机口令已设置，今后用这个口令登录本机。","ok");
+      /* 本机从未设过口令 —— 一律拒绝，不允许在此自设。
+         旧逻辑是"没设过就自设一个"，于是任何人拿到链接、
+         第一次打开即成为管理员。本机口令只能由本机此前设置过才有效。 */
+      msg("pwdMsg","本机未设置口令，且不允许在此自设。请用服务端鉴权登录。","err");
+      return;
     }
     if(h !== saved){ msg("pwdMsg","口令有误","err"); return; }
     $("main").style.display = "";
@@ -375,6 +375,12 @@ $("btnPwd").onclick = function(){
    代价必须写在脸上：本机口令只挡误触，不防拿到链接的人。 */
 var FALLBACK_OK = false;
 function guardFallback(){
+  var _has = false;
+  try{ _has = !!localStorage.getItem(ADMIN_PWD_KEY); }catch(e){}
+  if(!_has){
+    msg("pwdMsg","本机从未设置过口令，不能改用本机口令模式。请修复服务端鉴权后登录。","err");
+    return;
+  }
   FALLBACK_OK = true;
   try{ localStorage.removeItem("qlp_admin_guard_url"); }catch(e){}
   GUARD.on = false; GUARD.url = ""; GUARD.session = "";
@@ -521,7 +527,9 @@ function guardDiag(){
 var GUARD = { url:"", session:"", on:false };
 function guardLoad(){
   try{
-    GUARD.url = String(localStorage.getItem("qlp_admin_guard_url")||"").trim();
+    var _ls = "";
+    try{ _ls = String(localStorage.getItem("qlp_admin_guard_url")||"").trim(); }catch(e){}
+    GUARD.url = _ls || String((window.CLOUD_CONFIG && CLOUD_CONFIG.guard)||"").trim();
     GUARD.session = String(sessionStorage.getItem("qlp_admin_session")||"");
   }catch(e){ GUARD.url=""; GUARD.session=""; }
   GUARD.on = !!GUARD.url;

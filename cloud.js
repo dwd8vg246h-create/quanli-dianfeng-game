@@ -70,6 +70,42 @@ var Cloud = (function(){
   }
 
   /* ============================================================
+     RPC 通道
+     ------------------------------------------------------------
+     收紧数据库权限后，anon 不再拥有 game_users 的 SELECT 权限，
+     登录等读取只能经由 SECURITY DEFINER 函数完成。
+     函数尚未部署时（404 / PGRST202）自动回落到直连，
+     保证"先跑 SQL"与"先发版"两种顺序都不会把玩家锁在门外。
+     ============================================================ */
+  var _rpcOff = false;
+  function rpc(name, payload){
+    if(_rpcOff) return Promise.resolve({error:{message:"rpc unavailable", status:404}});
+    var url = URL + "/rest/v1/rpc/" + name;
+    var headers = {
+      "apikey": KEY,
+      "Authorization": "Bearer " + KEY,
+      "Content-Type": "application/json",
+      "Accept": "application/json"
+    };
+    return fetch(url, {method:"POST", headers:headers, body: JSON.stringify(payload||{})})
+      .then(function(r){
+        return r.text().then(function(t){
+          var data = null;
+          try{ data = t ? JSON.parse(t) : null; }catch(e){ data = t; }
+          if(!r.ok){
+            if(r.status === 404) _rpcOff = true;
+            return {error:{message:(data && (data.message||data.msg))||("HTTP "+r.status),
+                           status:r.status, code:(data && (data.code||data.hint))||""}};
+          }
+          return {data:data};
+        });
+      }).catch(function(e){ return {error:{message:String((e&&e.message)||e), status:0}}; });
+  }
+  function rpcMissed(err){
+    return err && (err.status === 404 || err.code === "PGRST202" || err.code === "42883");
+  }
+
+  /* ============================================================
      PostgREST 请求封装
      ============================================================ */
   function req(method, path, body, prefer, timeoutMs){
@@ -265,22 +301,38 @@ var Cloud = (function(){
 
   function findUser(empId){
     if(!isReady()) return Promise.resolve({ok:false, offline:true});
-    return req("GET", "game_users?select="+USER_COLS+"&emp_id=eq."+eqv(empId)+"&limit=1",
-      null, null, 8000).then(function(res){
-      if(res.error) return {ok:false, msg:res.error.message};
-      if(!res.data || !res.data.length) return {ok:false, notFound:true};
-      return {ok:true, user:res.data[0]};
+    return rpc("ql_login", {p_emp:String(empId||""), p_contact:null, p_hash:null})
+      .then(function(r){
+      if(!r.error){
+        if(r.data && r.data.length) return {ok:true, user:r.data[0]};
+        return {ok:false, notFound:true};
+      }
+      if(rpcMissed(r.error)) _rpcOff = true;
+      return req("GET", "game_users?select="+USER_COLS+"&emp_id=eq."+eqv(empId)+"&limit=1",
+        null, null, 8000).then(function(res){
+        if(res.error) return {ok:false, msg:res.error.message};
+        if(!res.data || !res.data.length) return {ok:false, notFound:true};
+        return {ok:true, user:res.data[0]};
+      });
     });
   }
 
   /* 游戏内登录按"联系方式"匹配，云端须一致 */
   function findByContact(contact){
     if(!isReady()) return Promise.resolve({ok:false, offline:true});
-    return req("GET", "game_users?select="+USER_COLS+"&contact=eq."+eqv(contact)+"&limit=1",
-      null, null, 8000).then(function(res){
-      if(res.error) return {ok:false, msg:res.error.message};
-      if(!res.data || !res.data.length) return {ok:false, notFound:true};
-      return {ok:true, user:res.data[0]};
+    return rpc("ql_login", {p_emp:null, p_contact:String(contact||""), p_hash:null})
+      .then(function(r){
+      if(!r.error){
+        if(r.data && r.data.length) return {ok:true, user:r.data[0]};
+        return {ok:false, notFound:true};
+      }
+      if(rpcMissed(r.error)) _rpcOff = true;
+      return req("GET", "game_users?select="+USER_COLS+"&contact=eq."+eqv(contact)+"&limit=1",
+        null, null, 8000).then(function(res){
+        if(res.error) return {ok:false, msg:res.error.message};
+        if(!res.data || !res.data.length) return {ok:false, notFound:true};
+        return {ok:true, user:res.data[0]};
+      });
     });
   }
 
@@ -288,14 +340,18 @@ var Cloud = (function(){
   function touchLogin(userId){
     if(!isReady()) return;
     try{
-      req("GET", "game_users?select=login_count&id=eq."+eqv(userId), null, null, 8000)
-        .then(function(r){
-          if(r.error || !r.data || !r.data.length) return;
-          req("PATCH", "game_users?id=eq."+eqv(userId), {
-            login_count: (r.data[0].login_count||0) + 1,
-            last_login_at: new Date().toISOString()
-          }, null, 8000);
-        });
+      rpc("ql_touch", {p_uid:String(userId||"")}).then(function(r){
+        if(!r.error) return;
+        if(rpcMissed(r.error)) _rpcOff = true;
+        req("GET", "game_users?select=login_count&id=eq."+eqv(userId), null, null, 8000)
+          .then(function(rr){
+            if(rr.error || !rr.data || !rr.data.length) return;
+            req("PATCH", "game_users?id=eq."+eqv(userId), {
+              login_count: (rr.data[0].login_count||0) + 1,
+              last_login_at: new Date().toISOString()
+            }, null, 8000);
+          });
+      });
     }catch(e){}
   }
 
@@ -546,9 +602,13 @@ var Cloud = (function(){
   function ping(){
     if(!isReady()) return Promise.resolve({ok:false, msg:"未初始化"});
     var t0 = Date.now();
-    return req("GET", "game_users?select=id&limit=1", null, null, 8000).then(function(res){
-      if(res.error) return {ok:false, msg:res.error.message};
-      return {ok:true, ms:(Date.now()-t0)};
+    return rpc("ql_ping", {}).then(function(r){
+      if(!r.error) return {ok:true, ms:(Date.now()-t0)};
+      if(rpcMissed(r.error)) _rpcOff = true;
+      return req("GET", "game_users?select=id&limit=1", null, null, 8000).then(function(res){
+        if(res.error) return {ok:false, msg:res.error.message};
+        return {ok:true, ms:(Date.now()-t0)};
+      });
     });
   }
 

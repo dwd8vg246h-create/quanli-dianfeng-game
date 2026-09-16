@@ -791,7 +791,7 @@ var MAIL_CONFIG = {
    避免玩家长期停留在旧版缓存上——本作多次改动（在线统计、
    云端同步）都曾因浏览器缓存而"改了没生效"。
    放在独立 script 块中，不参与压缩，名称不会被改写。 */
-var APP_VERSION = "20260916.1900";
+var APP_VERSION = "20260916.1937";
 </script>
 </head>
 <body>
@@ -1076,11 +1076,40 @@ function postCore(rankArg){
   }catch(e){}
   var cat = dept.cat || (/人民政府/.test(name) ? "政府" : "");
   var 班子类型 = postTeamType(cat, 建制层 || 主官层, name, dept.tier || "");
+  /* 高配主官：本人职级高于机构建制层，并不等于"不在班子"。
+     现实中县公安局建制正科级，局长由副处级干部担任（常兼副县长）；
+     市公安局长常由副市长兼任；县法院院长、县检察院检察长同理。
+     此类主官按建制层算差值会得到负数，被判成"高于建制"，于是：
+       · 班子名录里没有本人（在班子 = false）
+       · 直接上司被指派为本单位副局长（局长之上还有副局长，荒谬）
+     故按"职务名是否即本机关主官称谓"识别高配主官。
+     含"副"字者（副局长、副院长、副检察长）不在此列，
+     也不影响"副市长在市财政局"这类真实的越级任职。 */
+  var 高配主官 = false;
+  try{
+    /* 法检公安是高配机关：建制层与首长配备本就不同步
+       （县法院建制正科级、院长配副处级；县公安局建制正科级、
+       局长常由副县长兼任）。按建制算差值，首长会被判成
+       "高于建制"或"内设正职"，于是上司变成本院副局长/副院长。
+       故此类机关只要职务名即本机关主官称谓，一律认定为正职。 */
+    var _gpOrg = /人民法院|人民检察院|公安局|公安厅|公安部/.test(name);
+    if(身份 === "高于建制" || (_gpOrg && 身份 !== "正职" && 身份 !== "副职")){
+      var _tt2 = (typeof rankTitle === "function") ? String(rankTitle(rank)||"") : String(r[0]||"");
+      if(_tt2 && !/副/.test(_tt2) && typeof deptHeadTitles === "function"){
+        var _hd2 = deptHeadTitles(name, 班子类型 || "");
+        var _zz = String((_hd2 && _hd2.正职) || "");
+        if(_zz && _tt2.length >= _zz.length && _tt2.slice(-_zz.length) === _zz){
+          身份 = "正职";
+          高配主官 = true;
+        }
+      }
+    }
+  }catch(e){}
   var 在班子 = (身份 === "正职" || 身份 === "副职");
   return {
     rank: rank, 机构名: name, 机构类别: cat, 机构建制: dept.level || "—",
     建制层: 建制层, 主官层: 主官层, 职级层: 职级层, 差: 差,
-    身份: 身份, 班子类型: 班子类型, 在班子: 在班子,
+    身份: 身份, 班子类型: 班子类型, 在班子: 在班子, 高配主官: 高配主官,
     职务名: (typeof rankTitle === "function") ? rankTitle(rank) : (r[0] || "—"),
     tier: dept.tier || "—",
   };
@@ -1930,6 +1959,15 @@ function generateLeadership(){
       })[0] || null) : null;
       var boss = _gm || L.members.filter(function(m){ return m.isBoss; })[0] || null;
       if(boss) S.直接上司 = boss;
+    } else if(pc && pc.身份 === "高于建制"){
+      /* 高配主官：本人职级高于机构建制层，但仍是本机关一把手
+         （副处级的县公安局长、副厅级的市公安局长、县法院院长等）。
+         其组织关系在上级机关，绝不可把本单位副职指派为其上司——
+         否则界面上就会出现"公安局长的上司是副局长"。
+         名录里那个按建制生成的 NPC 正职也必须撤掉。 */
+      L.members = L.members.filter(function(m){ return !m.isBoss || m.isSelf; });
+      S.一把手 = me;
+      S.直接上司 = superiorEntryFor(pc);
     } else {
       /* 中层及以下：直接上司是分管副职 */
       var vice = L.members.filter(function(m){ return m.isDirectBoss; })[0]

@@ -1075,7 +1075,7 @@ var MAIL_CONFIG = {
    避免玩家长期停留在旧版缓存上——本作多次改动（在线统计、
    云端同步）都曾因浏览器缓存而"改了没生效"。
    放在独立 script 块中，不参与压缩，名称不会被改写。 */
-var APP_VERSION = "20260916.2216";
+var APP_VERSION = "20260916.2242";
 </script>
 </head>
 <body>
@@ -4567,6 +4567,311 @@ function pCouncil(){
     [80,400,1200,3000].forEach(function(d){ try{ setTimeout(boot,d); }catch(e){} });
     window.__inkGold={normalize:norm,enabled:true};
   }catch(e){ window.__inkGold={normalize:function(){},enabled:false}; }
+})();
+</script>
+
+<script>
+/* ============================================================
+   界面减法引擎（__declutter）
+   ------------------------------------------------------------
+   针对「一屏塞太满、看不出分组」的观感问题，做三件事：
+
+   一、分组：每张卡片按标题内容归入一个主题，卡头左侧加一条
+       主题色竖线、卡头加分隔线——相邻卡片是不是同一类，
+       一眼可辨。
+   二、折叠：纯阅读型内容（日志、记录、历史、依据、附录、
+       名单、明细、说明）默认收起，只留一行标题；
+       长列表与过密的说明段同样收起，需要时点开。
+       含按钮/输入框的卡片一律不折叠——操作不能被藏起来。
+   三、留白：卡片间距、卡头下方间距统一放大。
+
+   幂等：处理过的节点打 data-dcl 标记，重复扫描不再改动。
+   开关：localStorage 设 declutter=off 并刷新即可回到原样。
+   ============================================================ */
+(function(){
+  try{
+    if(typeof document==="undefined") return;
+    try{ if(localStorage.getItem("declutter")==="off") return; }catch(e){}
+
+    /* ---------- 样式 ---------- */
+    var CSS=[
+      /* 留白：卡片之间拉开距离，卡头与正文之间也留一口气 */
+      ".card{margin-bottom:14px !important;}",
+      ".card-h{padding-bottom:8px !important;margin-bottom:10px !important;"+
+        "font-size:14px !important;font-weight:700 !important;letter-spacing:.4px;"+
+        "border-bottom:1px solid rgba(201,169,106,.22);position:relative;padding-left:12px !important;}",
+      /* 主题色竖线：这就是「分组」的视觉锚点 */
+      ".card[data-sec]>.card-h::before{content:'';position:absolute;left:0;top:1px;bottom:6px;"+
+        "width:3px;border-radius:2px;background:var(--sec-c,#8a8170);}",
+      /* 可折叠卡片的展开指示 */
+      ".card[data-fold='1']>.card-h{cursor:pointer;user-select:none;}",
+      ".card[data-fold='1']>.card-h::after{content:'▸';position:absolute;right:2px;top:0;"+
+        "font-size:12px;color:var(--gold);opacity:.75;}",
+      ".card[data-fold='1'][data-open='1']>.card-h::after{content:'▾';}",
+      /* 折叠触发条 */
+      ".dcl-more{display:block;width:100%;margin-top:9px;padding:7px 0;text-align:center;"+
+        "font-size:11.5px;color:var(--gold);background:rgba(0,0,0,.22);"+
+        "border:1px solid rgba(201,169,106,.3);border-radius:8px;cursor:pointer;}",
+      ".dcl-hide{display:none !important;}",
+      /* 顶栏「更多」：次要指标收进去，顶栏不再挤成一排 */
+      ".dcl-attrmore{cursor:pointer;user-select:none;opacity:.9;}",
+      ".dcl-attrbox{display:inline;}",
+      /* 分区标题：一屏只展开一个主题，其余收成一行 */
+      ".dcl-sech{display:flex;align-items:center;gap:7px;margin:16px 0 8px;padding:7px 11px;"+
+        "font-size:12.5px;font-weight:700;letter-spacing:.5px;color:var(--gold);"+
+        "background:rgba(0,0,0,.34);border-left:3px solid var(--gold);"+
+        "border-radius:0 8px 8px 0;cursor:pointer;user-select:none;}",
+      ".dcl-sech .dcl-n{margin-left:auto;font-size:10.5px;opacity:.72;font-weight:400;}",
+      ".dcl-sech::after{content:'▸';font-size:11px;opacity:.8;margin-left:2px;}",
+      ".dcl-sech[data-open='1']::after{content:'▾';}"
+    ].join("\n");
+    try{
+      var st=document.createElement("style");
+      st.setAttribute("data-dcl-css","1");
+      st.appendChild(document.createTextNode(CSS));
+      (document.head||document.documentElement).appendChild(st);
+    }catch(e){}
+
+    /* ---------- 主题归类 ---------- */
+    var SEC=[
+      [/考核|指标|政绩|实绩|政务|工作|施政|政令/,"政务","#b01e23"],
+      [/财政|预算|债务|资产|理财|银行|存款|收入|房产|车辆|工资|待遇|保障/,"财金","#c9a96a"],
+      [/廉政|风险|巡视|纪检|举报|处分|留置|双规|监督/,"廉政","#8e2f2f"],
+      [/人脉|门生|派系|关系|站队|圈子/,"人脉","#4a6f96"],
+      [/档案|履历|日志|记录|学历|奖惩|教育|资质/,"档案","#6b7280"],
+      [/权力|班子|任免|干部|人事|组织|提名/,"权力","#7a5aa8"],
+      [/事件|突发|应急|信访|维稳|事故/,"事件","#c2713a"],
+      [/城市|城建|项目|工程|规划|建设/,"城建","#3f7d6a"],
+      [/家庭|配偶|子女|亲属|婚姻/,"家事","#8a6d3b"]
+    ];
+    function secOf(t){
+      t=String(t||"");
+      for(var i=0;i<SEC.length;i++){ if(SEC[i][0].test(t)) return SEC[i]; }
+      return [null,"其他","#8a8170"];
+    }
+    /* 纯阅读型卡片：默认收起，只留标题 */
+    var SECONDARY=/日志|记录|历史|履历|依据|附录|说明|细则|名单|明细|口径|科普|规则|奖惩|教育经历|成长轨迹|任职文件|公文/;
+    /* 有操作元素就不折叠——功能不能被藏 */
+    function hasAction(el){
+      try{
+        return !!el.querySelector("button,.btn,[data-act],[data-t],input,select,textarea,[onclick],a[href]");
+      }catch(e){ return false; }
+    }
+    function cardTitle(card){
+      var h=card.querySelector(".card-h");
+      if(h) return h.textContent||"";
+      var t=card.querySelector(".tb-title,.scene-title,h3,h4");
+      return t? (t.textContent||"") : "";
+    }
+    function mkMore(txt,on){
+      var b=document.createElement("button");
+      b.type="button"; b.className="dcl-more"; b.textContent=txt;
+      b.onclick=function(){
+        var open=on();
+        b.textContent=open? "收起 ▲" : txt;
+      };
+      return b;
+    }
+    function foldCard(card){
+      var b=card.querySelector(".card-b");
+      if(!b) return;
+      card.setAttribute("data-fold","1");
+      card.setAttribute("data-open","0");
+      b.classList.add("dcl-hide");
+      var h=card.querySelector(".card-h");
+      if(h) h.onclick=function(){
+        var open=card.getAttribute("data-open")==="1";
+        card.setAttribute("data-open", open?"0":"1");
+        if(open) b.classList.add("dcl-hide"); else b.classList.remove("dcl-hide");
+      };
+    }
+    /* 长列表：超量的条目收起 */
+    function foldList(card){
+      var b=card.querySelector(".card-b");
+      if(!b) return;
+      var kids=[].slice.call(b.children);
+      if(kids.length<9) return;
+      var tail=kids.slice(6);
+      /* 尾巴里若有操作控件，就不收——避免把按钮藏起来 */
+      for(var i=0;i<tail.length;i++){ if(hasAction(tail[i])) return; }
+      tail.forEach(function(el){ el.classList.add("dcl-hide"); });
+      b.appendChild(mkMore("展开其余 "+tail.length+" 项",function(){
+        var open=b.getAttribute("dcl-l")==="1";
+        tail.forEach(function(el){ if(open) el.classList.add("dcl-hide"); else el.classList.remove("dcl-hide"); });
+        b.setAttribute("dcl-l", open?"0":"1");
+        return !open;
+      }));
+    }
+    /* 过密的说明段：第三条起的长说明收起 */
+    function foldNotes(card){
+      var b=card.querySelector(".card-b");
+      if(!b) return;
+      var kids=[].slice.call(b.children).filter(function(el){
+        return /(^|\s)mini(\s|$)/.test(el.className||"");
+      });
+      if(kids.length<3) return;
+      var tail=kids.slice(2).filter(function(el){
+        return (el.textContent||"").replace(/\s/g,"").length>24;
+      });
+      if(tail.length<1) return;
+      tail.forEach(function(el){ el.classList.add("dcl-hide"); });
+      b.appendChild(mkMore("展开说明 ▾",function(){
+        var open=b.getAttribute("dcl-n")==="1";
+        tail.forEach(function(el){ if(open) el.classList.add("dcl-hide"); else el.classList.remove("dcl-hide"); });
+        b.setAttribute("dcl-n", open?"0":"1");
+        return !open;
+      }));
+    }
+    function normCard(card){
+      if(card.getAttribute("data-dcl")) return;
+      card.setAttribute("data-dcl","1");
+      var t=cardTitle(card);
+      var s=secOf(t);
+      card.setAttribute("data-sec",s[1]);
+      try{ card.style.setProperty("--sec-c",s[2]); }catch(e){}
+      var sec=secOf(t);
+      /* 档案类与阅读型才默认收起；且不含操作控件 */
+      if(SECONDARY.test(t) && !hasAction(card)){ foldCard(card); return; }
+      foldList(card);
+      foldNotes(card);
+    }
+    /* 指标格过密时收起 */
+    function normGrid(g){
+      if(g.getAttribute("data-dcl")) return;
+      g.setAttribute("data-dcl","1");
+      var items=[].slice.call(g.children);
+      if(items.length<7) return;
+      var tail=items.slice(6);
+      tail.forEach(function(el){ el.classList.add("dcl-hide"); });
+      var more=mkMore("展开其余 "+tail.length+" 项",function(){
+        var open=g.getAttribute("dcl-g")==="1";
+        tail.forEach(function(el){ if(open) el.classList.add("dcl-hide"); else el.classList.remove("dcl-hide"); });
+        g.setAttribute("dcl-g", open?"0":"1");
+        return !open;
+      });
+      (g.parentNode||g).appendChild(more);
+    }
+    /* 顶栏：只留前四项核心指标 */
+    function normTopbar(){
+      var box=document.querySelector(".attrs");
+      if(!box || box.getAttribute("data-dcl")) return;
+      box.setAttribute("data-dcl","1");
+      var items=[].slice.call(box.children);
+      if(items.length<6) return;
+      var rest=items.slice(4);
+      var more=document.createElement("span");
+      more.className="attr dcl-attrmore";
+      more.textContent="⋯ 更多 "+rest.length;
+      var wrap=document.createElement("span");
+      wrap.className="dcl-attrbox dcl-hide";
+      rest.forEach(function(el){ wrap.appendChild(el); });
+      box.appendChild(more); box.appendChild(wrap);
+      more.onclick=function(){
+        var open=!wrap.classList.contains("dcl-hide");
+        if(open){ wrap.classList.add("dcl-hide"); more.textContent="⋯ 更多 "+rest.length; }
+        else { wrap.classList.remove("dcl-hide"); more.textContent="收起"; }
+      };
+    }
+    function norm(root){
+      try{
+        if(!root||!root.querySelectorAll) return;
+        var cards=root.querySelectorAll(".card");
+        for(var i=0;i<cards.length;i++){ try{ normCard(cards[i]); }catch(e){} }
+        var gs=root.querySelectorAll(".stat-grid");
+        for(var j=0;j<gs.length;j++){ try{ normGrid(gs[j]); }catch(e){} }
+        if(root.querySelector && root.querySelector(".attrs")) normTopbar();
+        normSections();
+      }catch(e){}
+    }
+
+    /* ---------- 页面分区 ----------
+       同一主题的连续卡片归为一个分区，每个分区最多 4 张。
+       首个分区展开，其余收成一行标题——一屏只剩一个主题的内容，
+       既减少了信息量，也让「哪几张卡是一类」一目了然。
+       只插入标题节点 + 给卡片加隐藏类，不移动原有卡片，
+       避免破坏游戏自身对 DOM 结构的依赖。 */
+    var OPENED={};                       // 本次会话内记住手动展开的分区
+    function setOpen(h,items,open){
+      h.setAttribute("data-open", open?"1":"0");
+      for(var i=0;i<items.length;i++){
+        try{ if(open) items[i].classList.remove("dcl-hide"); else items[i].classList.add("dcl-hide"); }catch(e){}
+      }
+    }
+    function normSections(){
+      var main=document.getElementById("main");
+      if(!main) return;
+      var kids=[].slice.call(main.children).filter(function(el){
+        return /(^|\s)card(\s|$)/.test(el.className||"");
+      });
+      /* 已分过区：卡片数与首张卡标题都没变就不动；变了说明重绘过，重做一次。
+         只比数量不够——换了一页但卡片数恰好相同会漏判，旧标题就残留了。 */
+      var _fp=String(kids.length)+"|"+(kids[0]?(kids[0].textContent||"").slice(0,24):"");
+      if(main.getAttribute("dcl-secd")==="1"){
+        if(String(main.getAttribute("dcl-secd-n")||"")===_fp) return;
+        try{
+          var olds=main.querySelectorAll(".dcl-sech");
+          for(var q=0;q<olds.length;q++) olds[q].parentNode.removeChild(olds[q]);
+        }catch(e){}
+        main.removeAttribute("dcl-secd");
+      }
+      if(kids.length<4) return;
+      main.setAttribute("dcl-secd","1");
+      main.setAttribute("dcl-secd-n",_fp);
+      /* 先确保每张卡都有主题 */
+      for(var k=0;k<kids.length;k++){ if(!kids[k].getAttribute("data-sec")) normCard(kids[k]); }
+      var groups=[], cur=null;
+      kids.forEach(function(c){
+        var s=c.getAttribute("data-sec")||"其他";
+        if(!cur || cur.s!==s || cur.items.length>=4){ cur={s:s,items:[]}; groups.push(cur); }
+        cur.items.push(c);
+      });
+      if(groups.length<2) return;
+      var tab="";
+      try{ tab=String(window.curTab||""); }catch(e){}
+      groups.forEach(function(g,i){
+        var key=tab+":"+g.s+":"+i;
+        var h=document.createElement("div");
+        h.className="dcl-sech";
+        h.innerHTML="<span>"+g.s+"</span><span class='dcl-n'>"+g.items.length+" 项</span>";
+        try{ main.insertBefore(h, g.items[0]); }catch(e){ return; }
+        var open = (i===0) || !!OPENED[key];
+        setOpen(h,g.items,open);
+        h.onclick=function(){
+          var now=h.getAttribute("data-open")==="1";
+          setOpen(h,g.items,!now);
+          OPENED[key]=!now;
+        };
+      });
+    }
+
+    var pending=[], scheduled=false;
+    function flush(){
+      scheduled=false;
+      var jobs=pending.slice(); pending=[];
+      for(var i=0;i<jobs.length;i++){ try{ norm(jobs[i]); }catch(e){} }
+    }
+    function schedule(n){ pending.push(n); if(scheduled) return; scheduled=true;
+      try{ if(window.requestAnimationFrame) window.requestAnimationFrame(flush); else setTimeout(flush,16);}catch(e){ setTimeout(flush,16);} }
+    try{
+      var MO=window.MutationObserver||window.WebKitMutationObserver;
+      if(MO){
+        var ob=new MO(function(ms){
+          for(var i=0;i<ms.length;i++){
+            var m=ms[i];
+            if(m.type==="attributes") continue;
+            var ad=m.addedNodes; if(!ad) continue;
+            for(var j=0;j<ad.length;j++) schedule(ad[j]);
+          }
+        });
+        ob.observe(document.body,{childList:true,subtree:true});
+      }
+    }catch(e){}
+    function boot(){ try{ norm(document.body); normTopbar(); }catch(e){} }
+    if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",boot);
+    else boot();
+    [120,600,1500,3200].forEach(function(d){ try{ setTimeout(boot,d); }catch(e){} });
+    window.__declutter={normalize:norm,enabled:true};
+  }catch(e){ window.__declutter={normalize:function(){},enabled:false}; }
 })();
 </script>
 </body>

@@ -302,9 +302,32 @@
 :root{
   --red:#9e1b20; --dark-red:#6f1418; --gold:#c9a227; --ink:#1f1c17;
   --paper:#f7f4ec; --paper2:#efe9da; --line:#ddd5c0; --green:#2f7d4f;
-  --shadow:0 2px 12px rgba(0,0,0,.10);
-  --shadow-lg:0 8px 28px rgba(0,0,0,.16);
   --radius:10px;
+
+  /* ── 排版系统：间距阶梯（2px 基准，消灭随手写的奇数碎片值）── */
+  --sp-1:2px;  --sp-2:4px;  --sp-3:6px;  --sp-4:8px;
+  --sp-5:10px; --sp-6:12px; --sp-7:14px; --sp-8:16px;
+  --sp-10:20px; --sp-12:24px; --sp-16:32px;
+
+  /* ── 字号阶梯：最低 11px（手机上 9/10px 看不清，是"乱"的主因）── */
+  --fs-xs:11px;  --fs-sm:12px;  --fs-md:13px;
+  --fs-lg:14.5px; --fs-xl:16px; --fs-2xl:18px;
+  --fs-3xl:22px; --fs-4xl:28px;
+
+  /* ── 圆角阶梯 ── */
+  --r-sm:6px; --r-md:10px; --r-lg:14px; --r-xl:18px;
+
+  /* ── 纵深阴影：五层，越靠前越高 ── */
+  --sh-1:0 1px 2px rgba(0,0,0,.28), 0 1px 1px rgba(0,0,0,.18);
+  --sh-2:0 2px 6px rgba(0,0,0,.34), 0 4px 12px rgba(0,0,0,.22);
+  --sh-3:0 4px 10px rgba(0,0,0,.42), 0 10px 24px rgba(0,0,0,.26);
+  --sh-4:0 8px 20px rgba(0,0,0,.50), 0 18px 40px rgba(0,0,0,.30);
+  --sh-5:0 16px 40px rgba(0,0,0,.58), 0 30px 70px rgba(0,0,0,.36);
+  /* 描金内高光：让深色块有"漆面"厚度，而非死黑一片 */
+  --bevel:inset 0 1px 0 rgba(201,162,39,.16), inset 0 0 0 1px rgba(201,162,39,.07);
+
+  --shadow:var(--sh-2);
+  --shadow-lg:var(--sh-4);
   --sans:"PingFang SC","Microsoft YaHei","WenQuanYi Micro Hei",-apple-system,sans-serif;
   --serif:"Songti SC","STSong","SimSun","宋体",serif;
 }
@@ -1052,7 +1075,7 @@ var MAIL_CONFIG = {
    避免玩家长期停留在旧版缓存上——本作多次改动（在线统计、
    云端同步）都曾因浏览器缓存而"改了没生效"。
    放在独立 script 块中，不参与压缩，名称不会被改写。 */
-var APP_VERSION = "20260916.2157";
+var APP_VERSION = "20260916.2216";
 </script>
 </head>
 <body>
@@ -4362,6 +4385,116 @@ function pCouncil(){
       return hit?out:null;
     }
 
+    /* ══════════════════════════════════════════════════════════
+       排版归一：把随手写的碎片值吸附到标准档位
+       ──────────────────────────────────────────────────────────
+       为什么必须吸附而不是写死：
+         内联样式有数百处 7px/9px/3px/5px 这类随手写的值，
+         样式表管不到。相邻块间距忽大忽小，就是"乱"的来源。
+         吸附到 2px 基准后，视觉节奏统一，层次仍然保留。
+
+       为什么字号最低 11px：
+         原稿 9px 35 处、10px 218 处，手机上看不清，
+         且大小跳跃（9→10→11→12→12.5→13）显得杂。
+         统一到 5 档阶梯，最小 11px。
+       ══════════════════════════════════════════════════════════ */
+    var FS_STEPS=[11,12.5,14,16,18,22,28,36,48];
+    var RAD_STEPS=[0,3,6,10,14,18,24];
+    function snap(v,steps){
+      if(v>=steps[steps.length-1]) return v;   /* 超出最大档：保持原值 */
+      var best=steps[0],bd=Infinity,i,d;
+      for(i=0;i<steps.length;i++){
+        d=Math.abs(v-steps[i]);
+        if(d<bd){ bd=d; best=steps[i]; }
+      }
+      return best;
+    }
+    /* 间距：偶数吸附（2px 基准）。上限 40 防止大值被撑爆 */
+    function snapSp(v){
+      if(!isFinite(v)) return 0;
+      if(v<=0) return 0;
+      if(v>=40) return Math.round(v/4)*4;
+      return Math.round(v/2)*2;
+    }
+    function pxNum(v){
+      if(!v) return null;
+      v=String(v).trim();
+      if(v==="0"||v==="0px") return 0;      /* 无单位 0：合法且常见 */
+      var m=v.match(/^(-?[0-9.]+)px$/);
+      if(!m) return null;
+      var n=parseFloat(m[1]);
+      return isFinite(n)?n:null;
+    }
+    /* 拆解 padding/margin 的 1~4 值写法，逐边吸附后重组 */
+    function snapBox(str){
+      if(!str) return null;
+      var s=String(str).trim();
+      if(!s) return null;
+      var parts=s.split(/\s+/);
+      if(parts.length===0||parts.length>4) return null;
+      var nums=[],i,n;
+      for(i=0;i<parts.length;i++){
+        n=pxNum(parts[i]);
+        if(n===null) return null;      /* 含 em/%/auto 等：不动 */
+        nums.push(snapSp(n));
+      }
+      return nums.join("px ")+"px";
+    }
+    function normType(el){
+      var st=null; try{ st=el.style; }catch(e){ return; }
+      if(!st) return;
+      try{
+        var n,v,s;
+
+        /* ① 字号吸附到阶梯 */
+        n=pxNum(st.fontSize);
+        if(n!==null){
+          v=snap(n,FS_STEPS);
+          if(v!==n) st.fontSize=v+"px";
+        }
+
+        /* ② 间距吸附：padding / margin 四边 */
+        s=snapBox(st.padding);   if(s) st.padding=s;
+        s=snapBox(st.margin);    if(s) st.margin=s;
+
+        /* ③ 圆角吸附 */
+        n=pxNum(st.borderRadius);
+        if(n!==null){
+          v=snap(n,RAD_STEPS);
+          if(v!==n) st.borderRadius=v+"px";
+        }
+
+        /* ④ 行高：低于 1.5 的一律提到 1.6，密集文字才有呼吸感 */
+        var lh=st.lineHeight;
+        if(lh){
+          var lm=String(lh).trim().match(/^([0-9.]+)$/);
+          if(lm){
+            var lv=parseFloat(lm[1]);
+            if(isFinite(lv)&&lv>0&&lv<1.5) st.lineHeight="1.6";
+          }
+        }
+      }catch(e){}
+    }
+    /* ⑤ 分层阴影：只给"看起来像卡片"的元素加，避免文字 span 被误加 */
+    function normDepth(el){
+      var st=null; try{ st=el.style; }catch(e){ return; }
+      if(!st) return;
+      try{
+        if(st.boxShadow) return;                 /* 已有阴影：尊重原设计 */
+        var tn=""; try{ tn=el.tagName?el.tagName.toLowerCase():""; }catch(e){}
+        /* 行内元素与表格/列表单元格：密集排列，加阴影会很脏 */
+        if(tn==="span"||tn==="b"||tn==="i"||tn==="em"||tn==="strong"||tn==="a"||
+           tn==="td"||tn==="th"||tn==="tr"||tn==="li"||tn==="option"||
+           tn==="label"||tn==="p"||tn==="div"&&false) return;
+        /* 只给"有边框或圆角"的块加 —— 纯底色分区加阴影反而脏 */
+        var hasBd=!!(st.borderTopWidth||st.borderWidth||st.border);
+        var hasRad=!!st.borderRadius;
+        if(!hasBd&&!hasRad) return;
+        /* 抬升一档；描金内高光造漆面厚度，而非死黑一片 */
+        st.boxShadow="var(--sh-2), var(--bevel)";
+      }catch(e){}
+    }
+
     var SIDES=["borderTopColor","borderRightColor","borderBottomColor","borderLeftColor"];
     function normEl(el){
       if(!el||el.nodeType!==1) return;
@@ -4369,6 +4502,8 @@ function pCouncil(){
       if(!st) return;
       try{
         var v,c,n,i;
+        normType(el);
+        normDepth(el);
         v=st.backgroundColor;
         if(v){ c=parse(v); if(c){ n=mapBg(c); if(n) st.backgroundColor=n; } }
         v=st.color;

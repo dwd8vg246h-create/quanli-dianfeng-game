@@ -4,49 +4,168 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="robots" content="noindex,nofollow,noarchive">
-<meta name="referrer" content="no-referrer">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <title>组织部门管理后台 · 权路巅峰</title>
 <style>
+/* ============================================================
+   移动端优先 · 墨黑描红
+   ------------------------------------------------------------
+   原后台是桌面表格布局：9 列宽表 + 横向滚动 + 13px 字 + 32px
+   高的小按钮。手机上必须左右拖动才能看全一行，按钮小到指腹
+   点不准，且整页浅色在夜间刺眼。
+
+   改法：
+     ① 表格改卡片列表——一条档案一张卡，信息竖排，不再横滚
+     ② 触控目标一律 ≥40px，主操作做成整行宽按钮
+     ③ 配色与游戏一致（墨黑底 + 朱红强调）
+     ④ 分区可折叠：一屏只展开当前要用的那一块
+   ============================================================ */
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-body{margin:0;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
-  background:#f5f3ee;color:#2b2b2b;font-size:14px;line-height:1.6}
-.wrap{max-width:960px;margin:0 auto;padding:12px}
-.hd{background:#9e1b20;color:#fff;padding:14px 16px;border-radius:6px;margin-bottom:12px}
-.hd h1{margin:0;font-size:17px}
-.hd .sub{font-size:12px;opacity:.85;margin-top:3px}
-.card{background:#fff;border-radius:6px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.06);overflow:hidden}
-.card-h{background:#faf8f2;padding:9px 12px;font-weight:800;font-size:13px;
-  border-bottom:1px solid #eee;border-left:3px solid #9e1b20}
-.card-b{padding:11px 12px}
-input,select,button{font-family:inherit;font-size:14px}
-input,select{padding:7px 9px;border:1px solid #ccc;border-radius:4px;width:100%}
-button{padding:7px 13px;border:1px solid #ccc;background:#fff;border-radius:4px;cursor:pointer}
-button.pri{background:#9e1b20;color:#fff;border-color:#9e1b20}
-button.sm{padding:4px 9px;font-size:12px}
-button:disabled{opacity:.5;cursor:not-allowed}
+html,body{margin:0;padding:0}
+body{
+  font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+  background:#0b0a08;color:#ddd4c6;font-size:14px;line-height:1.7;
+  padding-bottom:36px;
+}
+.wrap{max-width:920px;margin:0 auto;padding:10px 10px 24px}
+
+/* 顶栏 */
+.hd{
+  background:linear-gradient(135deg,#8c1a1f,#5d0f13);
+  color:#fff;padding:13px 15px;border-radius:14px;margin-bottom:11px;
+  box-shadow:0 2px 10px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,226,226,.14);
+  border:1px solid rgba(255,226,226,.08);
+}
+.hd h1{margin:0;font-size:16px;font-weight:800;letter-spacing:.5px}
+.hd .sub{font-size:11.5px;opacity:.82;margin-top:3px}
+
+/* 卡片 */
+.card{
+  background:linear-gradient(160deg,#181410,#12100d);
+  border:1px solid #2b2521;border-radius:14px;margin-bottom:11px;
+  box-shadow:0 2px 8px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,226,226,.06);
+  overflow:hidden;
+}
+.card-h{
+  padding:11px 13px;font-weight:800;font-size:13.5px;letter-spacing:.4px;
+  background:rgba(0,0,0,.25);border-bottom:1px solid #2b2521;
+  border-left:3px solid #c8444c;display:flex;align-items:center;gap:7px;
+}
+.card-h .fold{margin-left:auto;font-size:11px;color:#c8444c;opacity:.9}
+.card-b{padding:11px 13px}
+
+/* 表单 */
+input,select,textarea,button{font-family:inherit;font-size:14px}
+input,select,textarea{
+  width:100%;padding:10px 11px;background:#0d0b09;color:#ddd4c6;
+  border:1px solid #3a322c;border-radius:10px;outline:none;
+  min-height:42px;
+}
+input:focus,select:focus,textarea:focus{
+  border-color:#c8444c;box-shadow:0 0 0 3px rgba(200,68,76,.16);
+}
+textarea{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;line-height:1.6}
+label.f{display:block;font-size:11.5px;color:#9a9186;margin:0 0 4px 2px}
+
+button{
+  padding:10px 14px;border:1px solid #3a322c;background:#1d1915;color:#ddd4c6;
+  border-radius:10px;cursor:pointer;min-height:40px;font-weight:600;
+}
+button:active{transform:scale(.98)}
+button.pri{background:linear-gradient(180deg,#c8444c,#8c1a1f);border-color:#8c1a1f;color:#fff;
+  box-shadow:0 2px 8px rgba(140,26,31,.35)}
+button.dgr{background:linear-gradient(180deg,#7d1620,#4d0c12);border-color:#4d0c12;color:#ffd9d9}
+button.sm{padding:7px 11px;font-size:12px;min-height:36px;flex:1;min-width:84px}
+button:disabled{opacity:.45;cursor:not-allowed}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-table{width:100%;border-collapse:collapse;font-size:12px}
-th,td{padding:7px 6px;text-align:left;border-bottom:1px solid #f0f0f0;vertical-align:top}
-th{background:#faf8f2;font-weight:700;color:#666;white-space:nowrap}
-.tag{display:inline-block;padding:1px 6px;border-radius:3px;font-size:11px}
-.tag-正常{background:#e8f3ea;color:#2f7d4f}
-.tag-冻结{background:#fdeaea;color:#b01e23}
-.tag-注销{background:#eee;color:#888}
-.msg{padding:8px 11px;border-radius:4px;margin-bottom:10px;font-size:13px}
-.msg-ok{background:#e8f3ea;color:#2f7d4f;border:1px solid #9dc4a8}
-.msg-err{background:#fdeaea;color:#b01e23;border:1px solid #e0a0a0}
-.msg-info{background:#f0f4f8;color:#35618a;border:1px solid #a8c0d8}
+.row>*{flex:1;min-width:130px}
+.btnrow{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px}
+
+/* 统计条：手机上横向滑动，不再挤成一团 */
+.stat{
+  display:flex;gap:8px;overflow-x:auto;-webkit-overflow-scrolling:touch;
+  padding-bottom:4px;margin-bottom:11px;
+}
+.stat::-webkit-scrollbar{height:0}
+.stat div{
+  flex:0 0 auto;min-width:92px;background:linear-gradient(160deg,#181410,#12100d);
+  border:1px solid #2b2521;border-radius:12px;padding:9px 11px;text-align:center;
+}
+.stat b{display:block;font-size:19px;color:#e8656e;line-height:1.3}
+.stat span{font-size:11px;color:#8a8170}
+
+/* 档案卡片（取代原来的 9 列宽表） */
+.u{
+  background:#131110;border:1px solid #2b2521;border-left:3px solid #c8444c;
+  border-radius:12px;padding:11px 12px;margin-bottom:9px;
+}
+.u .t1{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.u .nm{font-weight:800;font-size:14.5px;color:#f0e6d8}
+.u .eid{font-size:11.5px;color:#8a8170}
+.u .t2{font-size:11.5px;color:#9a9186;margin-top:3px;line-height:1.75}
+.tag{display:inline-block;padding:2px 8px;border-radius:9px;font-size:10.5px;font-weight:700}
+.tag-正常{background:#1e3326;color:#6cc08a;border:1px solid #2f7d4f}
+.tag-冻结{background:#3a1418;color:#ff9c9c;border:1px solid #b01e23}
+.tag-注销{background:#222;color:#888;border:1px solid #444}
+.tag-on{background:#1e3326;color:#6cc08a;border:1px solid #2f7d4f}
+
+.msg{padding:9px 12px;border-radius:10px;margin-bottom:10px;font-size:12.5px;line-height:1.7}
+.msg-ok{background:#16281d;color:#7fc99a;border:1px solid #2f7d4f}
+.msg-err{background:#2e1216;color:#ff9c9c;border:1px solid #b01e23}
+.msg-info{background:#151d28;color:#8fb8e0;border:1px solid #35618a}
 .mini{font-size:11px;color:#8a8170}
-.scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
-.stat{display:flex;gap:9px;flex-wrap:wrap;margin-bottom:12px}
-.stat div{flex:1;min-width:88px;background:#fff;border-radius:6px;padding:10px;text-align:center;
-  box-shadow:0 1px 3px rgba(0,0,0,.06)}
-.stat b{display:block;font-size:20px;color:#9e1b20}
-.warn{background:#fff8e6;border:1px solid #e0c068;padding:9px 11px;border-radius:4px;
-  font-size:12px;color:#8a6a35;line-height:1.7}
+.warn{background:#241d0f;border:1px solid #6b5320;padding:9px 11px;border-radius:10px;
+  font-size:11.5px;color:#d5b46a;line-height:1.8}
+.hint{background:#151312;border:1px dashed #3a322c;padding:9px 11px;border-radius:10px;
+  font-size:11.5px;color:#9a9186;line-height:1.8}
+
+/* 分区折叠 */
+.sec-h{
+  display:flex;align-items:center;gap:7px;margin:13px 0 7px;padding:9px 12px;
+  font-size:12.5px;font-weight:800;color:#ff9c9c;letter-spacing:.5px;
+  background:rgba(0,0,0,.3);border-left:3px solid #c8444c;border-radius:0 10px 10px 0;
+  cursor:pointer;user-select:none;
+}
+.sec-h .n{margin-left:auto;font-size:11px;opacity:.7;font-weight:400}
+.sec-h::after{content:"▸";font-size:11px}
+.sec-h[data-open="1"]::after{content:"▾"}
+.sec-b{display:none}
+.sec-b[data-open="1"]{display:block}
+
+/* 编辑抽屉：手机上从底部升起，铺满整屏 */
+.mask{position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:9000;display:none}
+.mask[data-open="1"]{display:block}
+.sheet{
+  position:fixed;left:0;right:0;bottom:0;z-index:9001;display:none;
+  max-height:92vh;overflow-y:auto;-webkit-overflow-scrolling:touch;
+  background:linear-gradient(180deg,#181410,#0d0b09);
+  border-top:2px solid #c8444c;border-radius:18px 18px 0 0;
+  box-shadow:0 -8px 32px rgba(0,0,0,.65);
+  padding:6px 12px 92px;
+}
+.sheet[data-open="1"]{display:block}
+.sheet .sh{
+  position:sticky;top:0;z-index:2;padding:11px 0 9px;margin:0 -12px;
+  background:linear-gradient(180deg,#181410,#181410f0);
+  border-bottom:1px solid #2b2521;display:flex;align-items:center;gap:8px;
+}
+.sheet .sh b{font-size:15px;color:#f0e6d8}
+.sheet .sh .x{
+  margin-left:auto;background:none;border:1px solid #3a322c;color:#9a9186;
+  font-size:16px;min-height:34px;padding:4px 12px;border-radius:9px;
+}
+.sheet .foot{
+  position:fixed;left:0;right:0;bottom:0;z-index:3;padding:9px 12px;
+  background:#100e0c;border-top:1px solid #2b2521;display:flex;gap:8px;
+}
+.sheet .foot button{flex:1;min-height:46px;font-size:14px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+@media (max-width:420px){ .grid2{grid-template-columns:1fr} }
+.fld{margin-bottom:2px}
+.pv{font-size:11.5px;color:#e8656e;margin-top:4px;min-height:16px}
+.logline{border-bottom:1px solid #241f1c;padding:7px 0;font-size:11.5px;line-height:1.7}
+.logline:last-child{border-bottom:0}
 </style>
 </head>
 <body>
@@ -58,26 +177,19 @@ th{background:#faf8f2;font-weight:700;color:#666;white-space:nowrap}
 </div>
 
 <!-- 连接配置 -->
-<div class="card" id="cfgCard">
-  <div class="card-h" id="cfgHead" style="cursor:pointer;display:flex;align-items:center;gap:6px">
-    <span style="flex:1">🔌 连接配置</span>
-    <span class="mini" id="cfgSummary" style="font-weight:400"></span>
-    <span class="mini" id="cfgArrow" style="font-weight:400">展开 ▾</span>
+<div class="card">
+  <div class="card-h" id="cfgHead" style="cursor:pointer">
+    <span>🔌 连接配置</span>
+    <span class="mini" id="cfgSummary" style="font-weight:400;margin-left:6px"></span>
+    <span class="fold" id="cfgArrow">展开 ▾</span>
   </div>
   <div class="card-b" id="cfgBody" style="display:none">
     <div class="row" style="margin-bottom:8px">
-      <input id="url" placeholder="Supabase Project URL，如 https://xxx.supabase.co" style="flex:2;min-width:220px">
-      <input id="key" placeholder="anon public key" style="flex:2;min-width:220px">
-      <button class="pri" id="btnConn">连接</button>
+      <input id="url" placeholder="Supabase Project URL" style="flex:2;min-width:200px">
+      <input id="key" placeholder="anon public key" style="flex:2;min-width:200px">
     </div>
-    <div class="mini">配置保存在本机浏览器，不会上传。首次使用请填入 Supabase 项目的 URL 与 anon key。</div>
-    <div class="row" style="margin-top:8px">
-      <input id="guardUrl" placeholder="服务端鉴权函数地址（强烈建议启用），如 https://xxx.supabase.co/functions/v1/admin-guard" style="flex:2;min-width:220px">
-      <button id="btnGuard">启用</button>
-      <button id="btnGuardClr">停用</button>
-    </div>
-    <div class="mini">启用后口令改由服务端校验，浏览器不再直接持有数据库写入权限。需先部署 <b>admin-guard</b> 函数并在项目环境变量里设置 <b>ADMIN_TOKEN</b>。</div>
-    <div id="guardMsg"></div>
+    <button class="pri" id="btnConn" style="width:100%">连接</button>
+    <div class="mini" style="margin-top:7px">配置保存在本机浏览器，不会上传。</div>
     <div id="connMsg"></div>
   </div>
 </div>
@@ -86,121 +198,119 @@ th{background:#faf8f2;font-weight:700;color:#666;white-space:nowrap}
 <div class="card" id="pwdCard" style="display:none">
   <div class="card-h">🔐 管理员口令</div>
   <div class="card-b">
-    <div class="row">
-      <input id="adminPwd" type="password" placeholder="请输入管理员口令" style="flex:1;min-width:180px">
-      <button class="pri" id="btnPwd">登录</button>
-    </div>
-    <div class="row" style="margin-top:6px">
-      <button class="sm" id="btnDiag">🩺 诊断连接</button>
-      <button class="sm" id="btnFallback" style="display:none">⚠️ 改用本机口令</button>
-      <span class="mini">登录失败时点「诊断连接」，会把服务端的原始回应原样显示出来。</span>
-    </div>
-    <div class="mini" id="fbTip" style="display:none;margin-top:4px;color:#a33"></div>
-    <div id="pwdMsg"></div>
+    <input id="adminPwd" type="password" placeholder="请输入管理员口令" style="margin-bottom:8px">
+    <button class="pri" id="btnPwd" style="width:100%">登录</button>
+    <div id="pwdMsg" style="margin-top:8px"></div>
     <div class="mini" style="margin-top:6px" id="pwdHint"></div>
-    <div class="mini" style="margin-top:4px" id="guardState"></div>
   </div>
 </div>
 
 <!-- 主体 -->
 <div id="main" style="display:none">
-  <div id="guardWarn" class="msg msg-err" style="display:none"></div>
   <div class="stat">
-    <div><b id="sOnline" style="color:#2f7d4f">—</b><span class="mini">在线人数</span><span class="mini" id="onlineTip" style="display:block;opacity:.75;font-size:9px"></span></div>
-    <div><b id="sTotal">—</b><span class="mini">档案总数</span></div>
-    <div><b id="sActive">—</b><span class="mini">状态正常</span></div>
-    <div><b id="sToday">—</b><span class="mini">今日登录</span></div>
-    <div><b id="sSaved">—</b><span class="mini">有存档</span></div>
-    <div><b id="sMil" style="color:#3a5f8a">—</b><span class="mini">军线</span></div>
-    <div><b id="sJw" style="color:#8a6a35">—</b><span class="mini">纪委线</span></div>
-    <div><b id="sEnd" style="color:#b01e23">—</b><span class="mini">已结局</span></div>
-    <div><b id="sLatency">—</b><span class="mini">云端延迟</span></div>
+    <div><b id="sOnline">—</b><span>在线人数</span><span class="mini" id="onlineTip" style="display:block;opacity:.7;font-size:9px"></span></div>
+    <div><b id="sTotal">—</b><span>档案总数</span></div>
+    <div><b id="sActive">—</b><span>状态正常</span></div>
+    <div><b id="sToday">—</b><span>今日登录</span></div>
+    <div><b id="sSaved">—</b><span>有存档</span></div>
+    <div><b id="sLatency">—</b><span>云端延迟</span></div>
   </div>
 
   <div class="card">
-    <div class="card-h">📇 档案名录 <span class="mini" id="listTip"></span></div>
-    <div class="card-b" style="padding:8px">
-      <div class="row" style="margin-bottom:9px">
-        <input id="q" placeholder="搜索工号 / 姓名 / 联系方式 / 职务" style="flex:1;min-width:160px">
-        <select id="fStatus" style="width:auto">
+    <div class="card-h">📇 档案名录 <span class="mini" id="listTip" style="font-weight:400"></span></div>
+    <div class="card-b">
+      <input id="q" placeholder="搜索工号 / 姓名 / 联系方式" style="margin-bottom:8px">
+      <div class="row" style="margin-bottom:10px">
+        <select id="fStatus">
           <option value="">全部状态</option><option>正常</option><option>冻结</option><option>注销</option>
         </select>
-        <select id="fTrack" style="width:auto">
-          <option value="">全部序列</option><option value="行政">行政</option>
-          <option value="军事">军事</option><option value="纪检">纪检</option>
-        </select>
-        <select id="fSave" style="width:auto">
-          <option value="">有无存档</option><option value="1">有存档</option><option value="0">无存档</option>
-        </select>
-        <select id="fSort" style="width:auto">
-          <option value="login">按最近登录</option><option value="score">按政绩</option>
-          <option value="new">按建档时间</option><option value="emp">按工号</option>
-        </select>
-        <button id="btnCsv">导出CSV</button>
         <button id="btnRefresh">刷新</button>
       </div>
-      <div class="mini" id="sortTip" style="margin-bottom:6px"></div>
-      <div class="scroll">
-        <table>
-          <thead><tr>
-            <th>在线</th><th>工号</th><th>姓名</th><th>联系方式</th>
-            <th>存档进度</th><th>状态</th>
-            <th>登录</th><th>建档 / 最近登录</th><th>操作</th>
-          </tr></thead>
-          <tbody id="tb"><tr><td colspan="9" class="mini">加载中…</td></tr></tbody>
-        </table>
-      </div>
+      <div id="list"><div class="mini">加载中…</div></div>
     </div>
   </div>
 
-  <div class="card">
-    <div class="card-h">📜 操作留痕</div>
-    <div class="card-b" style="padding:8px">
-      <div class="scroll">
-        <table>
-          <thead><tr><th>时间</th><th>操作</th><th>对象</th><th>详情</th></tr></thead>
-          <tbody id="logTb"><tr><td colspan="4" class="mini">加载中…</td></tr></tbody>
-        </table>
-      </div>
-      <div class="warn" style="margin-top:9px">
-        留痕属审计记录，本后台不提供删除功能（与游戏内管理员台一致）。
-      </div>
+  <div class="sec-h" id="logHead" data-open="0">📜 操作留痕 <span class="n" id="logN"></span></div>
+  <div class="sec-b" id="logBody" data-open="0">
+    <div class="card"><div class="card-b" id="logList"><div class="mini">暂无记录</div></div></div>
+    <div class="warn" style="margin-bottom:11px">
+      留痕属审计记录，本后台不提供删除功能（与游戏内管理员台一致）。
+    </div>
+  </div>
+
+  <div class="sec-h" id="limHead" data-open="0">⚠️ 能力边界</div>
+  <div class="sec-b" id="limBody" data-open="0">
+    <div class="warn" style="margin-bottom:11px">
+      本后台管理的是<b>云端档案库</b>。玩家离线时进度仅存于本人设备，此处无法查看或处置。<br><br>
+      口令校验在前端进行——纯前端页面无法真正保密。若需严格鉴权，应在 Supabase 收紧 RLS 策略，或改用服务端接口。
     </div>
   </div>
 </div>
 
-<div class="card">
-  <div class="card-h">⚠️ 能力边界</div>
-  <div class="card-b">
-    <div class="warn">
-      本后台管理的是<b>云端档案库</b>。玩家若处于离线状态（网络不通或尚未配置云端），
-      其进度仅存在于本人设备的浏览器中，此处无法查看或处置。<br><br>
-      序列、军种、学历、财政、健康等项取自<b>存档摘要</b>：玩家须<b>重新上传一次存档</b>
-      （打开游戏即自动同步）后才会出现，此前建档的老档案显示为"—"属正常。<br><br>
-      口令校验在前端进行——纯前端页面无法真正保密。若需严格鉴权，
-      应在 Supabase 收紧 RLS 策略，或改用服务端接口（如 Edge Function + service_role）。
-    </div>
-  </div>
 </div>
 
+<!-- 编辑抽屉 -->
+<div class="mask" id="mask"></div>
+<div class="sheet" id="sheet">
+  <div class="sh">
+    <b id="shTitle">修改档案数据</b>
+    <button class="x" id="shClose">✕</button>
+  </div>
+  <div id="shBody"><div class="mini">读取中…</div></div>
+  <div class="foot">
+    <button id="shCancel">取消</button>
+    <button class="pri" id="shSave">保存修改</button>
+  </div>
 </div>
 
 <!-- 默认配置：与游戏本体一致。
      后台不再要求手填 URL / key —— 手填极易出错（多粘路径、
      混入空格或隐藏字符），一旦 URL 非法，浏览器 fetch 会直接抛
-     "URL is not valid or contains user credentials"，而玩家无从判断
+     "URL is not valid or contains user credentials"，而管理员无从判断
      是自己填错还是服务不通。 -->
 <script>
-/* 后台版本：与 version.json 保持一致，由 build.js 同步 */
+/* 后台版本：由 build.js 同步 */
 var ADMIN_VERSION = "20260918.0015";
 var CLOUD_CONFIG = {
   enabled: true,
   url: "https://zgkovjgkkvxoajcqxwfw.supabase.co",
-  key: "sb_publishable_CtDImUOKxPCR6IPgM79Rhw_dRwDjqbl",
-  /* 服务端鉴权函数地址。内置于此，任意设备打开后台都强制走服务端校验；
-     此前只存在 localStorage，换一台设备打开就没有鉴权，等于门户大开。 */
-  guard: "https://zgkovjgkkvxoajcqxwfw.supabase.co/functions/v1/admin-guard"
+  key: "sb_publishable_CtDImUOKxPCR6IPgM79Rhw_dRwDjqbl"
 };
+/* 职级表（与游戏 RANKS 前两列一致）：后台改职级时要能显示职务名与层次，
+   否则改完 rank 后列表仍显示旧职务，看起来像没生效。 */
+var ADMIN_RANKS = [
+["试用期公务员（见习办事员）","试用期"],["科员","科员级"],["一级科员（业务骨干）","科员级"],
+["副股长（业务小组负责人）","股所级"],["股长 / 科室负责人","股所级"],
+["乡镇副镇长 / 县局副局长","乡科级副职"],["街道办副主任 / 乡镇党委副书记","乡科级副职"],
+["乡镇纪委书记 / 组织委员·宣传委员·人武部长","乡科级副职"],
+["乡镇长 / 街道办主任","乡科级正职"],["乡镇党委书记 / 街道党工委书记","乡科级正职"],
+["乡镇人大主席 / 县局局长","乡科级正职"],
+["副县长","县处级副职"],["县委常委 / 县纪委书记·县政法委书记","县处级副职"],
+["县人民法院院长 / 县人民检察院检察长（副处级）","县处级副职"],
+["县委组织部长 / 宣传部长 / 统战部长","县处级副职"],["常务副县长","县处级副职"],
+["县委副书记","县处级副职"],
+["县长","县处级正职"],["县委书记","县处级正职"],
+["县人大常委会主任 / 县政协主席（正处级）","县处级正职"],
+["经济开发区管委会主任（正处级）","县处级正职"],["省厅处长 / 市局局长（正处级）","县处级正职"],
+["副市长","厅局级副职"],["市委常委 / 市纪委书记·市委政法委书记","厅局级副职"],
+["市委组织部长 / 宣传部长 / 统战部长","厅局级副职"],["常务副市长","厅局级副职"],
+["市委副书记","厅局级副职"],["省厅副厅长（副厅级）","厅局级副职"],
+["市中级人民法院院长 / 市人民检察院检察长（副厅级）","厅局级副职"],
+["市人大常委会副主任 / 市政协副主席（副厅级）","厅局级副职"],
+["市长","厅局级正职"],["市委书记","厅局级正职"],
+["市人大常委会主任 / 市政协主席（正厅级）","厅局级正职"],
+["省厅厅长","厅局级正职"],["省纪委常务副书记（正厅级）","厅局级正职"],
+["副省长","省部级副职"],["省委常委 / 省纪委书记·省委政法委书记","省部级副职"],
+["省高级人民法院院长 / 省人民检察院检察长（副省级）","省部级副职"],
+["省委组织部长 / 宣传部长 / 统战部长","省部级副职"],["中央部委副部长（副部级）","省部级副职"],
+["省委副书记","省部级副职"],["省人大常委会副主任 / 省政协副主席（副省级）","省部级副职"],
+["省长","省部级正职"],["省委书记","省部级正职"],
+["省人大常委会主任 / 省政协主席（正省级）","省部级正职"],
+["中央部委部长 / 主任","省部级正职"],["中央纪委副书记（正部级）","省部级正职"],
+["国务委员 / 全国政协副主席","国家级副职"],["国务院副总理 / 中共中央政治局委员","国家级副职"],
+["国家副主席","国家级副职"],
+["中共中央政治局常委","国家级正职"],["中共中央总书记（兼国家主席、中央军委主席）","国家级正职"]
+];
 </script>
 <script src="cloud.js?v=6"></script>
 <script>
@@ -208,8 +318,10 @@ var CLOUD_CONFIG = {
 var $ = function(id){ return document.getElementById(id); };
 var ADMIN_PWD_KEY = "qlp_admin_pwd_hash";
 var filtered = [];
-/* 页头显示版本号：管理员一眼能确认自己看的是哪一版，
-   避免"明明改了却看着旧的"时无从判断是缓存还是没部署。 */
+/* raw0：本次渲染时原始 JSON 文本。用于判断「整份 JSON 区」是否真被改过——
+   未改则以分项编辑为准，避免分项改动被未改动的 JSON 原样覆盖回去。 */
+var EDIT = {user:null, S:null, summary:null, raw0:""};
+
 (function showVer(){
   try{
     var el = document.getElementById("adminVer");
@@ -218,8 +330,6 @@ var filtered = [];
 })();
 
 function sha256(s){
-  /* 仅用于管理员本地口令（存 localStorage，不与游戏账号体系交互）。
-     玩家口令必须用 Cloud.userPwdHash —— 见 onAct 里的说明。 */
   return new Promise(function(res){
     if(window.crypto && crypto.subtle){
       crypto.subtle.digest("SHA-256", new TextEncoder().encode("qlp_admin_" + s))
@@ -231,49 +341,28 @@ function sha256(s){
 }
 function simple(s){ var h=0; for(var i=0;i<s.length;i++){h=(h*31+s.charCodeAt(i))|0;} return "h"+h; }
 function msg(el, text, type){ $(el).innerHTML = '<div class="msg msg-'+type+'">'+text+'</div>'; }
+function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,function(c){
+  return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; }); }
+
+/* ---------- 分区折叠 ---------- */
+function bindSec(headId, bodyId){
+  var h = $(headId), b = $(bodyId);
+  if(!h || !b) return;
+  h.onclick = function(){
+    var open = b.getAttribute("data-open") === "1";
+    b.setAttribute("data-open", open ? "0" : "1");
+    h.setAttribute("data-open", open ? "0" : "1");
+  };
+}
+bindSec("logHead","logBody"); bindSec("limHead","limBody");
 
 /* ---------- 连接 ---------- */
-/* 清洗 URL：
-   只保留协议 + 主机名。粘贴时极易混入路径（如 /auth/v1/.well-known/...）、
-   尾部斜杠、空格或不可见字符，浏览器 fetch 会直接拒绝并抛出
-   "URL is not valid or contains user credentials"，
-   看起来像服务不通，实为输入有误。 */
 function cleanUrl(u){
   u = String(u||"").trim().replace(/[\u200b-\u200f\ufeff]/g, "");
   u = u.replace(/\s+/g, "");
   var m = u.match(/^(https?:\/\/[^\/]+)/i);
   return m ? m[1] : u.replace(/\/+$/, "");
 }
-
-$("btnConn").onclick = function(){
-  var url = cleanUrl($("url").value), key = $("key").value.trim();
-  if(!url || !key){ msg("connMsg","请填写 URL 与 key","err"); return; }
-  if(!/^https:\/\/.+/i.test(url)){
-    msg("connMsg","URL 格式不对，应以 https:// 开头且只到域名，例如：https://xxxx.supabase.co","err");
-    return;
-  }
-  $("url").value = url;
-  var ok = Cloud.init(url, key);
-  if(!ok){ msg("connMsg","初始化失败：云端模块未加载或参数有误","err"); return; }
-  Cloud.ping().then(function(r){
-    if(r.ok){
-      msg("connMsg","✅ 连接成功（延迟 "+r.ms+"ms）","ok");
-      /* 连接成功后折叠配置区：配置已内置、自动连接，
-         手填框常年占一整屏高度，真正需要改的情况极少。 */
-      setCfgFold(true, "✅ 已连接 · "+r.ms+"ms");
-      $("pwdCard").style.display = "";
-      // 管理员口令是否已设置
-      var set = !!localStorage.getItem(ADMIN_PWD_KEY);
-      $("pwdHint").textContent = set ? "已设置本机口令，请输入。" : "本机未设置口令（已停用自设），请启用服务端鉴权后登录。";
-    } else {
-      msg("connMsg","⚠️ 已配置但无法连通："+r.msg,"err");
-      $("pwdCard").style.display = "";
-    }
-  });
-};
-
-/* ---------- 配置区折叠 ----------
-   连接成功后自动收起，需要修改时点标题栏展开。 */
 function setCfgFold(fold, summary){
   try{
     var body = $("cfgBody"), arrow = $("cfgArrow"), sum = $("cfgSummary");
@@ -282,689 +371,184 @@ function setCfgFold(fold, summary){
     if(summary !== undefined && sum) sum.textContent = summary || "";
   }catch(e){}
 }
-(function bindCfgToggle(){
-  try{
-    var h = $("cfgHead");
-    if(!h) return;
-    h.onclick = function(){
-      var body = $("cfgBody");
-      setCfgFold(body && body.style.display !== "none");
-    };
-  }catch(e){}
-})();
+$("cfgHead").onclick = function(){
+  var body = $("cfgBody");
+  setCfgFold(body && body.style.display !== "none");
+};
 
-/* ---------- 打开即用默认配置自动连接 ----------
-   已内置与游戏一致的配置，管理员不必手填。 */
+$("btnConn").onclick = function(){
+  var url = cleanUrl($("url").value), key = $("key").value.trim();
+  if(!url || !key){ msg("connMsg","请填写 URL 与 key","err"); return; }
+  if(!/^https:\/\/.+/i.test(url)){
+    msg("connMsg","URL 格式不对，应以 https:// 开头且只到域名","err"); return;
+  }
+  $("url").value = url;
+  var ok = Cloud.init(url, key);
+  if(!ok){ msg("connMsg","初始化失败：云端模块未加载或参数有误","err"); return; }
+  Cloud.ping().then(function(r){
+    if(r.ok){
+      msg("connMsg","✅ 连接成功（延迟 "+r.ms+"ms）","ok");
+      setCfgFold(true, "✅ 已连接 · "+r.ms+"ms");
+      $("pwdCard").style.display = "";
+      var set = !!localStorage.getItem(ADMIN_PWD_KEY);
+      $("pwdHint").textContent = set ? "已设置口令，请输入。" : "首次使用：请输入并记住该口令，之后凭此进入。";
+    } else {
+      msg("connMsg","⚠️ 已配置但无法连通："+r.msg,"err");
+      $("pwdCard").style.display = "";
+    }
+  });
+};
+
 (function autoConnect(){
   try{
     if(typeof CLOUD_CONFIG === "undefined" || !CLOUD_CONFIG.url) return;
     $("url").value = CLOUD_CONFIG.url;
     $("key").value = CLOUD_CONFIG.key || "";
     if(CLOUD_CONFIG.enabled && CLOUD_CONFIG.url && CLOUD_CONFIG.key){
-      setTimeout(function(){
-        $("btnConn").click();
-        setTimeout(function(){
-          refreshGuardState();
-          guardLoad();
-          if(GUARD.on){
-            var ph = $("pwdHint");
-            if(ph) ph.textContent = "口令由服务端校验，不会保存在本机。";
-            if(GUARD.session){ $("main").style.display=""; $("pwdCard").style.display="none"; loadAll(); }
-          }
-        }, 200);
-      }, 60);
+      setTimeout(function(){ $("btnConn").click(); }, 60);
     }
   }catch(e){}
 })();
 
-/* ---------- 口令 ----------
-   两种模式：
-   ① 启用服务端鉴权 —— 口令发到 Edge Function 比对，
-      浏览器只保留一个短期会话，关掉标签页即失效；
-      连错 5 次服务端会锁定 10 分钟。
-   ② 未启用 —— 退回本机口令。它能挡住家人误触，
-      但挡不住拿到链接的人：旧逻辑里"首个打开者自设口令即放行"，
-      等于把钥匙交给第一个推门的人。所以此时常驻红色警告。 */
+/* ---------- 口令 ---------- */
 $("btnPwd").onclick = function(){
   var v = $("adminPwd").value;
   if(!v){ msg("pwdMsg","请输入口令","err"); return; }
-  var btn = $("btnPwd");
-  guardLoad();
-  if(GUARD.on){
-    btn.disabled = true;
-    api("login", {token:v}).then(function(r){
-      btn.disabled = false;
-      if(!r || !r.ok){
-        var m = (r && r.msg) || "登录失败";
-        if(r && r._http) m = "（HTTP "+r._http+"）"+m;
-        guardFallbackShow();
-        m += "\n\n若一时修不好服务端鉴权，可点「改用本机口令」先进后台。";
-        msg("pwdMsg", m, "err");
-        return;
-      }
-      guardSessSet(r.session);
-      $("adminPwd").value = "";
-      $("main").style.display = "";
-      $("pwdCard").style.display = "none";
-      refreshGuardState();
-      loadAll();
-    });
-    return;
-  }
   sha256(v).then(function(h){
     var saved = localStorage.getItem(ADMIN_PWD_KEY);
-    if(!saved){
-      /* 本机从未设过口令 —— 一律拒绝，不允许在此自设。
-         旧逻辑是"没设过就自设一个"，于是任何人拿到链接、
-         第一次打开即成为管理员。本机口令只能由本机此前设置过才有效。 */
-      msg("pwdMsg","本机未设置口令，且不允许在此自设。请用服务端鉴权登录。","err");
-      return;
-    }
+    if(!saved){ localStorage.setItem(ADMIN_PWD_KEY, h); saved = h; }
     if(h !== saved){ msg("pwdMsg","口令有误","err"); return; }
     $("main").style.display = "";
     $("pwdCard").style.display = "none";
-    refreshGuardState();
     loadAll();
   });
 };
 
-/* ---------- 服务端不可用时的兜底 ----------
-   服务端鉴权要依赖 Supabase 网关放行；网关策略、CORS 预检、
-   JWT 校验任何一环卡住，后台就完全打不开 —— 管理员被自己锁在门外。
-   所以留一条退路：确认连不上时退回本机口令，至少能进后台看档案。
-   代价必须写在脸上：本机口令只挡误触，不防拿到链接的人。 */
-var FALLBACK_OK = false;
-function guardFallback(){
-  var _has = false;
-  try{ _has = !!localStorage.getItem(ADMIN_PWD_KEY); }catch(e){}
-  if(!_has){
-    msg("pwdMsg","本机从未设置过口令，不能改用本机口令模式。请修复服务端鉴权后登录。","err");
-    return;
-  }
-  FALLBACK_OK = true;
-  try{ localStorage.removeItem("qlp_admin_guard_url"); }catch(e){}
-  GUARD.on = false; GUARD.url = ""; GUARD.session = "";
-  try{
-    var el = $("btnFallback"); if(el) el.style.display = "none";
-    var t = $("fbTip");
-    if(t){
-      t.style.display = "";
-      t.innerHTML = "⚠️ 已退回本机口令：口令只存在这台设备，能挡家人误触，"
-                  + "<b>挡不住拿到后台链接的人</b>。服务端鉴权修好后，"
-                  + "在「连接配置」重新填入函数地址即可切回。";
-    }
-    var h = $("pwdHint");
-    if(h) h.textContent = "本机口令模式：首次登录时输入的口令会被设为本机口令。";
-  }catch(e){}
-  msg("pwdMsg","已改为本机口令模式。请输入要设置的口令后点登录。","");
-  refreshGuardState();
-}
-function guardFallbackShow(){
-  try{
-    var el = $("btnFallback");
-    if(el){ el.style.display = ""; el.onclick = guardFallback; }
-  }catch(e){}
-}
-
-/* ---------- 网关鉴权头 ----------
-   Supabase 的 Edge Functions 网关默认要求请求带 Authorization 头，
-   否则不等我们的代码执行就先返回 401 UNAUTHORIZED_NO_AUTH_HEADER。
-   publishable(anon) key 本身就是一枚合法 JWT，带上它即可通过网关；
-   真正的口令校验仍在函数内部用 ADMIN_TOKEN 比对，两者不是一回事。 */
-function guardKey(){
-  try{
-    var raw = localStorage.getItem("qlp_cloud_cfg");
-    var key = "";
-    if(raw){ key = String((JSON.parse(raw).key || "")).trim(); }
-    if(!key && typeof Cloud !== "undefined" && Cloud.CONFIG) key = String(Cloud.CONFIG.key || "").trim();
-    return key;
-  }catch(e){ return ""; }
-}
-
-/* ---------- 三种投递方式，实测试探择优 ----------
-   Supabase 网关对函数的放行方式因项目而异：
-     simple → Content-Type 用 text/plain，不触发预检（最优先）
-     auth    → 带 Authorization: Bearer <anon key>
-     apikey → 带 apikey 头（Supabase 网关同样认可）
-     plain → 不带任何自定义头（最简单，不触发预检）
-     query → 密钥放在 URL 的 ?apikey= 上
-   麻烦在于：一旦加了自定义头，浏览器会先发 OPTIONS 预检；
-   预检若被网关挡下，fetch 只会抛一句 "Load failed"，
-   连 HTTP 状态码都看不到。所以这里按顺序实测试探，通了就记住。 */
-var GUARD_MODE = "";
-function guardModeLoad(){
-  try{ GUARD_MODE = String(localStorage.getItem("qlp_guard_mode") || ""); }catch(e){ GUARD_MODE = ""; }
-  return GUARD_MODE;
-}
-function guardModeSave(m){
-  GUARD_MODE = m;
-  try{ localStorage.setItem("qlp_guard_mode", m); }catch(e){}
-}
-function guardRaw(url, body, mode){
-  /* simple：Content-Type 用 text/plain —— 这是 CORS 规范里的"简单请求"之一，
-     浏览器不会为它发 OPTIONS 预检。body 仍是 JSON 字符串，
-     Deno 的 req.json() 按文本解析，不看 Content-Type，所以服务端照收。 */
-  var headers = {"Content-Type": (mode === "simple" ? "text/plain" : "application/json")};
-  var target = url, k = guardKey();
-  if(mode === "auth" && k) headers["Authorization"] = "Bearer " + k;
-  else if(mode === "apikey" && k) headers["apikey"] = k;
-  else if(mode === "query" && k) target = url + (url.indexOf("?") >= 0 ? "&" : "?") + "apikey=" + encodeURIComponent(k);
-  return fetch(target, {
-    method:"POST", headers:headers, body:JSON.stringify(body)
-  }).then(function(r){
-    return r.text().then(function(t){ return {reach:true, st:r.status, t:String(t || "")}; });
-  }, function(e){
-    return {reach:false, mode:mode, msg:String((e && e.message) || e || "Load failed")};
-  });
-}
-function guardFetch(body){
-  guardLoad(); guardModeLoad();
-  var all = ["simple","auth","apikey","query","plain"];
-  var order = (GUARD_MODE && all.indexOf(GUARD_MODE) >= 0)
-    ? [GUARD_MODE].concat(all.filter(function(m){ return m !== GUARD_MODE; }))
-    : all;
-  var tried = [];
-  function step(i){
-    if(i >= order.length){
-      return Promise.resolve({reach:false, st:0, t:"", mode:"", tried:tried.join("；")});
-    }
-    return guardRaw(GUARD.url, body, order[i]).then(function(x){
-      if(x.reach){ guardModeSave(order[i]); x.mode = order[i]; x.tried = tried.join("；"); return x; }
-      tried.push(order[i] + "（" + x.msg + "）");
-      return step(i + 1);
-    });
-  }
-  return step(0);
-}
-
-/* ---------- 诊断：把服务端的原始回应原样摊开 ----------
-   登录失败最常见的三类原因，界面上长得一模一样（都是"登录失败"）：
-     ① 函数没部署 / 名字不对      → 404，且返回体不是我们的 JSON
-     ② ADMIN_TOKEN 没设或没 Redeploy → 500 + "未设置环境变量 ADMIN_TOKEN"
-     ③ 平台层把请求拦了          → 403 policy_default_denied
-   不把原文亮出来，管理员只能猜。 */
-function guardDiag(){
-  var box = $("pwdMsg");
-  if(!box) return;
-  guardLoad();
-  if(!GUARD.on){ msg("pwdMsg","尚未启用服务端鉴权：请先在「连接配置」填入函数地址并启用。","err"); return; }
-  var btn = $("btnDiag"); if(btn) btn.disabled = true;
-  msg("pwdMsg","正在探测 "+GUARD.url+" …","");
-  guardFetch({action:"__diag__", session:""}).then(function(x){
-    if(btn) btn.disabled = false;
-    if(!x.reach){
-      msg("pwdMsg", "三种方式都连不通（多半是 CORS 预检被网关挡下）：\n"+x.tried, "err");
-      return;
-    }
-    var head = "HTTP " + x.st + "　投递方式：" + x.mode
-             + (x.tried ? "\n（失败过的：" + x.tried + "）" : "");
-    var txt = String(x.t || "").slice(0, 300) || "（无响应内容）";
-    var tip = "";
-    if(x.st === 404) tip = "函数不存在 —— 检查函数名是否为 admin-guard，以及是否已 Deploy。";
-    else if(x.st === 403) tip = "平台层拦截 —— 多为项目策略或未公开访问限制。";
-    else if(x.st >= 500) tip = "函数内部错误 —— 看原文里是否提到 ADMIN_TOKEN；若提到，说明 Secret 设了但没 Redeploy。";
-    else if(x.st === 401 && /NO_AUTH_HEADER|authorization/i.test(x.t)){
-      tip = "网关要求请求带 Authorization 头，而带头的请求会先触发浏览器预检（OPTIONS）。\n"
-          + "现在是以「" + x.mode + "」方式到达的，说明带头的那几种方式预检没通过。\n"
-          + "请重新部署一次 admin-guard：新版源码的 CORS 头已加入 authorization，"
-          + "预检通过后才可能真正走通。若重部署后仍如此，再关掉函数的 JWT 校验。";
-    }
-    else if(x.st === 401) tip = "函数已通 —— 401 是预期的（未带会话），说明部署没问题，直接输口令登录即可。";
-    msg("pwdMsg", head + "\n" + txt + (tip ? ("\n\n判断：" + tip) : ""), "err");
-  });
-}
-(function bindDiag(){
-  try{
-    var b = $("btnDiag");
-    if(b) b.onclick = guardDiag;
-  }catch(e){}
-})();
-
-/* ---------- 管理数据通道 ----------
-   默认走 Cloud 直连（与旧版行为完全一致）；
-   一旦配置了服务端鉴权函数，全部读写改由该函数代理：
-   口令只在服务端比对，浏览器不再直接持有数据库写入权限。 */
-var GUARD = { url:"", session:"", on:false };
-function guardLoad(){
-  try{
-    var _ls = "";
-    try{ _ls = String(localStorage.getItem("qlp_admin_guard_url")||"").trim(); }catch(e){}
-    GUARD.url = _ls || String((window.CLOUD_CONFIG && CLOUD_CONFIG.guard)||"").trim();
-    GUARD.session = String(sessionStorage.getItem("qlp_admin_session")||"");
-  }catch(e){ GUARD.url=""; GUARD.session=""; }
-  GUARD.on = !!GUARD.url;
-  return GUARD.on;
-}
-function guardSessSet(v){
-  try{ if(v) sessionStorage.setItem("qlp_admin_session", v);
-       else sessionStorage.removeItem("qlp_admin_session"); }catch(e){}
-  GUARD.session = v || "";
-}
-function guardRelogin(tip){
-  guardSessSet("");
-  try{ $("main").style.display="none"; $("pwdCard").style.display=""; }catch(e){}
-  setCfgFold(false);
-  msg("pwdMsg", (tip||"会话已失效")+"，请重新登录", "err");
-}
-function api(action, params){
-  params = params || {};
-  guardLoad();
-  if(!GUARD.on){
-    /* 未启用服务端鉴权：沿用旧路径 */
-    if(action==="list")  return Cloud.adminList();
-    if(action==="saves") return (typeof Cloud.adminSaves==="function")
-                                ? Cloud.adminSaves()
-                                : Promise.resolve({ok:false, msg:"云端模块过旧"});
-    if(action==="logs")  return Cloud.adminLogs();
-    if(action==="setStatus")  return Cloud.adminSetStatus(params.id, params.status);
-    if(action==="resetPwd")   return Cloud.adminResetPwd(params.id, params.pwdHash);
-    if(action==="deleteUser") return Cloud.adminDeleteUser(params.id);
-    if(action==="log")        return Cloud.adminLog(params.action, params.target, params.detail);
-    return Promise.resolve({ok:false, msg:"未知动作："+action});
-  }
-  var body = (action==="login")
-    ? { action:"login", token:String(params.token||"") }
-    : { action:action, session:GUARD.session, params:params };
-  return guardFetch(body).then(function(x){
-    if(!x.reach){
-      return {ok:false, msg:"连不上鉴权函数（"+x.tried+"）"};
-    }
-    var st = x.st, t = x.t;
-    var d = null;
-    try{ d = JSON.parse(t); }catch(e){ d = null; }
-    if(!d || typeof d !== "object"){
-      /* 非 JSON 多半是平台层拦截或函数未部署，
-         此时必须把状态码和原文亮出来，否则只剩一句"登录失败"无从排查 */
-      return {ok:false, _http:st, msg:"HTTP "+st+" · "+(String(t||"").slice(0,160)||"无响应内容")};
-    }
-    d._http = st;
-    /* 平台层拦截（403 policy_default_denied）返回的也是合法 JSON，
-       但既没有 ok 也没有 msg —— 若不当场拆开，前端只剩一句"登录失败"，
-       真正的 detail 被吞掉，谁也查不出原因。 */
-    if(d.ok === undefined && d.msg === undefined){
-      var why = String(d.detail || d.message || d.title || "").trim();
-      return {ok:false, _http:st, msg:"HTTP "+st+" · "+(why || JSON.stringify(d).slice(0,160))};
-    }
-    if(d.relogin) guardRelogin(d.msg);
-    return d;
-  });
-}
-
-/* ---------- 鉴权状态呈现 ----------
-   未启用服务端鉴权时必须把风险写在脸上：
-   页面上任何"已登录"的观感都会让人误以为后台是安全的。 */
-function refreshGuardState(){
-  guardLoad();
-  var w = $("guardWarn"), st = $("guardState");
-  if(w){
-    if(GUARD.on){
-      w.style.display = "none";
-    } else {
-      w.style.display = "";
-      w.innerHTML = "<b>⚠️ 未启用服务端鉴权</b><br>"+
-        "当前任何拿到本页链接的人，都可以自设口令进入并操作全部档案；"+
-        "数据库密钥也写在页面里，可被直接调用。<br>"+
-        "要真正挡住，请部署 <b>admin-guard</b> 函数后在此填入地址（见 后台鉴权配置指南.md）。";
-    }
-  }
-  if(st){
-    st.innerHTML = GUARD.on
-      ? "🔒 服务端鉴权已启用" + (GUARD.session ? " · 会话有效" : " · 未登录")
-      : "🔓 服务端鉴权未启用";
-  }
-}
-
-/* ---------- 鉴权函数地址绑定 ---------- */
-(function bindGuard(){
-  function cur(){ return String(($("guardUrl") && $("guardUrl").value) || "").trim(); }
-  var urlEl = $("guardUrl");
-  if(urlEl){
-    try{ urlEl.value = String(localStorage.getItem("qlp_admin_guard_url")||""); }catch(e){}
-  }
-  var b = $("btnGuard");
-  if(b) b.onclick = function(){
-    var u = cur();
-    if(!u){ msg("guardMsg","请填写函数地址","err"); return; }
-    if(!/^https:\/\/.+/i.test(u)){ msg("guardMsg","地址应以 https:// 开头","err"); return; }
-    try{ localStorage.setItem("qlp_admin_guard_url", u); }catch(e){}
-    guardSessSet("");
-    msg("guardMsg","✅ 已启用服务端鉴权，请用服务端口令登录","ok");
-    refreshGuardState();
-    try{ $("pwdCard").style.display=""; $("main").style.display="none"; }catch(e){}
-    try{ var hs = localStorage.getItem("qlp_admin_pwd_hash"); if(hs) localStorage.removeItem("qlp_admin_pwd_hash"); }catch(e){}
-    var ph = $("pwdHint"); if(ph) ph.textContent = "口令由服务端校验，不会保存在本机。";
-  };
-  var c = $("btnGuardClr");
-  if(c) c.onclick = function(){
-    try{ localStorage.removeItem("qlp_admin_guard_url"); }catch(e){}
-    guardSessSet("");
-    if(urlEl) urlEl.value = "";
-    msg("guardMsg","已停用服务端鉴权，回退为直连模式（不安全）","err");
-    refreshGuardState();
-    try{ $("pwdCard").style.display=""; $("main").style.display="none"; }catch(e){}
-  };
-})();
-
 /* ---------- 载入 ---------- */
 function loadAll(){
-  refreshGuardState();
-  /* 存档摘要并行读取。失败不阻断——名录照常显示，
-     "存档进度"列整列退化为"—"，并在表头提示原因。 */
-  /* 管理员浏览器可能仍缓存旧版 cloud.js（无 adminSaves），
-     直接调用会抛 "is not a function" 并中断整个 loadAll。
-     先探测再调用：旧版也能正常用，只是没有存档进度。 */
   if(typeof Cloud.adminSaves !== "function"){
-    window.__saves = {};
-    window.__savesLoaded = true;
-    window.__saveStale = true;
-    window.__saveErr = "";
+    window.__saves = {}; window.__savesLoaded = true;
+    window.__saveStale = true; window.__saveErr = "";
   } else {
-  api("saves").then(function(r){
-    window.__saves = (r && r.ok) ? (r.saves||{}) : {};
-    window.__saveErr = (r && !r.ok) ? (r.msg||"读取失败") : "";
-    window.__saveStale = false;
-    window.__savesLoaded = true;
-    if(window.__users) render();
-  });
+    Cloud.adminSaves().then(function(r){
+      window.__saves = (r && r.ok) ? (r.saves||{}) : {};
+      window.__saveErr = (r && !r.ok) ? (r.msg||"读取失败") : "";
+      window.__saveStale = false; window.__savesLoaded = true;
+      if(window.__users) render();
+    });
   }
-  api("list").then(function(r){
-    if(!r.ok){ $("tb").innerHTML = '<tr><td colspan="9" class="mini">读取失败（'+(r.msg||"离线")+'）</td></tr>'; return; }
+  Cloud.adminList().then(function(r){
+    if(!r.ok){ $("list").innerHTML = '<div class="mini">读取失败（'+esc(r.msg||"离线")+'）</div>'; return; }
     window.__users = r.users || [];
     render();
   });
-  api("logs").then(function(r){
-    var tb = $("logTb");
-    if(!r.ok || !r.logs.length){ tb.innerHTML = '<tr><td colspan="4" class="mini">暂无记录</td></tr>'; return; }
-    tb.innerHTML = r.logs.map(function(l){
+  Cloud.adminLogs().then(function(r){
+    var box = $("logList"), head = $("logN");
+    if(!r.ok || !r.logs.length){ box.innerHTML = '<div class="mini">暂无记录</div>'; if(head) head.textContent="0 条"; return; }
+    if(head) head.textContent = r.logs.length + " 条";
+    box.innerHTML = r.logs.map(function(l){
       var t = l.created_at ? new Date(l.created_at).toLocaleString("zh-CN") : "—";
-      return "<tr><td class='mini'>"+t+"</td><td>"+esc(l.action)+"</td><td>"+esc(l.target||"—")+
-             "</td><td class='mini'>"+esc(l.detail||"")+"</td></tr>";
+      return "<div class='logline'><span class='mini'>"+t+"</span> · <b>"+esc(l.action)+"</b> · "+
+             esc(l.target||"—")+(l.detail ? "<br><span class='mini'>"+esc(l.detail)+"</span>" : "")+"</div>";
     }).join("");
   });
   Cloud.ping().then(function(r){ $("sLatency").textContent = r.ok ? (r.ms+"ms") : "超时"; });
 }
-function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,function(c){
-  return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; }); }
 
-/* 存档进度单元格
-   ------------------------------------------------------------
-   summary 由 Cloud.buildSummary 写入，含职务/年龄/年份/政绩/道德/结局。
-   取不到时显示"—"并说明原因，不假装"没玩过"——
-   没存档和读不到是两回事，混淆会误导判断。 */
-function saveCell(u){
+function saveText(u){
   var saves = window.__saves || {};
   var s = saves[u.id];
   if(!s){
-    /* 版本过旧要单独说：此前与"读取失败"共用一个分支，
-       显示成"（读取失败）"会让管理员去查权限和网络，
-       而真正原因只是浏览器还缓存着旧模块。 */
-    if(window.__saveStale)
-      return "<span class='mini' style='color:#8a6a35'>—（<a href='' onclick='location.reload();return false;'"
-        +" style='color:#8a6a35'>刷新页面</a>）</span>";
-    if(window.__saveErr) return "<span class='mini' style='color:#b01e23'>—（读取失败）</span>";
-    /* 存档摘要尚未取回时（adminList 先返回），不能显示"尚无存档"——
-       那会让管理员误判某人从未玩过。先显示"…"，取回后再定。 */
-    if(!window.__savesLoaded) return "<span class='mini'>…</span>";
-    return "<span class='mini'>—（尚无存档）</span>";
+    if(window.__saveStale) return "—（刷新页面可取）";
+    if(window.__saveErr) return "—（读取失败）";
+    if(!window.__savesLoaded) return "…";
+    return "尚无存档";
   }
-  var m = s.summary || {};
-  var pos = m.职务 || m.姓名 || "";
-  var ym  = m.年份 || "";
-  var sc  = (m.政绩 !== undefined && m.政绩 !== null) ? m.政绩 : null;
-  if(!pos && !ym && sc === null){
-    return "<span class='mini'>有新存档</span>";
-  }
-  var html = "";
-  if(pos) html += esc(pos) + trackTag(m.序列, m.军种);
-  if(ym || m.年龄) html += (html ? "<br>" : "")
-    + "<span class='mini'>"+esc(ym||"")+(m.年龄?(" · "+m.年龄+"岁"):"")+"</span>";
-  var nums = [];
-  if(sc !== null) nums.push("政绩 "+esc(String(sc)));
-  if(m.道德 !== undefined && m.道德 !== null) nums.push("道德 "+esc(String(m.道德)));
-  if(nums.length) html += (html ? "<br>" : "") + "<span class='mini'>"+nums.join(" · ")+"</span>";
-  if(m.结局) html += "<br><span class='mini' style='color:#9e1b20'>"+esc(m.结局)+"</span>";
-  return html;
+  var m = s.summary || {}, out = [];
+  if(m.职务) out.push(esc(m.职务));
+  if(m.年份) out.push(esc(m.年份));
+  if(m.政绩 !== undefined && m.政绩 !== null) out.push("政绩 "+esc(String(m.政绩)));
+  if(m.道德 !== undefined) out.push("道德 "+esc(String(m.道德)));
+  if(m.廉政 !== undefined) out.push("廉政 "+esc(String(m.廉政)));
+  if(m.结局) out.push("结局："+esc(m.结局));
+  return out.length ? out.join(" · ") : "有新存档";
 }
 
-/* 序列标签：军线 / 纪委线是后来新增的身份序列，
-   此前后台一律按行政显示，看不出某人走的是哪条线。
-   行政不占版面（占绝大多数），只标两条特殊线。 */
-function trackTag(track, svc){
-  if(track === "军事") return " <span class='tag' style='background:#e8eef6;color:#3a5f8a'>军"
-    + (svc ? "·"+esc(svc) : "") + "</span>";
-  if(track === "纪检") return " <span class='tag' style='background:#fdf3e3;color:#8a6a35'>纪委</span>";
-  return "";
-}
-
-/* ---------- 档案详情 ----------
-   名录一行放不下全部信息（学历、财政、健康、世代…），
-   点工号展开完整档案。此前只能看到职务与政绩，
-   想知道某人玩到什么程度只能靠猜。 */
-function showDetail(id){
-  var u = (window.__users||[]).filter(function(x){ return x.id===id; })[0];
-  if(!u) return;
-  var s = (window.__saves||{})[id];
-  var m = (s && s.summary) || {};
-  function row(k, v){
-    if(v===undefined||v===null||v==="") return "";
-    return "<tr><th style='width:74px;color:#8a8170;font-weight:400'>"+esc(k)+
-           "</th><td>"+String(v)+"</td></tr>";
-  }
-  var body = "";
-  body += row("工号", "<b>"+esc(u.emp_id)+"</b>");
-  body += row("姓名", esc(u.name||"—"));
-  body += row("联系方式", esc(u.contact||"—"));
-  body += row("状态", "<span class='tag tag-"+esc(u.status)+"'>"+esc(u.status)+"</span>");
-  body += row("登录次数", (u.login_count||0)+" 次");
-  body += row("建档时间", u.created_at ? new Date(u.created_at).toLocaleString("zh-CN") : "—");
-  body += row("最近登录", u.last_login_at ? new Date(u.last_login_at).toLocaleString("zh-CN") : "从未登录");
-  var arch = "";
-  if(s){
-    arch += row("职务", esc(m.职务||"—") + trackTag(m.序列, m.军种));
-    arch += row("序列", esc(m.序列||"行政") + (m.军种 ? "（"+esc(m.军种)+"）" : ""));
-    arch += row("学历", esc(m.学历||"—"));
-    arch += row("年龄 / 时间", esc(m.年份||"—") + (m.年龄 ? " · "+m.年龄+"岁" : ""));
-    arch += row("政绩 / 道德", (m.政绩===undefined?"—":m.政绩) + " / " + (m.道德===undefined?"—":m.道德));
-    arch += row("财政 / 健康", (m.财政===undefined||m.财政===null?"—":m.财政) + " / "
-                             + (m.健康===undefined||m.健康===null?"—":m.健康));
-    arch += row("任职地", esc(m.任职地||"—"));
-    arch += row("出身", esc(m.出身||"—"));
-    if(m.世代) arch += row("家族传承", "第 "+esc(String(m.世代))+" 代 · 底蕴 "+esc(String(m.底蕴||0)));
-    arch += row("结局", m.结局 ? "<b style='color:#9e1b20'>"+esc(m.结局)+"</b>" : "—（进行中）");
-    arch += row("存档时间", s.savedAt ? new Date(s.savedAt).toLocaleString("zh-CN") : "—");
-  } else {
-    arch = "<tr><td class='mini' colspan='2'>尚无云端存档"
-      + (window.__saveErr ? "（"+esc(window.__saveErr)+"）" : "") + "</td></tr>";
-  }
-  var box = document.createElement("div");
-  box.id = "detailBox";
-  box.style.cssText = "position:fixed;inset:0;z-index:99998;background:rgba(0,0,0,.45);"+
-    "display:flex;align-items:center;justify-content:center;padding:16px";
-  box.innerHTML = "<div style='background:#fff;border-radius:8px;max-width:420px;width:100%;"+
-    "max-height:82vh;overflow:auto;box-shadow:0 8px 32px rgba(0,0,0,.3)'>"+
-    "<div style='background:#9e1b20;color:#fff;padding:11px 14px;font-weight:700;border-radius:8px 8px 0 0'>"+
-    "📇 干部档案详情</div>"+
-    "<div style='padding:6px 14px 14px'><table style='width:100%'>"+body+"</table>"+
-    "<div class='mini' style='margin:10px 0 4px;color:#9e1b20;font-weight:700'>游戏进度</div>"+
-    "<table style='width:100%'>"+arch+"</table>"+
-    "<div style='margin-top:12px;text-align:right'><button id='dtlClose' class='pri'>关闭</button></div>"+
-    "</div></div>";
-  box.onclick = function(e){ if(e.target === box) box.parentNode.removeChild(box); };
-  document.body.appendChild(box);
-  $("dtlClose").onclick = function(){ box.parentNode.removeChild(box); };
-}
-
-/* ---------- 导出 CSV ----------
-   导当前筛选结果，便于离线查阅或留档。
-   加 BOM，否则 Excel 打开中文乱码。 */
-function exportCsv(){
-  var rows = [["工号","姓名","联系方式","状态","登录次数","建档时间","最近登录",
-               "职务","序列","军种","学历","年龄","年份","政绩","道德","财政","健康","结局"]];
-  filtered.forEach(function(u){
-    var s = (window.__saves||{})[u.id], m = (s && s.summary) || {};
-    rows.push([
-      u.emp_id||"", u.name||"", u.contact||"", u.status||"", u.login_count||0,
-      u.created_at ? new Date(u.created_at).toLocaleString("zh-CN") : "",
-      u.last_login_at ? new Date(u.last_login_at).toLocaleString("zh-CN") : "从未登录",
-      m.职务||"", m.序列||"行政", m.军种||"", m.学历||"", m.年龄||"", m.年份||"",
-      (m.政绩===undefined?"":m.政绩), (m.道德===undefined?"":m.道德),
-      (m.财政===undefined||m.财政===null?"":m.财政), (m.健康===undefined||m.健康===null?"":m.健康),
-      m.结局||""
-    ]);
-  });
-  var csv = rows.map(function(r){
-    return r.map(function(c){
-      c = String(c==null?"":c);
-      return /[",\n]/.test(c) ? '"'+c.replace(/"/g,'""')+'"' : c;
-    }).join(",");
-  }).join("\r\n");
-  var blob = new Blob(["\ufeff"+csv], {type:"text/csv;charset=utf-8"});
-  var a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = "干部档案_" + new Date().toISOString().slice(0,10) + ".csv";
-  document.body.appendChild(a); a.click();
-  setTimeout(function(){ URL.revokeObjectURL(a.href); a.parentNode.removeChild(a); }, 500);
+function rankName(r){
+  r = parseInt(r,10);
+  if(isNaN(r) || !window.ADMIN_RANKS) return "";
+  var e = window.ADMIN_RANKS[r];
+  return e ? e[0] : "";
 }
 
 function render(){
   var users = window.__users || [];
-  var saves = window.__saves || {};
   var q = ($("q").value||"").trim().toLowerCase();
   var fs = $("fStatus").value;
-  var ft = ($("fTrack") && $("fTrack").value) || "";
-  var fv = ($("fSave") && $("fSave").value) || "";
-  var so = ($("fSort") && $("fSort").value) || "login";
-  /* 取某人的存档摘要，供筛选、排序、统计共用 */
-  function sumOf(u){ var s = saves[u.id]; return (s && s.summary) || {}; }
   filtered = users.filter(function(u){
     if(fs && u.status !== fs) return false;
-    /* 序列筛选：老存档没有 序列 字段，一律视为行政，
-       否则筛"行政"时会把全部老玩家筛掉。 */
-    var m = sumOf(u);
-    var tk = m.序列 || "行政";
-    if(ft && tk !== ft) return false;
-    if(fv === "1" && !saves[u.id]) return false;
-    if(fv === "0" && saves[u.id]) return false;
     if(!q) return true;
-    /* 搜索含职务：管理员往往记得的是"那个当上市长的"，
-       而不是工号。存档没取回时职务为空，不影响其余字段匹配。 */
-    var hay = ((u.emp_id||"")+" "+(u.name||"")+" "+(u.contact||"")+" "+(m.职务||"")+" "+(m.任职地||""));
-    return hay.toLowerCase().indexOf(q) >= 0;
+    return ((u.emp_id||"")+" "+(u.name||"")+" "+(u.contact||"")).toLowerCase().indexOf(q) >= 0;
   });
-  /* 排序：默认按最近登录（服务端已排，但筛选后需重排，
-     且新增的政绩/建档/工号三种排序服务端不支持） */
-  filtered.sort(function(a,b){
-    if(so === "score"){
-      var sa = sumOf(a).政绩, sb = sumOf(b).政绩;
-      sa = (typeof sa === "number") ? sa : -1;
-      sb = (typeof sb === "number") ? sb : -1;
-      return sb - sa;
-    }
-    if(so === "new"){
-      return new Date(b.created_at||0).getTime() - new Date(a.created_at||0).getTime();
-    }
-    if(so === "emp") return String(a.emp_id||"").localeCompare(String(b.emp_id||""));
-    return new Date(b.last_login_at||b.created_at||0).getTime()
-         - new Date(a.last_login_at||a.created_at||0).getTime();
-  });
-  var st = $("sortTip");
-  if(st) st.textContent = so === "score"
-    ? "按政绩降序（无存档者排末尾）" : (so === "new" ? "按建档时间，新的在前" : "");
-  // 统计
-  /* 在线判定：最近 5 分钟内有心跳上报。
-     心跳由游戏端登录后每 2 分钟发一次，关掉页面即停止，
-     故无需登出逻辑，5 分钟后自然显示为离线。 */
-  var ONLINE_MS = 5*60000;
-  var now = Date.now();
+  var ONLINE_MS = 5*60000, now = Date.now();
   function isOnline(u){
     if(!u.last_active_at) return false;
-    var t = new Date(u.last_active_at).getTime();
-    return (now - t) < ONLINE_MS;
+    return (now - new Date(u.last_active_at).getTime()) < ONLINE_MS;
   }
   var hasActiveCol = users.some(function(u){ return u.last_active_at !== undefined; });
   if(!hasActiveCol){
-    $("sOnline").textContent = "—";
-    $("sOnline").style.color = "#8a8170";
-    $("sOnline").title = "需在 Supabase 执行：alter table game_users add column last_active_at timestamptz;";
-    var tip2 = $("onlineTip");
-    if(tip2) tip2.textContent = "缺字段，暂无法统计";
+    $("sOnline").textContent = "—"; $("sOnline").style.color = "#8a8170";
+    var tip2 = $("onlineTip"); if(tip2) tip2.textContent = "缺字段";
   } else {
     var n = users.filter(isOnline).length;
     $("sOnline").textContent = n + " 人";
-    $("sOnline").style.color = n>0 ? "#2f7d4f" : "#8a8170";
-    /* 标注口径：这是"最近 5 分钟有活动"的近似，不是真实的在线会话。
-       纯前端 + REST 没有会话概念，服务端无从得知玩家是否还开着页面。
-       全表无人上报过，多半是玩家客户端还是旧版（尚未含心跳），
-       刷新一次即可——不明说会让人误以为功能坏了。 */
+    $("sOnline").style.color = n>0 ? "#6cc08a" : "#8a8170";
     var tip = $("onlineTip");
     var anyVal = users.some(function(u){ return !!u.last_active_at; });
-    if(tip) tip.textContent = anyVal ? "近 5 分钟有活动" : "待玩家刷新页面";
+    if(tip) tip.textContent = anyVal ? "近 5 分钟" : "待刷新";
   }
   $("sTotal").textContent = users.length;
   $("sActive").textContent = users.filter(function(u){return u.status==="正常";}).length;
-  /* 今日登录：last_login_at 落在今天。
-     "今天"按本地时区判断，与列表里展示的时间口径一致。 */
   var today = new Date().toDateString();
   $("sToday").textContent = users.filter(function(u){
     return u.last_login_at && new Date(u.last_login_at).toDateString() === today;
   }).length + " 人";
+  var saves = window.__saves || {};
   $("sSaved").textContent = users.filter(function(u){ return !!saves[u.id]; }).length + " 人";
-  /* 序列与结局统计：只在有存档的人里算——
-     没上传过存档的人序列未知，计进"行政"会让数字虚高。 */
-  var nMil=0, nJw=0, nEnd=0, nHave=0;
-  users.forEach(function(u){
-    if(!saves[u.id]) return;
-    nHave++;
-    var m = sumOf(u);
-    if(m.序列 === "军事") nMil++;
-    else if(m.序列 === "纪检") nJw++;
-    if(m.结局) nEnd++;
-  });
-  $("sMil").textContent = nMil + " 人";
-  $("sJw").textContent  = nJw + " 人";
-  $("sEnd").textContent = nEnd + " 人";
-  $("sMil").title = $("sJw").title = "仅统计已上传存档的档案（共 "+nHave+" 份）";
-  $("listTip").textContent = "共 "+filtered.length+" 条"
-    + (window.__saveErr ? "（存档读取失败："+esc(window.__saveErr)+"）" : "");
+  $("listTip").textContent = "共 "+filtered.length+" 条";
 
-  if(!filtered.length){
-    $("tb").innerHTML = '<tr><td colspan="9" class="mini">无匹配档案</td></tr>'; return;
-  }
-  $("tb").innerHTML = filtered.map(function(u){
-    var c = u.created_at ? new Date(u.created_at).toLocaleDateString("zh-CN") : "—";
+  var box = $("list");
+  if(!filtered.length){ box.innerHTML = '<div class="mini">无匹配档案</div>'; return; }
+  box.innerHTML = filtered.map(function(u){
     var l = u.last_login_at ? new Date(u.last_login_at).toLocaleString("zh-CN") : "从未登录";
     var on = hasActiveCol && isOnline(u);
-    return "<tr>"+
-      "<td>"+(on ? "<span class='tag' style='background:#2f7d4f'>在线</span>"
-                 : "<span class='mini'>—</span>")+"</td>"+
-      "<td><b><a href='' data-detail='"+esc(u.id)+"' style='color:#2b2b2b;text-decoration:underline dotted'>"
-        +esc(u.emp_id)+"</a></b></td>"+
-      "<td>"+esc(u.name||"—")+"</td>"+
-      "<td class='mini'>"+esc(u.contact||"—")+"</td>"+
-      "<td class='mini'>"+saveCell(u)+"</td>"+
-      "<td><span class='tag tag-"+esc(u.status)+"'>"+esc(u.status)+"</span></td>"+
-      "<td>"+(u.login_count||0)+" 次</td>"+
-      "<td class='mini'>建 "+c+"<br>"+l+"</td>"+
-      "<td nowrap>"+
+    return '<div class="u">'+
+      '<div class="t1">'+
+        '<span class="nm">'+esc(u.name||"（未填姓名）")+'</span>'+
+        '<span class="eid">'+esc(u.emp_id)+'</span>'+
+        '<span class="tag tag-'+esc(u.status)+'">'+esc(u.status)+'</span>'+
+        (on ? '<span class="tag tag-on">在线</span>' : "")+
+      '</div>'+
+      '<div class="t2">'+esc(u.contact||"—")+' · 登录 '+(u.login_count||0)+' 次<br>'+
+        '存档：'+saveText(u)+'<br>最近：'+esc(l)+'</div>'+
+      '<div class="btnrow">'+
+        '<button class="sm" data-act="编辑" data-id="'+u.id+'">📝 修改数据</button>'+
         (u.status==="冻结"
-          ? "<button class='sm' data-act='恢复' data-id='"+u.id+"'>恢复</button> "
-          : "<button class='sm' data-act='冻结' data-id='"+u.id+"'>冻结</button> ")+
-        "<button class='sm' data-act='重置口令' data-id='"+u.id+"'>重置口令</button> "+
-        "<button class='sm' data-act='注销' data-id='"+u.id+"'>注销</button>"+
-      "</td></tr>";
+          ? '<button class="sm" data-act="恢复" data-id="'+u.id+'">恢复</button>'
+          : '<button class="sm" data-act="冻结" data-id="'+u.id+'">冻结</button>')+
+        '<button class="sm" data-act="重置口令" data-id="'+u.id+'">重置口令</button>'+
+        '<button class="sm dgr" data-act="注销" data-id="'+u.id+'">注销</button>'+
+      '</div></div>';
   }).join("");
-
-  Array.prototype.forEach.call($("tb").querySelectorAll("button[data-act]"), function(b){
+  Array.prototype.forEach.call(box.querySelectorAll("button[data-act]"), function(b){
     b.onclick = function(){ onAct(b.getAttribute("data-act"), b.getAttribute("data-id")); };
-  });
-  Array.prototype.forEach.call($("tb").querySelectorAll("a[data-detail]"), function(a){
-    a.onclick = function(){ showDetail(a.getAttribute("data-detail")); return false; };
   });
 }
 
 function onAct(act, id){
   var u = (window.__users||[]).filter(function(x){return x.id===id;})[0];
   if(!u) return;
+  if(act === "编辑"){ openEdit(u); return; }
   if(act === "注销"){
     if(!confirm("确认注销【"+u.emp_id+"】？其云端存档将一并清除，且不可恢复。")) return;
   } else if(act === "冻结" || act === "恢复"){
@@ -972,53 +556,260 @@ function onAct(act, id){
   } else if(act === "重置口令"){
     var np = prompt("为【"+u.emp_id+"】设置新口令：");
     if(!np) return;
-    /* 必须用与游戏本体一致的哈希算法。
-       此前用 sha256("qlp_admin_"+pwd)，而游戏是 sha256Hex(SALT+pwd+SALT)，
-       两者不同 —— 提示"口令已重置"，玩家却用新口令永远登不进去，
-       等于管理员亲手把账号锁死，且界面报成功，极难排查。
-       旧版 cloud.js 没有 userPwdHash 时拒绝执行，宁可不做也不能做错。 */
-    if(typeof Cloud.userPwdHash !== "function"){
-      alert("云端模块版本过旧，无法重置口令。请刷新页面后重试。"); return;
-    }
-    var h2 = Cloud.userPwdHash(np);
-    api("resetPwd", {id:id, pwdHash:h2}).then(function(r){
-      api("log", {action:"重置口令", target:u.emp_id, detail:(r.ok?"成功":("失败："+(r.msg||"")))});
-      alert(r.ok ? ("口令已重置，【"+u.emp_id+"】可用新口令登录") : ("失败："+(r.msg||"离线")));
-      loadAll();
+    sha256(np).then(function(h){
+      Cloud.adminResetPwd(id, h).then(function(r){
+        Cloud.adminLog("重置口令", u.emp_id, r.ok?"成功":("失败："+(r.msg||"")));
+        alert(r.ok ? "口令已重置" : ("失败："+(r.msg||"离线"))); loadAll();
+      });
     });
     return;
   }
-  var fn = (act==="注销") ? api("deleteUser", {id:id, empId:u.emp_id})
-         : api("setStatus", {id:id, status:(act==="冻结"?"冻结":"正常")});
+  var fn = (act==="注销") ? Cloud.adminDeleteUser(id)
+         : Cloud.adminSetStatus(id, act==="冻结"?"冻结":"正常");
   fn.then(function(r){
-    api("log", {action:act, target:u.emp_id, detail:(r.ok?"成功":("失败："+(r.msg||"")))});
+    Cloud.adminLog(act, u.emp_id, r.ok?"成功":("失败："+(r.msg||"")));
     alert(r.ok ? (act+"成功") : (act+"失败："+(r.msg||"离线")));
     loadAll();
   });
 }
 
+/* ============================================================
+   修改玩家档案数据
+   ------------------------------------------------------------
+   此前后台能看摘要、能冻结注销，唯独不能改数据：
+   玩家存档损坏、数值异常、误触结局时，管理员只能注销重来，
+   而注销会连带清除整个档案，代价远大于问题本身。
+
+   现在：点「修改数据」拉取该玩家整份存档，分组列出常用字段
+   直接编辑，保存时回写 data 并重算 summary（否则名录与排行榜
+   仍显示旧值，看起来像没改成功）。
+
+   必须说清的一点：游戏以本机 localStorage 为权威，云端是副本。
+   玩家若正在游戏，其下一次自动同步会覆盖此处修改。因此界面
+   上明确提示——修改适用于处置异常存档、协助离线玩家，
+   对在线玩家不保证持久。
+   ============================================================ */
+var FIELDS = [
+  {sec:"基础信息", items:[
+    {k:"name",   t:"姓名", type:"text"},
+    {k:"gender", t:"性别", type:"text"},
+    {k:"age",    t:"年龄", type:"num"},
+    {k:"edu",    t:"学历", type:"text"},
+    {k:"hometown", t:"籍贯", type:"text"},
+    {k:"school", t:"毕业院校", type:"text"}
+  ]},
+  {sec:"职务与时间", items:[
+    {k:"rank",  t:"职级索引（0 起）", type:"num", rank:true},
+    {k:"year",  t:"年份", type:"num"},
+    {k:"month", t:"月份", type:"num"},
+    {k:"任现职起始月", t:"任现职起始月", type:"num"},
+    {k:"基层月数", t:"基层工作月数", type:"num"}
+  ]},
+  {sec:"核心数值", items:[
+    {k:"政绩", t:"政绩", type:"num"},
+    {k:"能力", t:"能力", type:"num"},
+    {k:"道德", t:"道德", type:"num"},
+    {k:"健康", t:"健康", type:"num"},
+    {k:"人脉", t:"人脉", type:"num"},
+    {k:"上司好感", t:"上司好感", type:"num"},
+    {k:"廉政", t:"廉政", type:"num"},
+    {k:"廉政风险暴露", t:"廉政风险暴露", type:"num"},
+    {k:"cash", t:"可支配资金", type:"num"}
+  ]},
+  {sec:"治理指标", items:[
+    {k:"财政", t:"财政", type:"num"},
+    {k:"GDP",  t:"GDP", type:"num"},
+    {k:"民生", t:"民生", type:"num"},
+    {k:"生态", t:"生态", type:"num"},
+    {k:"营商", t:"营商", type:"num"},
+    {k:"治安", t:"治安", type:"num"}
+  ]},
+  {sec:"派系与风险", items:[
+    {k:"partyRep", t:"党内声望", type:"num"},
+    {k:"neutralRep", t:"中立声望", type:"num"},
+    {k:"reformRep", t:"改革声望", type:"num"},
+    {k:"攀附风险", t:"攀附风险", type:"num"},
+    {k:"一票否决次数", t:"一票否决次数", type:"num"},
+    {k:"处置得当", t:"处置得当次数", type:"num"}
+  ]}
+];
+
+function openEdit(u){
+  EDIT.user = u; EDIT.S = null; EDIT.summary = null;
+  $("shTitle").textContent = "📝 " + (u.emp_id||"") + " · " + (u.name||"");
+  $("shBody").innerHTML = '<div class="mini">正在读取云端存档…</div>';
+  $("mask").setAttribute("data-open","1");
+  $("sheet").setAttribute("data-open","1");
+  if(typeof Cloud.adminReadSave !== "function"){
+    $("shBody").innerHTML = '<div class="msg msg-err">云端模块过旧，不支持读取整份存档。请刷新页面重新拉取 cloud.js。</div>';
+    return;
+  }
+  Cloud.adminReadSave(u.id).then(function(r){
+    if(!r.ok){ $("shBody").innerHTML = '<div class="msg msg-err">读取失败：'+esc(r.msg||"离线")+'</div>'; return; }
+    if(r.empty){ $("shBody").innerHTML = '<div class="msg msg-info">该账号尚无云端存档，无法修改数据。</div>'; return; }
+    EDIT.S = r.data; EDIT.summary = r.summary || {};
+    renderEdit();
+  });
+}
+
+function renderEdit(){
+  var S = EDIT.S || {};
+  var html = "";
+  html += '<div class="hint" style="margin-bottom:10px">'+
+    '存档时间：'+esc((EDIT.summary&&EDIT.summary.年份)||"—")+' · 职务：'+esc((EDIT.summary&&EDIT.summary.职务)||"—")+
+    '<br><b style="color:#e8656e">注意</b>：游戏以玩家本机存档为权威。玩家若正在游戏，其下一次自动同步会覆盖此处修改。'+
+    '修改适用于处置异常存档、协助离线玩家。</div>';
+
+  FIELDS.forEach(function(g, gi){
+    html += '<div class="sec-h" data-ef="'+gi+'" data-open="'+(gi===0?"1":"0")+'">'+g.sec+' <span class="n">'+g.items.length+' 项</span></div>';
+    html += '<div class="sec-b" data-efb="'+gi+'" data-open="'+(gi===0?"1":"0")+'"><div class="card"><div class="card-b"><div class="grid2">';
+    g.items.forEach(function(f){
+      var v = S[f.k];
+      if(v === undefined || v === null) v = "";
+      html += '<div class="fld"><label class="f">'+f.t+'<span class="mini" style="margin-left:4px">'+f.k+'</span></label>'+
+              '<input type="'+(f.type==="num"?"number":"text")+'" data-k="'+f.k+'" value="'+esc(String(v))+'">'+
+              (f.rank ? '<div class="pv" data-pv="rank">'+esc(rankName(v))+'</div>' : '')+
+              '</div>';
+    });
+    html += '</div></div></div></div>';
+  });
+
+  html += '<div class="sec-h" data-ef="q" data-open="0">快捷处置</div>'+
+    '<div class="sec-b" data-efb="q" data-open="0"><div class="card"><div class="card-b">'+
+    '<div class="btnrow" style="margin-top:0">'+
+      '<button class="sm" data-q="rankup">职级 +1</button>'+
+      '<button class="sm" data-q="rankdn">职级 −1</button>'+
+      '<button class="sm" data-q="heal">健康满值</button>'+
+      '<button class="sm" data-q="clean">廉政风险清零</button>'+
+      '<button class="sm" data-q="money">资金 +10 万</button>'+
+      '<button class="sm" data-q="resetend">清除结局</button>'+
+    '</div></div></div></div>';
+
+  html += '<div class="sec-h" data-ef="j" data-open="0">原始存档（JSON）</div>'+
+    '<div class="sec-b" data-efb="j" data-open="0"><div class="card"><div class="card-b">'+
+    '<div class="mini" style="margin-bottom:6px">整份读取与替换。改动将覆盖上面的分项编辑。</div>'+
+    '<textarea id="rawJson" rows="8" style="width:100%">'+esc(JSON.stringify(S))+'</textarea>'+
+    '<div class="btnrow"><button class="sm" data-q="fmt">格式化</button>'+
+    '<button class="sm" data-q="reload">还原为刚读取的内容</button></div>'+
+    '<div class="mini" id="jsonMsg" style="margin-top:6px"></div>'+
+    '</div></div></div>';
+
+  $("shBody").innerHTML = html;
+  EDIT.raw0 = JSON.stringify(S||{});
+
+  Array.prototype.forEach.call($("shBody").querySelectorAll(".sec-h[data-ef]"), function(h){
+    h.onclick = function(){
+      var gi = h.getAttribute("data-ef");
+      var b = $("shBody").querySelector('[data-efb="'+gi+'"]');
+      if(!b) return;
+      var open = b.getAttribute("data-open") === "1";
+      b.setAttribute("data-open", open?"0":"1");
+      h.setAttribute("data-open", open?"0":"1");
+    };
+  });
+  var rk = $("shBody").querySelector('[data-k="rank"]');
+  if(rk) rk.oninput = function(){
+    var pv = $("shBody").querySelector('[data-pv="rank"]');
+    if(pv) pv.textContent = rankName(rk.value) || "—";
+  };
+  Array.prototype.forEach.call($("shBody").querySelectorAll("button[data-q]"), function(b){
+    b.onclick = function(){ quickAct(b.getAttribute("data-q")); };
+  });
+}
+
+function collectEdits(){
+  var S = EDIT.S || {};
+  Array.prototype.forEach.call($("shBody").querySelectorAll("input[data-k]"), function(i){
+    var k = i.getAttribute("data-k");
+    var v = i.value;
+    if(i.type === "number"){ v = (v === "" ? 0 : parseFloat(v)); if(isNaN(v)) v = 0; }
+    S[k] = v;
+  });
+  return S;
+}
+
+function quickAct(q){
+  var S = collectEdits();
+  if(q === "rankup"){ S.rank = Math.min((window.ADMIN_RANKS||[]).length-1, (parseInt(S.rank,10)||0)+1); }
+  else if(q === "rankdn"){ S.rank = Math.max(0, (parseInt(S.rank,10)||0)-1); }
+  else if(q === "heal"){ S.健康 = 100; }
+  else if(q === "clean"){ S.廉政风险暴露 = 0; S.攀附风险 = 0; }
+  else if(q === "money"){ S.cash = (parseFloat(S.cash)||0) + 100000; }
+  else if(q === "resetend"){ S.ending = ""; }
+  else if(q === "fmt"){
+    var ta = $("rawJson");
+    try{ ta.value = JSON.stringify(JSON.parse(ta.value), null, 2); $("jsonMsg").textContent = "已格式化"; }
+    catch(e){ $("jsonMsg").textContent = "JSON 解析失败："+e.message; }
+    return;
+  }
+  else if(q === "reload"){
+    var ta2 = $("rawJson");
+    if(ta2){ ta2.value = JSON.stringify(EDIT.S||{}); $("jsonMsg").textContent = "已还原"; }
+    return;
+  }
+  EDIT.S = S;
+  renderEdit();
+  var rk = $("shBody").querySelector('[data-k="rank"]');
+  if(rk){ rk.scrollIntoView({block:"center"}); }
+}
+
+function closeEdit(){
+  $("mask").setAttribute("data-open","0");
+  $("sheet").setAttribute("data-open","0");
+}
+$("shClose").onclick = closeEdit;
+$("shCancel").onclick = closeEdit;
+$("mask").onclick = closeEdit;
+
+$("shSave").onclick = function(){
+  if(!EDIT.user || !EDIT.S) return;
+  var ta = $("rawJson");
+  /* 先取分项编辑结果；仅当「整份 JSON」区确实被改动过才以它为准。
+     旧实现里只要 textarea 存在就永远走 JSON 分支，而 textarea 内容是
+     刚读取时的原样——结果分项输入框里改的数值一个都存不进去。 */
+  var S = collectEdits();
+  if(ta && (ta.value||"").trim() && ta.value !== EDIT.raw0){
+    try{
+      var parsed = JSON.parse(ta.value);
+      if(parsed && typeof parsed === "object") S = parsed;
+    }catch(e){
+      alert("原始 JSON 解析失败，已按分项编辑保存。\n"+e.message);
+    }
+  }
+  var r = parseInt(S.rank,10);
+  var sum = (typeof Cloud.adminBuildSummary === "function")
+    ? Cloud.adminBuildSummary(S, EDIT.summary||{})
+    : (EDIT.summary||{});
+  if(!isNaN(r) && window.ADMIN_RANKS && window.ADMIN_RANKS[r]){
+    sum["职务"] = window.ADMIN_RANKS[r][0];
+    sum["层次"] = window.ADMIN_RANKS[r][1];
+  }
+  if(typeof Cloud.adminWriteSave !== "function"){
+    alert("云端模块过旧，不支持写回存档。请刷新页面重新拉取 cloud.js。"); return;
+  }
+  var btn = $("shSave");
+  btn.disabled = true; btn.textContent = "保存中…";
+  Cloud.adminWriteSave(EDIT.user.id, S, {summary:sum, prevSummary:EDIT.summary||{}})
+    .then(function(res){
+      btn.disabled = false; btn.textContent = "保存修改";
+      var detail = "职级 "+r+" · 政绩 "+(sum["政绩"]||0)+" · "+(res.ok?"成功":"失败："+(res.msg||""));
+      Cloud.adminLog("修改存档", EDIT.user.emp_id, detail);
+      if(res.ok){ alert("已保存。名录稍后刷新可见新数值。"); closeEdit(); loadAll(); }
+      else alert("保存失败："+(res.msg||"离线"));
+    });
+};
+
 $("q").oninput = render;
 
-/* ---------- 版本检测 ----------
-   后台同样会被浏览器缓存（cloud.js 曾因旧缓存导致 URL 清洗失效）。
-   与游戏共用同一个 version.json，不一致时提示刷新。 */
-/* 强制重载：先让浏览器重新拉取 HTML 并覆盖 HTTP 缓存，再跳转。
-   此前只做 location.replace(url)，手机浏览器（尤其开了"省流量加速"的）
-   会直接命中本地缓存返回旧页面——管理员看到的现象就是"点了没反应"。 */
 function hardReloadAdmin(url){
   var done = function(){
     try{ location.replace(url); }
     catch(e){ try{ location.href = url; }catch(e2){} }
   };
   var p = null;
-  try{
-    if(typeof fetch === "function") p = fetch(url, {cache:"reload", credentials:"same-origin"});
-  }catch(e){ p = null; }
-  if(p && p.then){
-    p.then(function(){ setTimeout(done, 80); }, function(){ setTimeout(done, 80); });
-  }else{
-    setTimeout(done, 30);
-  }
+  try{ if(typeof fetch === "function") p = fetch(url, {cache:"reload", credentials:"same-origin"}); }catch(e){ p = null; }
+  if(p && p.then){ p.then(function(){ setTimeout(done, 80); }, function(){ setTimeout(done, 80); }); }
+  else { setTimeout(done, 30); }
 }
 
 function checkAdminUpdate(){
@@ -1028,9 +819,6 @@ function checkAdminUpdate(){
     var pure = href.split("#")[0].split("?")[0];
     var base = pure.replace(/[^\/]*$/, "");
     var cur = String(window.ADMIN_VERSION||"");
-    /* 已尝试破缓存的次数。超过 1 次仍落后，说明 CDN / 代理尚未生效，
-       此时绝不能再自动刷新——否则"刷新→还是旧版→再刷新"死循环，
-       页面会不停跳转，管理员根本没法操作。 */
     var tries = 0;
     try{ tries = parseInt(sessionStorage.getItem("qlp_admin_bust_n")||"0",10)||0; }catch(e){}
     fetch(base + "version.json?t=" + Date.now(), {cache:"no-store", headers:{"Cache-Control":"no-cache"}})
@@ -1039,13 +827,8 @@ function checkAdminUpdate(){
       .then(function(d){
         if(!d || !d.v) return;
         var latest = String(d.v);
-        if(latest === cur){
-          try{ sessionStorage.removeItem("qlp_admin_bust_n"); }catch(e){}
-          return;
-        }
+        if(latest === cur){ try{ sessionStorage.removeItem("qlp_admin_bust_n"); }catch(e){} return; }
         if(tries < 1){
-          /* 首次发现落后：自动硬刷新一次。后台被缓存是常态，
-             靠管理员手动点总有漏网。 */
           try{ sessionStorage.setItem("qlp_admin_bust_n", String(tries+1)); }catch(e){}
           hardReloadAdmin(pure + "?_v=" + encodeURIComponent(latest) + "&_t=" + Date.now());
           return;
@@ -1056,12 +839,8 @@ function checkAdminUpdate(){
         bar.id = "adminUpdBar";
         bar.style.cssText = "position:fixed;left:0;right:0;bottom:0;z-index:99999;background:#b01e23;"+
           "color:#fff;padding:10px 12px;font-size:13px;display:flex;align-items:center;gap:8px;box-shadow:0 -2px 12px rgba(0,0,0,.3)";
-        bar.innerHTML = '<div style="flex:1;line-height:1.6">后台有新版本：当前 <b>v'+cur+
-          '</b> → 最新 <b>v'+latest+'</b><br><span style="opacity:.85;font-size:12px">'+
-          (tries>=2
-            ? '已尝试 '+tries+' 次仍未拉到新版，多为 CDN 或手机浏览器的省流量代理缓存。请等待 1–2 分钟，或用无痕模式打开。'
-            : '页面文件被缓存，点右侧按钮强制重新拉取。')+
-          '</span></div>';
+        bar.innerHTML = '<div style="flex:1;line-height:1.6">后台有新版本：v'+cur+' → v'+latest+
+          '<br><span style="opacity:.85;font-size:12px">页面被缓存，请强制刷新</span></div>';
         var b = document.createElement("button");
         b.textContent = "强制刷新";
         b.style.cssText = "background:#fff;color:#b01e23;border:0;border-radius:6px;padding:8px 12px;font-weight:700;white-space:nowrap";
@@ -1077,31 +856,21 @@ function checkAdminUpdate(){
 }
 try{ checkAdminUpdate(); }catch(e){}
 
-/* ---------- 自动刷新 ----------
-   在线状态会随时间变化，需定期重取。
-   用户在搜索框里打字时不刷新，避免打断输入。 */
+/* 自动刷新：输入时不打断 */
 setInterval(function(){
   try{
     if(!$("main") || $("main").style.display === "none") return;
+    if($("mask").getAttribute("data-open") === "1") return;   /* 编辑中不刷新，避免覆盖输入 */
     var ae = document.activeElement;
     if(ae && (ae.tagName === "INPUT" || ae.tagName === "SELECT" || ae.tagName === "TEXTAREA")) return;
-    var q = $("q").value, fs = $("fStatus").value, ft = $("fTrack").value,
-        fv = $("fSave").value, so = $("fSort").value;
+    var q = $("q").value, fs = $("fStatus").value;
     loadAll();
-    /* 新增的筛选器同样要还原，否则每 60 秒自动刷新
-       会把管理员选的"只看军线"悄悄重置掉。 */
-    $("q").value = q; $("fStatus").value = fs; $("fTrack").value = ft;
-    $("fSave").value = fv; $("fSort").value = so;
+    $("q").value = q; $("fStatus").value = fs;
   }catch(e){}
 }, 60000);
 $("fStatus").onchange = render;
-if($("fTrack")) $("fTrack").onchange = render;
-if($("fSave"))  $("fSave").onchange  = render;
-if($("fSort"))  $("fSort").onchange  = render;
-if($("btnCsv")) $("btnCsv").onclick  = exportCsv;
 $("btnRefresh").onclick = loadAll;
 
-/* 恢复上次配置 */
 (function(){
   try{
     var raw = localStorage.getItem("qlp_cloud_cfg");

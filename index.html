@@ -1031,6 +1031,221 @@ th{background:rgba(217,183,74,.08);color:#e3c874}
 @media print{
   body::after{color:#c8323a;background:#0b0a08}
 }
+
+/* ============================================================
+   3D 材质层 · 让界面有厚度
+   ------------------------------------------------------------
+   立体感不是"把阴影加深"，而是建立「凸起 / 凹陷」的对比：
+     凸起（卡片·按钮·弹窗·顶栏）：顶面受光、底面压暗、外投影
+     凹陷（指标格·输入框·进度槽）：顶沿压暗、底沿反光、内阴影
+   光永远来自上方——凸起物顶亮底暗，凹陷物正好反过来。
+
+   一个反直觉的点：深色画布上黑色投影几乎看不见，
+   所以这里的厚度主要靠「顶面高光 + 底沿暗边 + 表面渐变」造，
+   投影只用来做层与层之间的分离。
+   ============================================================ */
+:root{
+  --bev-t:inset 0 1px 0 rgba(255,238,200,.14);   /* 顶面受光 */
+  --bev-b:inset 0 -1px 0 rgba(0,0,0,.55);        /* 底面厚度 */
+  --rim-l:inset 0 0 0 1px rgba(255,238,200,.05); /* 侧边微光 */
+  --lift-1:0 1px 2px rgba(0,0,0,.50), 0 4px 10px rgba(0,0,0,.32);
+  --lift-2:0 2px 4px rgba(0,0,0,.52), 0 9px 22px rgba(0,0,0,.40), 0 20px 44px rgba(0,0,0,.28);
+  --lift-3:0 4px 8px rgba(0,0,0,.55), 0 16px 38px rgba(0,0,0,.46), 0 36px 74px rgba(0,0,0,.34);
+  --sink:inset 0 2px 6px rgba(0,0,0,.62), inset 0 -1px 0 rgba(255,238,200,.07);
+  --gloss:linear-gradient(180deg,rgba(255,238,200,.065),rgba(255,238,200,0) 38%);
+}
+
+/* —— 画布：加一层极细颗粒，避免大面积纯色显得"塑料" —— */
+#app{position:relative}
+#app::before{
+  content:"";position:absolute;inset:0;z-index:0;pointer-events:none;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/></filter><rect width='140' height='140' filter='url(%23n)'/></svg>");
+  opacity:.04;mix-blend-mode:overlay;
+}
+#main{position:relative;z-index:1}
+
+/* —— 顶栏：一条有厚度的实体横杆 —— */
+#topbar{
+  background-image:var(--gloss), linear-gradient(180deg,#221d15 0%,#16130f 62%,#0f0d0a 100%);
+  box-shadow:inset 0 1px 0 rgba(255,238,200,.12),
+             inset 0 -1px 0 rgba(0,0,0,.6),
+             0 2px 0 rgba(0,0,0,.55),
+             0 10px 26px rgba(0,0,0,.55);
+}
+.tb-title{
+  text-shadow:0 1px 0 rgba(0,0,0,.85), 0 -1px 0 rgba(255,238,200,.10), 0 0 14px rgba(217,183,74,.25);
+}
+
+/* —— 属性胶囊：小凸起 —— */
+.attr{
+  background-image:var(--gloss), linear-gradient(180deg,rgba(217,183,74,.13),rgba(217,183,74,.05));
+  box-shadow:inset 0 1px 0 rgba(255,238,200,.14), inset 0 -1px 0 rgba(0,0,0,.4),
+             0 1px 2px rgba(0,0,0,.45);
+}
+.bar-wrap{box-shadow:inset 0 1px 3px rgba(0,0,0,.65), inset 0 -1px 0 rgba(255,238,200,.06)}
+.bar{box-shadow:0 0 6px rgba(217,183,74,.5), inset 0 1px 0 rgba(255,255,255,.35), inset 0 -1px 0 rgba(0,0,0,.25)}
+
+/* —— 卡片：浮起的面板 —— */
+.card{
+  background-image:var(--gloss), linear-gradient(180deg,#231e16 0%,#1b1811 58%,#15120e 100%);
+  box-shadow:var(--bev-t), var(--bev-b), var(--rim-l), var(--lift-2);
+}
+.card-h{
+  background-image:var(--gloss), linear-gradient(180deg,#2a241a 0%,#1e1a13 100%);
+  box-shadow:inset 0 1px 0 rgba(255,238,200,.11), inset 0 -1px 0 rgba(0,0,0,.5);
+  text-shadow:0 1px 0 rgba(0,0,0,.8);
+}
+.sec{
+  background-image:var(--gloss), linear-gradient(180deg,#1f1b14 0%,#17140f 100%);
+  box-shadow:var(--bev-t), var(--bev-b), var(--rim-l), var(--lift-1);
+}
+.sec-h{
+  background-image:var(--gloss), linear-gradient(180deg,#262017 0%,#1b1812 100%);
+  box-shadow:inset 0 1px 0 rgba(255,238,200,.10), inset 0 -1px 0 rgba(0,0,0,.5);
+  text-shadow:0 1px 0 rgba(0,0,0,.8);
+}
+
+/* —— 指标格：凹进去的槽 —— */
+.stat{
+  background-image:linear-gradient(180deg,#0f0d09 0%,#181510 68%,#1d1a13 100%);
+  box-shadow:var(--sink), inset 0 0 0 1px rgba(0,0,0,.45);
+}
+.stat .n{text-shadow:0 1px 0 rgba(0,0,0,.7), 0 0 12px rgba(217,183,74,.22)}
+
+/* —— 按钮：实体键帽，按下去真的会陷进去 —— */
+.btn{
+  background-image:var(--gloss), linear-gradient(180deg,#26211a 0%,#1d1a13 55%,#171410 100%);
+  box-shadow:var(--bev-t), var(--bev-b), var(--rim-l),
+             0 2px 3px rgba(0,0,0,.5), 0 7px 16px rgba(0,0,0,.34);
+  transition:transform .12s cubic-bezier(.2,.7,.3,1), box-shadow .12s ease;
+}
+.btn:active{
+  transform:translateY(2px) scale(.993);
+  box-shadow:inset 0 3px 7px rgba(0,0,0,.72), inset 0 -1px 0 rgba(255,238,200,.05),
+             0 1px 1px rgba(0,0,0,.45);
+}
+/* 主按钮：金属键帽，底沿挤出 2px 厚度 */
+.btn.primary{
+  background-image:linear-gradient(180deg,rgba(255,255,255,.45),rgba(255,255,255,0) 48%),
+                   linear-gradient(180deg,#f4d77e 0%,#dcb03a 46%,#b08a1c 100%);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.5), inset 0 -1px 0 rgba(0,0,0,.3),
+             0 2px 0 #6f5810, 0 6px 14px rgba(217,183,74,.30);
+}
+.btn.primary:active{
+  transform:translateY(2px);
+  box-shadow:inset 0 3px 7px rgba(0,0,0,.42), 0 0 0 #6f5810, 0 1px 2px rgba(0,0,0,.4);
+}
+.btn.primary .bt,.btn.primary .bd{text-shadow:0 1px 0 rgba(255,255,255,.25)}
+.btn .bt{text-shadow:0 1px 0 rgba(0,0,0,.7)}
+
+/* —— 输入框 / 只读区：凹陷 —— */
+.finput,.ipt{
+  box-shadow:var(--sink), inset 0 0 0 1px rgba(0,0,0,.42);
+  background-image:linear-gradient(180deg,#100e0a 0%,#191610 100%);
+}
+.finput:focus,.ipt:focus{
+  box-shadow:var(--sink), inset 0 0 0 1px rgba(217,183,74,.45), 0 0 0 2px rgba(217,183,74,.14);
+}
+textarea.finput,textarea.ipt{box-shadow:var(--sink), inset 0 0 0 1px rgba(0,0,0,.42)}
+
+/* —— 纸质表格：压印感 —— */
+.form-paper{
+  box-shadow:inset 0 2px 10px rgba(0,0,0,.7), inset 0 -1px 0 rgba(217,183,74,.10),
+             inset 0 0 44px rgba(0,0,0,.5), 0 10px 30px rgba(0,0,0,.6);
+}
+.form-title{text-shadow:0 1px 0 rgba(0,0,0,.85), 0 0 16px rgba(217,183,74,.2)}
+
+/* —— 核验码填充键 —— */
+.codebox .cfill{
+  background-image:linear-gradient(180deg,rgba(255,255,255,.3),rgba(255,255,255,0) 50%),
+                   linear-gradient(180deg,#3f9659,#2f7d4f);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.35), 0 2px 0 #235c3a, 0 5px 12px rgba(47,125,79,.3);
+}
+.codebox .cfill:active{transform:translateY(2px);box-shadow:inset 0 2px 6px rgba(0,0,0,.4),0 0 0 #235c3a}
+
+/* —— 进度/强度槽：凹陷轨道 —— */
+.strength-bar i{box-shadow:inset 0 1px 3px rgba(0,0,0,.6)}
+.strength-bar i.on{box-shadow:inset 0 1px 0 rgba(255,255,255,.3), 0 0 6px rgba(79,167,108,.4)}
+
+/* —— 场景标题：浮雕 —— */
+.scene-title{
+  text-shadow:0 1px 0 rgba(0,0,0,.85), 0 -1px 0 rgba(255,238,200,.07);
+  border-left:4px solid var(--gold);
+}
+.result-box{box-shadow:var(--sink), inset 0 0 0 1px rgba(217,183,74,.12)}
+
+/* —— 底部导航：从下方托起的一条实体栏 —— */
+#nav{
+  background-image:linear-gradient(180deg,rgba(255,238,200,.05),rgba(255,238,200,0) 30%),
+                   linear-gradient(180deg,rgba(16,14,11,.96),rgba(9,8,7,.98));
+  box-shadow:inset 0 1px 0 rgba(255,238,200,.10), 0 -8px 26px rgba(0,0,0,.6);
+}
+#nav .tab{transition:transform .1s ease}
+#nav .tab:active{transform:translateY(1px)}
+#nav .tab.active .ic{text-shadow:0 0 12px rgba(217,183,74,.5)}
+
+/* —— 弹窗：带透视的入场 + 强悬浮 —— */
+.modal{background:rgba(0,0,0,.76)}
+.modal-box{
+  background-image:var(--gloss), linear-gradient(180deg,#1d1913 0%,#15120e 100%);
+  border:1px solid rgba(217,183,74,.26);
+  border-radius:16px;
+  box-shadow:var(--bev-t), var(--bev-b),
+             0 0 0 1px rgba(0,0,0,.6),
+             0 12px 28px rgba(0,0,0,.6),
+             0 40px 80px rgba(0,0,0,.62);
+  animation:modal3d .3s cubic-bezier(.2,.85,.3,1) both;
+}
+@keyframes modal3d{
+  from{opacity:0; transform:perspective(1000px) rotateX(10deg) translateY(20px) scale(.955)}
+  to  {opacity:1; transform:perspective(1000px) rotateX(0deg) translateY(0) scale(1)}
+}
+.modal-h{
+  background-image:linear-gradient(180deg,rgba(255,255,255,.22),rgba(255,255,255,0) 46%),
+                   linear-gradient(180deg,#c8323a 0%,#a5232b 100%);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.28), inset 0 -1px 0 rgba(0,0,0,.5);
+  text-shadow:0 1px 2px rgba(0,0,0,.5);
+  border-radius:15px 15px 0 0;
+}
+.modal-x{
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.22), 0 1px 3px rgba(0,0,0,.4);
+}
+.modal-x:active{transform:translateY(-50%) scale(.93)}
+
+/* —— 提示条 —— */
+.toast-item{
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.16), 0 6px 20px rgba(0,0,0,.6);
+  border:1px solid rgba(217,183,74,.22);
+}
+
+/* —— 头像 / 选项卡 —— */
+.avatar-item{
+  box-shadow:var(--bev-t), var(--bev-b), 0 2px 6px rgba(0,0,0,.45);
+}
+.avatar-item.sel{
+  box-shadow:inset 0 1px 0 rgba(255,238,200,.16), 0 0 0 2px rgba(217,183,74,.35),
+             0 6px 18px rgba(217,183,74,.22);
+}
+.pledge-box,.pledge-check,.reg-req{box-shadow:var(--sink)}
+.reg-fold{box-shadow:var(--bev-t), var(--bev-b), var(--lift-1)}
+.reg-fold>summary{text-shadow:0 1px 0 rgba(0,0,0,.7)}
+
+/* —— 表格：表头凸起、单元格平铺 —— */
+th{box-shadow:inset 0 1px 0 rgba(255,238,200,.10), inset 0 -1px 0 rgba(0,0,0,.4)}
+
+/* —— 滚动条：金属条 —— */
+::-webkit-scrollbar-thumb{
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.35), inset 0 -1px 0 rgba(0,0,0,.3);
+}
+
+/* —— 印章：压在纸上的印泥 —— */
+.seal-stamp{text-shadow:0 1px 0 rgba(255,255,255,.12)}
+
+/* 无障碍：用户要求减少动效时，关掉位移与动画 */
+@media (prefers-reduced-motion: reduce){
+  .btn,.btn:active,.codebox .cfill:active,#nav .tab:active{transform:none;transition:none}
+  .modal-box{animation:none}
+}
 </style>
 <!-- ============================================================
      云存档配置（CLOUD_CONFIG）
@@ -1075,7 +1290,7 @@ var MAIL_CONFIG = {
    避免玩家长期停留在旧版缓存上——本作多次改动（在线统计、
    云端同步）都曾因浏览器缓存而"改了没生效"。
    放在独立 script 块中，不参与压缩，名称不会被改写。 */
-var APP_VERSION = "20260917.1234";
+var APP_VERSION = "20260917.1254";
 </script>
 </head>
 <body>
@@ -4987,6 +5202,134 @@ function pCouncil(){
     [120,600,1500,3200].forEach(function(d){ try{ setTimeout(boot,d); }catch(e){} });
     window.__declutter={normalize:norm,enabled:true};
   }catch(e){ window.__declutter={normalize:function(){},enabled:false}; }
+})();
+</script>
+<script>
+/* ============================================================
+   3D 材质层 · 内联样式运行时补充
+   ------------------------------------------------------------
+   样式表管不到内联 style，而游戏里大量面板是 JS 拼出来的
+   （背景色硬编码在 style 里）。只改 CSS 会出现"一半立体一半扁平"。
+
+   这里给这些内联面板补上立体三件套：
+     · 顶面高光   —— 光来自上方
+     · 底沿暗边   —— 造出厚度
+     · 外投影     —— 层与层之间分离
+   并按尺寸分档：小元素用轻档（像胶囊），大面板用重档（像浮起的板）。
+
+   安全边界：
+     · 已有 box-shadow 的不动（避免覆盖红头/印章这类特意的样式）
+     · 已有渐变背景的不加高光渐变，只加阴影
+     · 绝对/固定定位的浮层不动（投影会错位）
+     · 行内元素、极小元素不动（加了反而脏）
+   幂等：处理完打 data-d3d 标记，重复扫描不再变。
+   ============================================================ */
+(function(){
+  try{
+    if(typeof document==="undefined") return;
+    try{ if(localStorage.getItem("depth3d")==="off") return; }catch(e){}
+
+    var RAISE_L =
+      "inset 0 1px 0 rgba(255,238,200,.13), inset 0 -1px 0 rgba(0,0,0,.5), "+
+      "inset 0 0 0 1px rgba(255,238,200,.045), "+
+      "0 2px 4px rgba(0,0,0,.5), 0 9px 22px rgba(0,0,0,.36)";
+    var RAISE_S =
+      "inset 0 1px 0 rgba(255,238,200,.13), inset 0 -1px 0 rgba(0,0,0,.45), "+
+      "0 1px 2px rgba(0,0,0,.45)";
+    var GLOSS = "linear-gradient(180deg,rgba(255,238,200,.06),rgba(255,238,200,0) 40%)";
+
+    var SKIP = /^(SCRIPT|STYLE|BR|HR|IMG|SVG|PATH|INPUT|TEXTAREA|SELECT|CANVAS|OPTION)$/;
+
+    function hasPaint(st){
+      var bg = st.background;
+      if(!bg) return false;
+      if(/transparent|none/.test(bg)) return false;
+      if(/rgba?\([^)]*,\s*0(\.0+)?\s*\)/.test(bg)) return false;  /* 完全透明 */
+      return true;
+    }
+
+    function apply(el){
+      if(el.nodeType!==1) return;
+      if(SKIP.test(el.nodeName)) return;
+      if(el.getAttribute && el.getAttribute("data-d3d")) return;
+      var st=el.style;
+      if(!st) return;
+      /* 已有阴影：尊重原设计（红头、印章、进度条等） */
+      if(st.boxShadow && st.boxShadow.indexOf("inset")>=0) { mark(el); return; }
+      if(st.boxShadow){ mark(el); return; }
+      if(!hasPaint(st)) return;
+
+      var cs;
+      try{ cs=window.getComputedStyle(el); }catch(e){ return; }
+      if(!cs) return;
+      if(cs.position==="absolute"||cs.position==="fixed") { mark(el); return; }
+      var d=cs.display||"";
+      if(d==="inline"||d==="none") { mark(el); return; }
+
+      var w=el.offsetWidth||0, h=el.offsetHeight||0;
+      if(w<40||h<16) { mark(el); return; }
+
+      /* 表面高光：仅当没有自己的渐变时叠加，否则会盖掉原渐变 */
+      var bi=cs.backgroundImage||"";
+      if(bi==="none"||bi===""){
+        st.backgroundImage=GLOSS;
+        /* 保留原背景色，仅叠加一层从上到下的受光 */
+      }
+      st.boxShadow = (w<170||h<40) ? RAISE_S : RAISE_L;
+      mark(el);
+    }
+    function mark(el){ try{ el.setAttribute("data-d3d","1"); }catch(e){} }
+
+    function norm(root){
+      if(!root) return;
+      var list;
+      try{ list=root.querySelectorAll?root.querySelectorAll("[style]"):[]; }catch(e){ return; }
+      /* 上限保护：单帧最多处理 400 个，防止大页面卡顿 */
+      var n=0;
+      for(var i=0;i<list.length && n<400;i++){
+        var el=list[i];
+        if(el.getAttribute && el.getAttribute("data-d3d")) continue;
+        apply(el); n++;
+      }
+    }
+
+    var pend=[], raf=0;
+    function flush(){
+      raf=0;
+      var batch=pend; pend=[];
+      for(var i=0;i<batch.length;i++){
+        try{ norm(batch[i]); }catch(e){}
+      }
+    }
+    function schedule(node){
+      if(!node) return;
+      pend.push(node);
+      if(!raf && window.requestAnimationFrame) raf=window.requestAnimationFrame(flush);
+      else if(!raf) raf=setTimeout(flush,32);
+    }
+
+    try{
+      var MO=window.MutationObserver||window.WebKitMutationObserver;
+      if(MO){
+        var ob=new MO(function(ms){
+          for(var i=0;i<ms.length;i++){
+            var m=ms[i];
+            if(m.type==="attributes") continue;
+            var ad=m.addedNodes; if(!ad) continue;
+            for(var j=0;j<ad.length;j++) schedule(ad[j]);
+          }
+        });
+        ob.observe(document.body,{childList:true,subtree:true});
+      }
+    }catch(e){}
+
+    function boot(){ try{ norm(document.body); }catch(e){} }
+    if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",boot);
+    else boot();
+    [150,600,1500,3200].forEach(function(d){ try{ setTimeout(boot,d); }catch(e){} });
+
+    window.__depth3d={normalize:norm,enabled:true};
+  }catch(e){ window.__depth3d={normalize:function(){},enabled:false}; }
 })();
 </script>
 </body>

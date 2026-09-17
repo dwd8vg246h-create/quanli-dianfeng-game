@@ -1075,7 +1075,7 @@ var MAIL_CONFIG = {
    避免玩家长期停留在旧版缓存上——本作多次改动（在线统计、
    云端同步）都曾因浏览器缓存而"改了没生效"。
    放在独立 script 块中，不参与压缩，名称不会被改写。 */
-var APP_VERSION = "20260917.1146";
+var APP_VERSION = "20260917.1234";
 </script>
 </head>
 <body>
@@ -1243,6 +1243,13 @@ function postRegionOf(name, tier){
   var n = String(name || "");
   if(/^国务院|^中共中央|^中央|^全国|全国人大|全国政协/.test(n)) return "中央";
   var n2 = n.replace(/开发区|新区|园区|工业区|校区|景区/g, "");
+  /* 消歧：机构名里带"市""乡"的字未必是行政区。
+     实测「住房和城乡建设部」被判成"乡镇"级（"城乡"的"乡"）、
+     「国家市场监督管理总局」被判成"市"级（"市场"的"市"），
+     于是部委干部的职务名被按乡镇、地市的口径改写，
+     出现「乡镇委组织部长」「市高级人民法院院长」这类荒诞称谓。
+     先把这些词剔除，再取最靠左的行政区字。 */
+  n2 = n2.replace(/城乡|乡村|乡镇振兴|市场|超市|城市|上市|股市|菜市|门市/g, "");
   /* 顺序即优先级：取最靠左的行政区字。
      "省市场监督管理局"最左是"省"，"市市场监督管理局"最左是"市"，
      因此不会把省直部门误判成市直。
@@ -1473,7 +1480,7 @@ function postTitlePick(origRaw, derived, dept){
   var cands = raw.split(/[\/·、,，]/).map(function(s){ return s.trim(); })
                  .filter(function(s){ return s.length > 1; });
   if(!cands.length) cands = [raw];
-  var best = null, bestScore = 0;
+  var best = null, bestScore = 0, bestReg = "", bestCat = "";
   for(var i = 0; i < cands.length; i++){
     var c = cands[i];
     var score = 0;
@@ -1481,11 +1488,40 @@ function postTitlePick(origRaw, derived, dept){
     if(cReg && myReg) score += (cReg === myReg) ? 3 : -4;
     var cCat = postTitleCat(c);
     if(cCat && myCat) score += (cCat === myCat) ? 3 : -2;
-    if(score > bestScore){ bestScore = score; best = c; }
+    if(score > bestScore){ bestScore = score; best = c; bestReg = cReg; bestCat = cCat; }
+  }
+  /* 政权机关领导称谓：地区对得上即可采用。
+
+     此前的缺陷：要求地区与机关类别双匹配（score≥5）才肯用表内名。
+     而市里这条晋升链本就是跨机构轮岗——
+       副市长（市政府）→ 市委常委（市委）→ 市委组织部长（市委组织部）
+       → 常务副市长（市政府）→ 市委副书记（市委），
+     类别永远与"当前所在机构"不同。于是在市政府时一个都匹配不上，
+     一律退回推导名"副市长"，结果：
+       · 常务副市长（rank25）的下一级市委副书记，目标却显示"副市长"，
+         看着像降级；
+       · 甚至当前职务也会串——在市政府当市委副书记，显示"副市长"。
+     晋升即换机构，不能拿当前机构去压。故放宽为地区一致即采信。
+
+     但仅限本人所在机关同属政权机关（政府／党委／纪委／人大／政协）时：
+       · 在市财政局、省财政厅这类业务部门，本就该称局长、处长，
+         推导名更贴切，不得拿"市委副书记"顶替；
+       · 法检、公安是高配机关，在任者职务由机构决定（院长、检察长、
+         局长），与职级档位不是一一对应，更不能用表内名覆盖。 */
+  if(best && bestReg && bestReg === myReg && postIsOrganTitle(bestCat)
+     && myCat !== "政法" && postIsOrganTitle(myCat)){
+    /* RANKS 里"乡镇长""乡镇副镇长"是笼统写法，
+       在具体的乡应称乡长、在镇应称镇长。 */
+    if(/乡镇/.test(best) && /人民政府/.test(nm)){
+      var rg2 = nm.replace(/人民政府$/, "");
+      var one2 = /镇/.test(rg2) ? "镇" : (/乡/.test(rg2) ? "乡" : "");
+      if(one2) return best.replace(/乡镇/g, one2);
+    }
+    return best;
   }
   /* 只有政权机关称谓才值得顶替推导名；部门称谓一律用推导名，
      推导名已按机构给到"局长/处长/副厅长"，比"市局局长"更贴切。 */
-  if(best && bestScore >= 5 && postIsOrganTitle(postTitleCat(best))){
+  if(best && bestScore >= 5 && postIsOrganTitle(bestCat)){
     /* RANKS 里"乡镇长""乡镇副镇长"是笼统写法，
        在具体的乡应称乡长、在镇应称镇长。 */
     if(/乡镇/.test(best) && /人民政府/.test(nm)){
@@ -1560,8 +1596,13 @@ function innerUnitTitles(dept, name){
       else if(/乡镇|街道/.test(t))   lv = 4;
     }
     if(!lv) return orig;
-    if(lv >= 8) return {正:"处长", 副:"副处长"};
-    if(lv >= 6) return {正:"科长", 副:"副科长"};
+    /* 分档按 LAYER_INDEX：厅局级副职=7、县处级副职=5、乡科级副职=3。
+       此前写作 lv>=8／lv>=6，整整偏了一档——
+       厅局级副职机关（省厅）的内设处室被当成"科"、
+       县处级副职机关的内设科室被当成"股"，
+       于是厅局级干部的内设称谓出现"股长/副股长"。 */
+    if(lv >= 7) return {正:"处长", 副:"副处长"};
+    if(lv >= 5) return {正:"科长", 副:"副科长"};
     return {正:"股长", 副:"副股长"};
   }catch(e){ return orig; }
 }
@@ -2656,6 +2697,28 @@ var ADMIN_LINE_TITLE_FIX = {
   46: "国务院秘书长（正部级）"
 };
 
+/* 称谓的层级下限，用于拦截「厅局级目标被显示成副股长」这类降级。
+   只覆盖内设／兜底称谓——它们才可能出现层级倒挂；
+   返回 null 表示无法判断（如副市长、厅长），不作干预。 */
+function postTitleLayerFloor(t){
+  var s = String(t || "").trim();
+  if(!s) return null;
+  if(/^(正职|副职|负责人|内设正职|内设副职|主任科员|科员|办事员|科员级)$/.test(s)) return 0;
+  /* 用后缀匹配：称谓进入此处时往往已补上机构名前缀
+     （"滨海市委组织部副处长"），不能按整串相等判断。
+     注意"副处长"本身以"处长"结尾，两种写法一并命中。 */
+  /* 副职比正职低半档，须分别给值——否则「处长」（县处级正职=6）
+     会被判成 5（县处级副职），在部委任职时层 6 的档位
+     反而触发拦截，把正确的部委职务名"处长"改回"县长"。 */
+  if(/副股长$/.test(s)) return 2;
+  if(/股长$/.test(s))   return 2;
+  if(/副科长$/.test(s)) return 3;
+  if(/科长$/.test(s))   return 4;
+  if(/副处长$/.test(s)) return 5;
+  if(/处长$/.test(s))   return 6;
+  return null;
+}
+
 function rankTitle(rank){
   /* 军线、纪检线的职务名取自各自序列职务表，
      不得再按行政序列的「机构建制推导 + 行政区层级改写」处理。
@@ -2716,6 +2779,25 @@ function rankTitle(rank){
   try{
     t = String(t || "").replace(/(^|[\/\u00b7\u3001])\s*[\u5e02\u53bf\u533a\u4e61\u9547\u8857\u9053]\u5385/g,
                                 function(m, p){ return p + "\u7701\u5385"; });
+  }catch(e){}
+  /* 层级保护：内设／兜底称谓不得顶替高层级职务名。
+
+     推导名是按"当前所在机构"给出的。若机构建制层级远低于本档职级，
+     会算出 d≥2 而落到内设档（股长／副股长／科长…），
+     于是厅局级的晋升目标被显示成"市委组织部副股长"——
+     职级在升、职务却掉回股级，看着荒谬。
+     这类称谓只有在其层级不低于本档职级时才是可信的。 */
+  try{
+    var __fl = (typeof postTitleLayerFloor === "function") ? postTitleLayerFloor(t) : null;
+    if(__fl !== null){
+      var __my = 0;
+      try{ __my = (typeof LAYER_INDEX !== "undefined" && typeof rankLayer === "function")
+                  ? (LAYER_INDEX[String(rankLayer(rank))] || 0) : 0; }catch(e1){}
+      if(__my && __fl < __my){
+        var __rw2 = (typeof RANKS !== "undefined" && RANKS[rank]) ? String(RANKS[rank][0]||"") : "";
+        if(__rw2 && typeof pcFirstOption === "function") t = pcFirstOption(__rw2);
+      }
+    }
   }catch(e){}
   /* 裸内设机构称谓（"处长""局长"）补上所在机构名。
      内设机构称谓本身不带层级，单独出现时看不出人在哪个部门，

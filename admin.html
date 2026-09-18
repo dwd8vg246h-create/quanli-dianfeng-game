@@ -226,6 +226,9 @@ button:disabled{opacity:.45;cursor:not-allowed}
         </select>
         <button id="btnRefresh">刷新</button>
         <button id="btnRecon">🔍 一键对账</button>
+        <label class="mini" style="display:flex;align-items:center;gap:5px;color:#9a9186">
+          <input type="checkbox" id="hideDead" checked style="width:auto;margin:0"> 隐藏已注销
+        </label>
       </div>
       <div id="list"><div class="mini">加载中…</div></div>
     </div>
@@ -271,7 +274,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
      是自己填错还是服务不通。 -->
 <script>
 /* 后台版本：由 build.js 同步 */
-var ADMIN_VERSION = "20260918.1508";
+var ADMIN_VERSION = "20260918.1543";
 var CLOUD_CONFIG = {
   enabled: true,
   url: "https://zgkovjgkkvxoajcqxwfw.supabase.co",
@@ -581,7 +584,11 @@ function render(){
   var users = window.__users || [];
   var q = ($("q").value||"").trim().toLowerCase();
   var fs = $("fStatus").value;
+  var hideDead = $("hideDead") ? $("hideDead").checked : true;
   filtered = users.filter(function(u){
+    /* 默认隐藏已注销：软注销会保留账号行（无真删权限时的降级方案），
+       若照常显示，管理员会以为"没注销掉"。想查看勾掉开关即可。 */
+    if(hideDead && u.status === "注销" && fs !== "注销") return false;
     if(fs && u.status !== fs) return false;
     if(!q) return true;
     return ((u.emp_id||"")+" "+(u.name||"")+" "+(u.contact||"")).toLowerCase().indexOf(q) >= 0;
@@ -666,12 +673,37 @@ function onAct(act, id){
          : Cloud.adminSetStatus(id, act==="冻结"?"冻结":"正常");
   fn.then(function(r){
     Cloud.adminLog(act, u.emp_id, r.ok?("成功"+(r.mode?("（"+r.mode+"）"):"")):("失败："+(r.msg||"")));
-    if(r.ok && r.mode === "soft"){
-      alert("已标记为「注销」并清空云端存档"+(r.cleared ? "" : "（存档清空失败，可重试）")+
-            "。\n\n当前数据库未授予真删权限，故账号行保留、状态为注销，不再进入排行榜；"+
-            "执行后台改档脚本中的 ql_admin_delete_user 后可真删。");
+    if(!r.ok){
+      /* 写后读回校验失败：明确说清"没生效"及排查方向，不再报成功 */
+      alert(act+"未生效："+(r.msg||"离线")+
+            (r.hint ? ("\n\n排查："+r.hint) : ""));
+      loadAll();
+      return;
+    }
+    /* 注销成功即就地移除，不等重新加载——避免"提示成功却还在列表里" */
+    if(act === "注销"){
+      try{
+        window.__users = (window.__users||[]).filter(function(x){ return x.id !== id; });
+      }catch(e){}
     } else {
-      alert(r.ok ? (act+"成功") : (act+"失败："+(r.msg||"离线")));
+      try{
+        (window.__users||[]).forEach(function(x){
+          if(x.id === id) x.status = (act==="冻结" ? "冻结" : "正常");
+        });
+      }catch(e){}
+    }
+    render();
+    if(act === "注销"){
+      if(r.mode === "soft"){
+        alert("已注销并清空云端存档"+(r.cleared ? "" : "（存档清空失败，可重试）")+
+              "，账号已从名录隐藏。\n\n当前数据库未授予真删权限，故为「标记注销 + 清档」"+
+              "（账号行保留，不再进入排行榜）；执行后台改档脚本中的 ql_admin_delete_user 后可真删。\n\n"+
+              "想查看已注销账号：取消勾选名录上方的「隐藏已注销」。");
+      } else {
+        alert("账号已彻底删除（真删），并从名录移除。");
+      }
+    } else {
+      alert(act+"成功"+(r.verified ? "（已读回确认）" : ""));
     }
     loadAll();
   });
@@ -1414,6 +1446,7 @@ setInterval(function(){
   }catch(e){}
 }, 60000);
 $("fStatus").onchange = render;
+if($("hideDead")) $("hideDead").onchange = render;
 $("btnRefresh").onclick = loadAll;
 $("btnRecon").onclick = openReconAll;
 

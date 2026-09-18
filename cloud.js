@@ -822,12 +822,44 @@ var Cloud = (function(){
     }).catch(function(e){ return {ok:false, msg:String(e && e.message || e)}; });
   }
 
+  /* 读回单个账号行（用于写后校验） */
+  function _userRow(userId){
+    return req("GET", "game_users?select=id,status&id=eq."+eqv(userId)+"&limit=1", null, null, 8000)
+      .then(function(res){
+        if(res.error) return {err: res.error.message};
+        var arr = res.data;
+        return {row: (Array.isArray(arr) && arr.length) ? arr[0] : null};
+      });
+  }
+
+  /* 权限提示：写入 0 行时给出可执行的排查方向 */
+  function _writeHint(){
+    return "请在 Supabase → SQL Editor 执行：grant update on game_users to anon;";
+  }
+
   function adminSetStatus(userId, status){
     if(!isReady()) return Promise.resolve({ok:false, offline:true});
-    return req("PATCH", "game_users?id=eq."+eqv(userId), {status:status}, null, 10000)
+    /* 写后读回校验（2026-09-18 修复）
+       PostgREST 的 PATCH 在「0 行受影响」时同样返回 204 且不带 error——
+       未授予 UPDATE 权限、或 RLS 把行过滤掉都是这种表现。
+       此前只看 res.error，于是"点了冻结/恢复提示成功、列表照旧"，
+       管理员无从判断到底改没改成。现先取 representation 看影响行数，
+       再读回确认状态确实已变。 */
+    return req("PATCH", "game_users?id=eq."+eqv(userId), {status:status},
+        "return=representation", 10000)
       .then(function(res){
         if(res.error) return {ok:false, msg:res.error.message};
-        return {ok:true};
+        if(!Array.isArray(res.data) || !res.data.length)
+          return {ok:false, msg:"未匹配到该账号（0 行受影响，可能无 UPDATE 权限或 RLS 拦截）",
+                  hint:_writeHint(), noop:true};
+        return _userRow(userId).then(function(v){
+          if(v.err) return {ok:true, warn:"已提交，读回校验未通过："+v.err};
+          if(!v.row) return {ok:false, msg:"写入后读不到该账号", hint:_writeHint(), noop:true};
+          if(String(v.row.status) !== String(status))
+            return {ok:false, msg:"写入未生效，状态仍为「"+String(v.row.status||"未知")+"」",
+                    hint:_writeHint(), noop:true};
+          return {ok:true, verified:true};
+        });
       });
   }
 
@@ -858,38 +890,72 @@ var Cloud = (function(){
     var blankSummary = {姓名:"", 职务:"", 层次:"", 位阶:-1,
       年龄:0, 年份:"", 政绩:0, 道德:0, 结局:"",
       上榜:false, 净资产:0, 廉政:0, 管理端修订: Date.now()};
-    return req("PATCH", "game_users?id=eq."+eqv(userId), {status:"注销"}, null, 10000)
+    return req("PATCH", "game_users?id=eq."+eqv(userId), {status:"注销"},
+        "return=representation", 10000)
       .then(function(res){
         if(res.error)
           return {ok:false, msg:(res.error.message||"未知错误")
-                  + (why ? "（真删失败："+why+"）" : "")};
-        /* 清档失败不回滚：账号已标记注销，空档下次可重试 */
-        return req("POST", "game_saves",
-          {user_id:userId, data:{_deleted:true}, summary:blankSummary,
-           saved_at:new Date().toISOString(), version:1},
-          "return=representation,resolution=merge-duplicates", 15000)
-          .then(function(r2){
-            return {ok:true, mode:"soft", cleared:!r2.error, via:"table",
-                    note: why ? ("真删不可用："+why) : ""};
-          });
+                  + (why ? "（真删失败："+why+"）" : ""), hint:_writeHint()};
+        if(!Array.isArray(res.data) || !res.data.length)
+          return {ok:false, msg:"状态写入未生效（0 行受影响）"
+                  + (why ? ("（真删失败："+why+"）") : ""), hint:_writeHint(), noop:true};
+        /* 读回确认：请求没被拒 ≠ 状态真的改了 */
+        return _userRow(userId).then(function(v){
+          if(v.err) return {ok:false, msg:"读回校验失败："+v.err, hint:_writeHint()};
+          if(!v.row || String(v.row.status) !== "注销")
+            return {ok:false, msg:"状态写入未生效，仍为「"
+                    + String((v.row && v.row.status) || "未知") + "」"
+                    + (why ? ("（真删失败："+why+"）") : ""), hint:_writeHint(), noop:true};
+          /* 清档失败不回滚：账号已标记注销，空档下次可重试 */
+          return req("POST", "game_saves",
+            {user_id:userId, data:{_deleted:true}, summary:blankSummary,
+             saved_at:new Date().toISOString(), version:1},
+            "return=representation,resolution=merge-duplicates", 15000)
+            .then(function(r2){
+              return {ok:true, mode:"soft", cleared:!r2.error, via:"table",
+                      verified:true, note: why ? ("真删不可用："+why) : ""};
+            });
+        });
       });
+  }
+
+  /* 真删的兜底链：SECURITY DEFINER 函数 → 软注销 */
+  function _fallbackDelete(userId, why){
+    return req("POST", "rpc/ql_admin_delete_user", {p_user_id:String(userId)},
+      null, 15000).then(function(rp){
+      /* 函数存在但明确返回失败（{ok:false}）时也要继续兜底 */
+      var d = rp.data;
+      var fnFail = (d && typeof d === "object" && d.ok === false)
+                 ? (d.msg || d.message || "函数返回失败") : "";
+      if(!rp.error && !fnFail){
+        return _userRow(userId).then(function(v){
+          if(!v.row) return {ok:true, mode:"hard", via:"rpc"};
+          return adminSoftDelete(userId, "真删函数已执行但账号仍在（可能未部署或函数受限）");
+        });
+      }
+      return adminSoftDelete(userId, rp.error ? (rp.error.message||"") : (fnFail||why||""));
+    });
   }
 
   function adminDeleteUser(userId){
     if(!isReady()) return Promise.resolve({ok:false, offline:true});
-    /* ① 直连真删：多数项目已收回该权限，失败属预期，继续兜底 */
-    return req("DELETE", "game_users?id=eq."+eqv(userId), null, null, 10000)
+    /* ① 直连真删：多数项目已收回该权限，失败属预期，继续兜底。
+       注意：DELETE 同样存在"0 行受影响却返回 204 无报错"的情形，
+       故不能只看 res.error——必须读回确认账号确实已消失。 */
+    return req("DELETE", "game_users?id=eq."+eqv(userId), null,
+        "return=representation", 10000)
       .then(function(res){
-        if(!res.error) return {ok:true, mode:"hard", via:"table"};
+        if(!res.error){
+          if(Array.isArray(res.data) && res.data.length) return {ok:true, mode:"hard", via:"table"};
+          return _userRow(userId).then(function(v){
+            if(!v.row) return {ok:true, mode:"hard", via:"table"};
+            return _fallbackDelete(userId, "真删 0 行受影响（权限或 RLS 拦截）");
+          });
+        }
         if(!_deniedErr(res.error)) return {ok:false, msg:res.error.message};
         /* ② SECURITY DEFINER 函数真删（需执行 后台改档_一键安装.sql）。
               函数内先删 game_saves 再删 game_users，不受权限策略限制。 */
-        return req("POST", "rpc/ql_admin_delete_user", {p_user_id:String(userId)},
-          null, 15000).then(function(rp){
-          if(!rp.error) return {ok:true, mode:"hard", via:"rpc"};
-          /* ③ 软注销兜底 */
-          return adminSoftDelete(userId, rp.error.message || res.error.message || "");
-        });
+        return _fallbackDelete(userId, res.error.message||"");
       });
   }
 

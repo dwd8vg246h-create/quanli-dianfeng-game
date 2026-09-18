@@ -270,7 +270,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
      是自己填错还是服务不通。 -->
 <script>
 /* 后台版本：由 build.js 同步 */
-var ADMIN_VERSION = "20260918.1224";
+var ADMIN_VERSION = "20260918.1245";
 var CLOUD_CONFIG = {
   enabled: true,
   url: "https://zgkovjgkkvxoajcqxwfw.supabase.co",
@@ -896,6 +896,10 @@ function checkAdminUpdate(){
         }
         var old = document.getElementById("adminUpdBar");
         if(old && old.parentNode) old.parentNode.removeChild(old);
+        var dismissKey = "qlp_admin_skip_" + latest;
+        var skipped = "";
+        try{ skipped = localStorage.getItem(dismissKey)||""; }catch(e){}
+        if(skipped === cur) return;   /* 该版本已手动忽略，不再反复提示 */
         var bar = document.createElement("div");
         bar.id = "adminUpdBar";
         bar.style.cssText = "position:fixed;left:0;right:0;bottom:0;z-index:99999;background:#b01e23;"+
@@ -918,6 +922,15 @@ function checkAdminUpdate(){
           hardReloadAdmin(pure + "?_v=" + encodeURIComponent(latest) + "&_t=" + Date.now());
         };
         bar.appendChild(b);
+        var close = document.createElement("button");
+        close.textContent = "忽略";
+        close.style.cssText = "background:transparent;color:#fff;border:1px solid rgba(255,255,255,.6);"+
+          "border-radius:6px;padding:7px 10px;font-size:12px;white-space:nowrap";
+        close.onclick = function(){
+          try{ localStorage.setItem(dismissKey, String(cur)); }catch(e){}
+          if(bar.parentNode) bar.parentNode.removeChild(bar);
+        };
+        bar.appendChild(close);
         document.body.appendChild(bar);
       });
   }catch(e){}

@@ -551,6 +551,98 @@ var Cloud = (function(){
 
 
 
+  /* ============================================================
+     管理员读写整份存档（后台「修改档案数据」用）
+     ------------------------------------------------------------
+     此前后台只有摘要（summary），能看不能改：
+     玩家遇到存档损坏、数值异常、误触结局时，管理员无从处置，
+     只能注销重来——而注销会连带清除整个档案与存档，代价过大。
+
+     读：按 user_id 取整份 jsonb data（单人，避免整表拉取）。
+     写：upsert 回写 data，并按新内容重算 summary。
+
+     为什么 summary 要在后台重算：
+       summary 是排行榜与名录展示的唯一来源，若只改 data 不改
+       summary，后台列表会继续显示旧职务旧政绩，看起来"没改成功"。
+
+     职务名后台算不出来的部分（rankTitle 依赖游戏内 52 级职级表
+     与所在机构），沿用旧值并交由管理端传入覆盖；位阶、政绩、
+     道德、年龄、年份这些纯数值一律按新 data 重算。
+     ============================================================ */
+  function adminBuildSummary(S, prev){
+    prev = prev || {};
+    var tier = (typeof S.rank === "number") ? S.rank
+             : (typeof prev["位阶"] === "number" ? prev["位阶"] : -1);
+    return {
+      姓名: S.name || prev["姓名"] || "",
+      /* 职务、层次由调用端（admin.html 内联职级表）算出后传入；
+         算不出则沿用旧值，绝不置空——空职务会让排行榜显示空白。 */
+      职务: prev["职务"] || "",
+      层次: prev["层次"] || "",
+      位阶: tier,
+      年龄: S.age || 0,
+      年份: (S.year||0) + "年" + (S.month||0) + "月",
+      政绩: Math.round(S.政绩||0),
+      道德: Math.round(S.道德||0),
+      结局: S.ending || "",
+      上榜: S.不上榜 !== true,
+      净资产: (typeof prev["净资产"] === "number") ? prev["净资产"] : 0,
+      廉政: Math.round(S.廉政||0)
+    };
+  }
+
+  function adminReadSave(userId){
+    if(!isReady()) return Promise.resolve({ok:false, offline:true});
+    return req("GET",
+      "game_saves?select=data,summary,saved_at,version&user_id=eq."+eqv(userId)+"&limit=1",
+      null, null, 15000).then(function(res){
+      if(res.error) return {ok:false, msg:res.error.message};
+      if(!res.data || !res.data.length) return {ok:true, empty:true};
+      return {ok:true, data:res.data[0].data, summary:res.data[0].summary||{},
+              savedAt:res.data[0].saved_at};
+    });
+  }
+
+  /* opt.summary：调用端算好的摘要（含职务/层次），缺省则内部重算 */
+  function adminWriteSave(userId, S, opt){
+    opt = opt || {};
+    if(!isReady()) return Promise.resolve({ok:false, offline:true});
+    if(!S || typeof S !== "object") return Promise.resolve({ok:false, msg:"存档内容无效"});
+    var prev = opt.prevSummary || {};
+    var sum = opt.summary || adminBuildSummary(S, prev);
+    /* 管理端修订号：后台每次改写都自增（取当前毫秒，恒增）。
+       游戏端上传前会比对它——若云端比本机新，说明管理员改过档，
+       本机须先让位（拉取覆盖），否则下一次自动同步就会把后台的
+       修改无声覆盖回去，表现为"后台改了，游戏里没变"。 */
+    sum.管理端修订 = (typeof opt.rev === "number") ? opt.rev : Date.now();
+    return req("POST", "game_saves", {
+      user_id: userId,
+      data: S,
+      summary: sum,
+      saved_at: new Date().toISOString(),
+      version: (typeof S.version === "number") ? S.version : 1
+    }, "return=representation,resolution=merge-duplicates", 15000).then(function(res){
+      if(res.error) return {ok:false, msg:res.error.message};
+      return {ok:true, summary:sum};
+    });
+  }
+
+
+  /* 轻量查询：只取该玩家 summary 里的「管理端修订」号。
+     游戏端上传前用它比对本机记录，判断云端是否被管理员改过。
+     只取一列、单行，开销远小于拉整份存档。 */
+  function adminRevOf(userId){
+    if(!isReady()) return Promise.resolve({ok:false, offline:true, rev:0});
+    return req("GET",
+      "game_saves?select=summary&user_id=eq."+eqv(userId)+"&limit=1",
+      null, null, 8000).then(function(res){
+      if(res.error) return {ok:false, msg:res.error.message, rev:0};
+      if(!res.data || !res.data.length) return {ok:true, empty:true, rev:0};
+      var s = res.data[0].summary || {};
+      return {ok:true, rev:(typeof s["管理端修订"] === "number") ? s["管理端修订"] : 0};
+    }).catch(function(e){ return {ok:false, msg:String(e && e.message || e), rev:0}; });
+  }
+
   function adminSetStatus(userId, status){
     if(!isReady()) return Promise.resolve({ok:false, offline:true});
     return req("PATCH", "game_users?id=eq."+eqv(userId), {status:status}, null, 10000)
@@ -767,6 +859,10 @@ var Cloud = (function(){
     seasonArchiveGet: seasonArchiveGet,
     adminList: adminList,
     adminSaves: adminSaves,
+    adminReadSave: adminReadSave,
+    adminWriteSave: adminWriteSave,
+    adminBuildSummary: adminBuildSummary,
+    adminRevOf: adminRevOf,
     adminSetStatus: adminSetStatus,
     adminResetPwd: adminResetPwd,
     adminDeleteUser: adminDeleteUser,

@@ -1,0 +1,1251 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>组织部门管理后台 · 权路巅峰</title>
+<style>
+/* ============================================================
+   移动端优先 · 墨黑描红
+   ------------------------------------------------------------
+   原后台是桌面表格布局：9 列宽表 + 横向滚动 + 13px 字 + 32px
+   高的小按钮。手机上必须左右拖动才能看全一行，按钮小到指腹
+   点不准，且整页浅色在夜间刺眼。
+
+   改法：
+     ① 表格改卡片列表——一条档案一张卡，信息竖排，不再横滚
+     ② 触控目标一律 ≥40px，主操作做成整行宽按钮
+     ③ 配色与游戏一致（墨黑底 + 朱红强调）
+     ④ 分区可折叠：一屏只展开当前要用的那一块
+   ============================================================ */
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+body{
+  font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+  background:#0b0a08;color:#ddd4c6;font-size:14px;line-height:1.7;
+  padding-bottom:36px;
+}
+.wrap{max-width:920px;margin:0 auto;padding:10px 10px 24px}
+
+/* 顶栏 */
+.hd{
+  background:linear-gradient(135deg,#8c1a1f,#5d0f13);
+  color:#fff;padding:13px 15px;border-radius:14px;margin-bottom:11px;
+  box-shadow:0 2px 10px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,226,226,.14);
+  border:1px solid rgba(255,226,226,.08);
+}
+.hd h1{margin:0;font-size:16px;font-weight:800;letter-spacing:.5px}
+.hd .sub{font-size:11.5px;opacity:.82;margin-top:3px}
+
+/* 卡片 */
+.card{
+  background:linear-gradient(160deg,#181410,#12100d);
+  border:1px solid #2b2521;border-radius:14px;margin-bottom:11px;
+  box-shadow:0 2px 8px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,226,226,.06);
+  overflow:hidden;
+}
+.card-h{
+  padding:11px 13px;font-weight:800;font-size:13.5px;letter-spacing:.4px;
+  background:rgba(0,0,0,.25);border-bottom:1px solid #2b2521;
+  border-left:3px solid #c8444c;display:flex;align-items:center;gap:7px;
+}
+.card-h .fold{margin-left:auto;font-size:11px;color:#c8444c;opacity:.9}
+.card-b{padding:11px 13px}
+
+/* 表单 */
+input,select,textarea,button{font-family:inherit;font-size:14px}
+input,select,textarea{
+  width:100%;padding:10px 11px;background:#0d0b09;color:#ddd4c6;
+  border:1px solid #3a322c;border-radius:10px;outline:none;
+  min-height:42px;
+}
+input:focus,select:focus,textarea:focus{
+  border-color:#c8444c;box-shadow:0 0 0 3px rgba(200,68,76,.16);
+}
+textarea{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;line-height:1.6}
+label.f{display:block;font-size:11.5px;color:#9a9186;margin:0 0 4px 2px}
+
+button{
+  padding:10px 14px;border:1px solid #3a322c;background:#1d1915;color:#ddd4c6;
+  border-radius:10px;cursor:pointer;min-height:40px;font-weight:600;
+}
+button:active{transform:scale(.98)}
+button.pri{background:linear-gradient(180deg,#c8444c,#8c1a1f);border-color:#8c1a1f;color:#fff;
+  box-shadow:0 2px 8px rgba(140,26,31,.35)}
+button.dgr{background:linear-gradient(180deg,#7d1620,#4d0c12);border-color:#4d0c12;color:#ffd9d9}
+button.sm{padding:7px 11px;font-size:12px;min-height:36px;flex:1;min-width:84px}
+button:disabled{opacity:.45;cursor:not-allowed}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.row>*{flex:1;min-width:130px}
+.btnrow{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px}
+
+/* 统计条：手机上横向滑动，不再挤成一团 */
+.stat{
+  display:flex;gap:8px;overflow-x:auto;-webkit-overflow-scrolling:touch;
+  padding-bottom:4px;margin-bottom:11px;
+}
+.stat::-webkit-scrollbar{height:0}
+.stat div{
+  flex:0 0 auto;min-width:92px;background:linear-gradient(160deg,#181410,#12100d);
+  border:1px solid #2b2521;border-radius:12px;padding:9px 11px;text-align:center;
+}
+.stat b{display:block;font-size:19px;color:#e8656e;line-height:1.3}
+.stat span{font-size:11px;color:#8a8170}
+
+/* 档案卡片（取代原来的 9 列宽表） */
+.u{
+  background:#131110;border:1px solid #2b2521;border-left:3px solid #c8444c;
+  border-radius:12px;padding:11px 12px;margin-bottom:9px;
+}
+.u .t1{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.u .nm{font-weight:800;font-size:14.5px;color:#f0e6d8}
+.u .eid{font-size:11.5px;color:#8a8170}
+.u .t2{font-size:11.5px;color:#9a9186;margin-top:3px;line-height:1.75}
+.tag{display:inline-block;padding:2px 8px;border-radius:9px;font-size:10.5px;font-weight:700}
+.tag-正常{background:#1e3326;color:#6cc08a;border:1px solid #2f7d4f}
+.tag-冻结{background:#3a1418;color:#ff9c9c;border:1px solid #b01e23}
+.tag-注销{background:#222;color:#888;border:1px solid #444}
+.tag-on{background:#1e3326;color:#6cc08a;border:1px solid #2f7d4f}
+
+.msg{padding:9px 12px;border-radius:10px;margin-bottom:10px;font-size:12.5px;line-height:1.7}
+.msg-ok{background:#16281d;color:#7fc99a;border:1px solid #2f7d4f}
+.msg-err{background:#2e1216;color:#ff9c9c;border:1px solid #b01e23}
+.msg-info{background:#151d28;color:#8fb8e0;border:1px solid #35618a}
+.mini{font-size:11px;color:#8a8170}
+.warn{background:#241d0f;border:1px solid #6b5320;padding:9px 11px;border-radius:10px;
+  font-size:11.5px;color:#d5b46a;line-height:1.8}
+.hint{background:#151312;border:1px dashed #3a322c;padding:9px 11px;border-radius:10px;
+  font-size:11.5px;color:#9a9186;line-height:1.8}
+
+/* 分区折叠 */
+.sec-h{
+  display:flex;align-items:center;gap:7px;margin:13px 0 7px;padding:9px 12px;
+  font-size:12.5px;font-weight:800;color:#ff9c9c;letter-spacing:.5px;
+  background:rgba(0,0,0,.3);border-left:3px solid #c8444c;border-radius:0 10px 10px 0;
+  cursor:pointer;user-select:none;
+}
+.sec-h .n{margin-left:auto;font-size:11px;opacity:.7;font-weight:400}
+.sec-h::after{content:"▸";font-size:11px}
+.sec-h[data-open="1"]::after{content:"▾"}
+.sec-b{display:none}
+.sec-b[data-open="1"]{display:block}
+
+/* 编辑抽屉：手机上从底部升起，铺满整屏 */
+.mask{position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:9000;display:none}
+.mask[data-open="1"]{display:block}
+.sheet{
+  position:fixed;left:0;right:0;bottom:0;z-index:9001;display:none;
+  max-height:92vh;overflow-y:auto;-webkit-overflow-scrolling:touch;
+  background:linear-gradient(180deg,#181410,#0d0b09);
+  border-top:2px solid #c8444c;border-radius:18px 18px 0 0;
+  box-shadow:0 -8px 32px rgba(0,0,0,.65);
+  padding:6px 12px 92px;
+}
+.sheet[data-open="1"]{display:block}
+.sheet .sh{
+  position:sticky;top:0;z-index:2;padding:11px 0 9px;margin:0 -12px;
+  background:linear-gradient(180deg,#181410,#181410f0);
+  border-bottom:1px solid #2b2521;display:flex;align-items:center;gap:8px;
+}
+.sheet .sh b{font-size:15px;color:#f0e6d8}
+.sheet .sh .x{
+  margin-left:auto;background:none;border:1px solid #3a322c;color:#9a9186;
+  font-size:16px;min-height:34px;padding:4px 12px;border-radius:9px;
+}
+.sheet .foot{
+  position:fixed;left:0;right:0;bottom:0;z-index:3;padding:9px 12px;
+  background:#100e0c;border-top:1px solid #2b2521;display:flex;gap:8px;
+}
+.sheet .foot button{flex:1;min-height:46px;font-size:14px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+@media (max-width:420px){ .grid2{grid-template-columns:1fr} }
+.fld{margin-bottom:2px}
+.pv{font-size:11.5px;color:#e8656e;margin-top:4px;min-height:16px}
+.logline{border-bottom:1px solid #241f1c;padding:7px 0;font-size:11.5px;line-height:1.7}
+.logline:last-child{border-bottom:0}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="hd">
+  <h1>🏛️ 组织部门管理后台</h1>
+  <div class="sub">权路巅峰 · 云端档案库 <span id="adminVer" style="opacity:.7;font-size:11px"></span></div>
+</div>
+
+<!-- 连接配置 -->
+<div class="card">
+  <div class="card-h" id="cfgHead" style="cursor:pointer">
+    <span>🔌 连接配置</span>
+    <span class="mini" id="cfgSummary" style="font-weight:400;margin-left:6px"></span>
+    <span class="fold" id="cfgArrow">展开 ▾</span>
+  </div>
+  <div class="card-b" id="cfgBody" style="display:none">
+    <div class="row" style="margin-bottom:8px">
+      <input id="url" placeholder="Supabase Project URL" style="flex:2;min-width:200px">
+      <input id="key" placeholder="anon public key" style="flex:2;min-width:200px">
+    </div>
+    <button class="pri" id="btnConn" style="width:100%">连接</button>
+    <div class="mini" style="margin-top:7px">配置保存在本机浏览器，不会上传。</div>
+    <div id="connMsg"></div>
+  </div>
+</div>
+
+<!-- 管理员口令 -->
+<div class="card" id="pwdCard" style="display:none">
+  <div class="card-h">🔐 管理员口令</div>
+  <div class="card-b">
+    <input id="adminPwd" type="password" placeholder="请输入管理员口令" style="margin-bottom:8px">
+    <button class="pri" id="btnPwd" style="width:100%">登录</button>
+    <div id="pwdMsg" style="margin-top:8px"></div>
+    <div class="mini" style="margin-top:6px" id="pwdHint"></div>
+  </div>
+</div>
+
+<!-- 主体 -->
+<div id="main" style="display:none">
+  <div class="stat">
+    <div><b id="sOnline">—</b><span>在线人数</span><span class="mini" id="onlineTip" style="display:block;opacity:.7;font-size:9px"></span></div>
+    <div><b id="sTotal">—</b><span>档案总数</span></div>
+    <div><b id="sActive">—</b><span>状态正常</span></div>
+    <div><b id="sToday">—</b><span>今日登录</span></div>
+    <div><b id="sSaved">—</b><span>有存档</span></div>
+    <div><b id="sLatency">—</b><span>云端延迟</span></div>
+  </div>
+
+  <div class="card">
+    <div class="card-h">📇 档案名录 <span class="mini" id="listTip" style="font-weight:400"></span></div>
+    <div class="card-b">
+      <input id="q" placeholder="搜索工号 / 姓名 / 联系方式" style="margin-bottom:8px">
+      <div class="row" style="margin-bottom:10px">
+        <select id="fStatus">
+          <option value="">全部状态</option><option>正常</option><option>冻结</option><option>注销</option>
+        </select>
+        <button id="btnRefresh">刷新</button>
+        <button id="btnRecon">🔍 一键对账</button>
+      </div>
+      <div id="list"><div class="mini">加载中…</div></div>
+    </div>
+  </div>
+
+  <div class="sec-h" id="logHead" data-open="0">📜 操作留痕 <span class="n" id="logN"></span></div>
+  <div class="sec-b" id="logBody" data-open="0">
+    <div class="card"><div class="card-b" id="logList"><div class="mini">暂无记录</div></div></div>
+    <div class="warn" style="margin-bottom:11px">
+      留痕属审计记录，本后台不提供删除功能（与游戏内管理员台一致）。
+    </div>
+  </div>
+
+  <div class="sec-h" id="limHead" data-open="0">⚠️ 能力边界</div>
+  <div class="sec-b" id="limBody" data-open="0">
+    <div class="warn" style="margin-bottom:11px">
+      本后台管理的是<b>云端档案库</b>。玩家离线时进度仅存于本人设备，此处无法查看或处置。<br><br>
+      口令校验在前端进行——纯前端页面无法真正保密。若需严格鉴权，应在 Supabase 收紧 RLS 策略，或改用服务端接口。
+    </div>
+  </div>
+</div>
+
+</div>
+
+<!-- 编辑抽屉 -->
+<div class="mask" id="mask"></div>
+<div class="sheet" id="sheet">
+  <div class="sh">
+    <b id="shTitle">修改档案数据</b>
+    <button class="x" id="shClose">✕</button>
+  </div>
+  <div id="shBody"><div class="mini">读取中…</div></div>
+  <div class="foot">
+    <button id="shCancel">取消</button>
+    <button class="pri" id="shSave">保存修改</button>
+  </div>
+</div>
+
+<!-- 默认配置：与游戏本体一致。
+     后台不再要求手填 URL / key —— 手填极易出错（多粘路径、
+     混入空格或隐藏字符），一旦 URL 非法，浏览器 fetch 会直接抛
+     "URL is not valid or contains user credentials"，而管理员无从判断
+     是自己填错还是服务不通。 -->
+<script>
+/* 后台版本：由 build.js 同步 */
+var ADMIN_VERSION = "20260918.1331";
+var CLOUD_CONFIG = {
+  enabled: true,
+  url: "https://zgkovjgkkvxoajcqxwfw.supabase.co",
+  key: "sb_publishable_CtDImUOKxPCR6IPgM79Rhw_dRwDjqbl"
+};
+/* 职级表（与游戏 RANKS 前两列一致）：后台改职级时要能显示职务名与层次，
+   否则改完 rank 后列表仍显示旧职务，看起来像没生效。 */
+var ADMIN_RANKS = [
+["试用期公务员（见习办事员）","试用期"],["科员","科员级"],["一级科员（业务骨干）","科员级"],
+["副股长（业务小组负责人）","股所级"],["股长 / 科室负责人","股所级"],
+["乡镇副镇长 / 县局副局长","乡科级副职"],["街道办副主任 / 乡镇党委副书记","乡科级副职"],
+["乡镇纪委书记 / 组织委员·宣传委员·人武部长","乡科级副职"],
+["乡镇长 / 街道办主任","乡科级正职"],["乡镇党委书记 / 街道党工委书记","乡科级正职"],
+["乡镇人大主席 / 县局局长","乡科级正职"],
+["副县长","县处级副职"],["县委常委 / 县纪委书记·县政法委书记","县处级副职"],
+["县人民法院院长 / 县人民检察院检察长（副处级）","县处级副职"],
+["县委组织部长 / 宣传部长 / 统战部长","县处级副职"],["常务副县长","县处级副职"],
+["县委副书记","县处级副职"],
+["县长","县处级正职"],["县委书记","县处级正职"],
+["县人大常委会主任 / 县政协主席（正处级）","县处级正职"],
+["经济开发区管委会主任（正处级）","县处级正职"],["省厅处长 / 市局局长（正处级）","县处级正职"],
+["副市长","厅局级副职"],["市委常委 / 市纪委书记·市委政法委书记","厅局级副职"],
+["市委组织部长 / 宣传部长 / 统战部长","厅局级副职"],["常务副市长","厅局级副职"],
+["市委副书记","厅局级副职"],["省厅副厅长（副厅级）","厅局级副职"],
+["市中级人民法院院长 / 市人民检察院检察长（副厅级）","厅局级副职"],
+["市人大常委会副主任 / 市政协副主席（副厅级）","厅局级副职"],
+["市长","厅局级正职"],["市委书记","厅局级正职"],
+["市人大常委会主任 / 市政协主席（正厅级）","厅局级正职"],
+["省厅厅长","厅局级正职"],["省纪委常务副书记（正厅级）","厅局级正职"],
+["副省长","省部级副职"],["省委常委 / 省纪委书记·省委政法委书记","省部级副职"],
+["省高级人民法院院长 / 省人民检察院检察长（副省级）","省部级副职"],
+["省委组织部长 / 宣传部长 / 统战部长","省部级副职"],["中央部委副部长（副部级）","省部级副职"],
+["省委副书记","省部级副职"],["省人大常委会副主任 / 省政协副主席（副省级）","省部级副职"],
+["省长","省部级正职"],["省委书记","省部级正职"],
+["省人大常委会主任 / 省政协主席（正省级）","省部级正职"],
+["中央部委部长 / 主任","省部级正职"],["中央纪委副书记（正部级）","省部级正职"],
+["国务委员 / 全国政协副主席","国家级副职"],["国务院副总理 / 中共中央政治局委员","国家级副职"],
+["国家副主席","国家级副职"],
+["中共中央政治局常委","国家级正职"],["中共中央总书记（兼国家主席、中央军委主席）","国家级正职"]
+];
+</script>
+<script src="cloud.js?v=7"></script>
+<script>
+/* eslint-disable */
+var $ = function(id){ return document.getElementById(id); };
+var ADMIN_PWD_KEY = "qlp_admin_pwd_hash";
+var filtered = [];
+/* raw0：本次渲染时原始 JSON 文本。用于判断「整份 JSON 区」是否真被改过——
+   未改则以分项编辑为准，避免分项改动被未改动的 JSON 原样覆盖回去。 */
+var EDIT = {user:null, S:null, summary:null, raw0:""};
+
+(function showVer(){
+  try{
+    var el = document.getElementById("adminVer");
+    if(el && window.ADMIN_VERSION) el.textContent = "v" + window.ADMIN_VERSION;
+  }catch(e){}
+})();
+
+function sha256(s){
+  return new Promise(function(res){
+    if(window.crypto && crypto.subtle){
+      crypto.subtle.digest("SHA-256", new TextEncoder().encode("qlp_admin_" + s))
+        .then(function(b){
+          res(Array.from(new Uint8Array(b)).map(function(x){return x.toString(16).padStart(2,"0");}).join(""));
+        }).catch(function(){ res(simple(s)); });
+    } else { res(simple(s)); }
+  });
+}
+function simple(s){ var h=0; for(var i=0;i<s.length;i++){h=(h*31+s.charCodeAt(i))|0;} return "h"+h; }
+function msg(el, text, type){ $(el).innerHTML = '<div class="msg msg-'+type+'">'+text+'</div>'; }
+function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,function(c){
+  return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; }); }
+
+/* ---------- 分区折叠 ---------- */
+function bindSec(headId, bodyId){
+  var h = $(headId), b = $(bodyId);
+  if(!h || !b) return;
+  h.onclick = function(){
+    var open = b.getAttribute("data-open") === "1";
+    b.setAttribute("data-open", open ? "0" : "1");
+    h.setAttribute("data-open", open ? "0" : "1");
+  };
+}
+bindSec("logHead","logBody"); bindSec("limHead","limBody");
+
+/* ---------- 连接 ---------- */
+function cleanUrl(u){
+  u = String(u||"").trim().replace(/[\u200b-\u200f\ufeff]/g, "");
+  u = u.replace(/\s+/g, "");
+  var m = u.match(/^(https?:\/\/[^\/]+)/i);
+  return m ? m[1] : u.replace(/\/+$/, "");
+}
+function setCfgFold(fold, summary){
+  try{
+    var body = $("cfgBody"), arrow = $("cfgArrow"), sum = $("cfgSummary");
+    if(body) body.style.display = fold ? "none" : "";
+    if(arrow) arrow.textContent = fold ? "展开 ▾" : "收起 ▴";
+    if(summary !== undefined && sum) sum.textContent = summary || "";
+  }catch(e){}
+}
+$("cfgHead").onclick = function(){
+  var body = $("cfgBody");
+  setCfgFold(body && body.style.display !== "none");
+};
+
+$("btnConn").onclick = function(){
+  var url = cleanUrl($("url").value), key = $("key").value.trim();
+  if(!url || !key){ msg("connMsg","请填写 URL 与 key","err"); return; }
+  if(!/^https:\/\/.+/i.test(url)){
+    msg("connMsg","URL 格式不对，应以 https:// 开头且只到域名","err"); return;
+  }
+  $("url").value = url;
+  var ok = Cloud.init(url, key);
+  if(!ok){ msg("connMsg","初始化失败：云端模块未加载或参数有误","err"); return; }
+  Cloud.ping().then(function(r){
+    if(r.ok){
+      msg("connMsg","✅ 连接成功（延迟 "+r.ms+"ms）","ok");
+      setCfgFold(true, "✅ 已连接 · "+r.ms+"ms");
+      $("pwdCard").style.display = "";
+      var set = !!localStorage.getItem(ADMIN_PWD_KEY);
+      $("pwdHint").textContent = set ? "已设置口令，请输入。" : "首次使用：请输入并记住该口令，之后凭此进入。";
+    } else {
+      msg("connMsg","⚠️ 已配置但无法连通："+r.msg,"err");
+      $("pwdCard").style.display = "";
+    }
+  });
+};
+
+(function autoConnect(){
+  try{
+    if(typeof CLOUD_CONFIG === "undefined" || !CLOUD_CONFIG.url) return;
+    $("url").value = CLOUD_CONFIG.url;
+    $("key").value = CLOUD_CONFIG.key || "";
+    if(CLOUD_CONFIG.enabled && CLOUD_CONFIG.url && CLOUD_CONFIG.key){
+      setTimeout(function(){ $("btnConn").click(); }, 60);
+    }
+  }catch(e){}
+})();
+
+
+/* ---------- 改档能力自检 ----------
+   后台改档依赖两只 SECURITY DEFINER 函数（ql_admin_read_save /
+   ql_admin_write_save）。它们没部署时，保存会直连 game_saves 写入，
+   多数项目被 Data API 访问策略拒绝，表现就是"点了保存没反应、
+   改了游戏里没变"，而管理员看不出是自己操作错了还是库里缺东西。
+   这里在登录后主动探测一次，缺什么就在顶部红条里写明。 */
+function probeFuncs(){
+  try{
+    if(typeof Cloud.adminProbeFunctions !== "function") return;
+    Cloud.adminProbeFunctions().then(function(r){
+      var el = document.getElementById("fnWarn");
+      if(!el){
+        el = document.createElement("div");
+        el.id = "fnWarn";
+        el.style.cssText = "position:sticky;top:0;z-index:9999;background:#7d1620;color:#ffd9d9;padding:10px 12px;font-size:13px;line-height:1.7;border-bottom:1px solid #e8434f";
+        var host = document.getElementById("main") || document.body;
+        host.parentNode.insertBefore(el, host);
+      }
+      if(!r.ok){ el.style.display="none"; return; }
+      if(r.read && r.write){ el.style.display="none"; return; }
+      var miss = [];
+      if(!r.read) miss.push("ql_admin_read_save");
+      if(!r.write) miss.push("ql_admin_write_save");
+      el.innerHTML = "⚠️ <b>后台改档函数未部署，修改无法写入云端</b><br>" +
+        "缺少：" + miss.join("、") +
+        "<br>请在 Supabase → SQL Editor 执行「<b>后台改档_一键安装.sql</b>」后刷新本页。" +
+        (r.uncertain ? "<br><span style='opacity:.8;font-size:12px'>（未能读取 API 定义，结论由试调用推断，可能不准）</span>" : "");
+      el.style.display = "";
+    });
+  }catch(e){}
+}
+
+/* ---------- 口令 ---------- */
+$("btnPwd").onclick = function(){
+  var v = $("adminPwd").value;
+  if(!v){ msg("pwdMsg","请输入口令","err"); return; }
+  sha256(v).then(function(h){
+    var saved = localStorage.getItem(ADMIN_PWD_KEY);
+    if(!saved){ localStorage.setItem(ADMIN_PWD_KEY, h); saved = h; }
+    if(h !== saved){ msg("pwdMsg","口令有误","err"); return; }
+    $("main").style.display = "";
+    $("pwdCard").style.display = "none";
+    loadAll();
+    probeFuncs();
+  });
+};
+
+/* ---------- 载入 ---------- */
+function loadAll(){
+  if(typeof Cloud.adminSaves !== "function"){
+    window.__saves = {}; window.__savesLoaded = true;
+    window.__saveStale = true; window.__saveErr = "";
+  } else {
+    Cloud.adminSaves().then(function(r){
+      window.__saves = (r && r.ok) ? (r.saves||{}) : {};
+      window.__saveErr = (r && !r.ok) ? (r.msg||"读取失败") : "";
+      window.__saveStale = false; window.__savesLoaded = true;
+      if(window.__users) render();
+    });
+  }
+  Cloud.adminList().then(function(r){
+    if(!r.ok){ $("list").innerHTML = '<div class="mini">读取失败（'+esc(r.msg||"离线")+'）</div>'; return; }
+    window.__users = r.users || [];
+    render();
+  });
+  Cloud.adminLogs().then(function(r){
+    var box = $("logList"), head = $("logN");
+    if(!r.ok || !r.logs.length){ box.innerHTML = '<div class="mini">暂无记录</div>'; if(head) head.textContent="0 条"; return; }
+    if(head) head.textContent = r.logs.length + " 条";
+    box.innerHTML = r.logs.map(function(l){
+      var t = l.created_at ? new Date(l.created_at).toLocaleString("zh-CN") : "—";
+      return "<div class='logline'><span class='mini'>"+t+"</span> · <b>"+esc(l.action)+"</b> · "+
+             esc(l.target||"—")+(l.detail ? "<br><span class='mini'>"+esc(l.detail)+"</span>" : "")+"</div>";
+    }).join("");
+  });
+  Cloud.ping().then(function(r){ $("sLatency").textContent = r.ok ? (r.ms+"ms") : "超时"; });
+}
+
+function saveText(u){
+  var saves = window.__saves || {};
+  var s = saves[u.id];
+  if(!s){
+    if(window.__saveStale) return "—（刷新页面可取）";
+    if(window.__saveErr) return "—（读取失败）";
+    if(!window.__savesLoaded) return "…";
+    return "尚无存档";
+  }
+  var m = s.summary || {}, out = [];
+  if(m.职务) out.push(esc(m.职务));
+  if(m.年份) out.push(esc(m.年份));
+  if(m.政绩 !== undefined && m.政绩 !== null) out.push("政绩 "+esc(String(m.政绩)));
+  if(m.道德 !== undefined) out.push("道德 "+esc(String(m.道德)));
+  if(m.廉政 !== undefined) out.push("廉政 "+esc(String(m.廉政)));
+  if(m.结局) out.push("结局："+esc(m.结局));
+  return out.length ? out.join(" · ") : "有新存档";
+}
+
+function rankName(r){
+  r = parseInt(r,10);
+  if(isNaN(r) || !window.ADMIN_RANKS) return "";
+  var e = window.ADMIN_RANKS[r];
+  return e ? e[0] : "";
+}
+
+function render(){
+  var users = window.__users || [];
+  var q = ($("q").value||"").trim().toLowerCase();
+  var fs = $("fStatus").value;
+  filtered = users.filter(function(u){
+    if(fs && u.status !== fs) return false;
+    if(!q) return true;
+    return ((u.emp_id||"")+" "+(u.name||"")+" "+(u.contact||"")).toLowerCase().indexOf(q) >= 0;
+  });
+  var ONLINE_MS = 5*60000, now = Date.now();
+  function isOnline(u){
+    if(!u.last_active_at) return false;
+    return (now - new Date(u.last_active_at).getTime()) < ONLINE_MS;
+  }
+  var hasActiveCol = users.some(function(u){ return u.last_active_at !== undefined; });
+  if(!hasActiveCol){
+    $("sOnline").textContent = "—"; $("sOnline").style.color = "#8a8170";
+    var tip2 = $("onlineTip"); if(tip2) tip2.textContent = "缺字段";
+  } else {
+    var n = users.filter(isOnline).length;
+    $("sOnline").textContent = n + " 人";
+    $("sOnline").style.color = n>0 ? "#6cc08a" : "#8a8170";
+    var tip = $("onlineTip");
+    var anyVal = users.some(function(u){ return !!u.last_active_at; });
+    if(tip) tip.textContent = anyVal ? "近 5 分钟" : "待刷新";
+  }
+  $("sTotal").textContent = users.length;
+  $("sActive").textContent = users.filter(function(u){return u.status==="正常";}).length;
+  var today = new Date().toDateString();
+  $("sToday").textContent = users.filter(function(u){
+    return u.last_login_at && new Date(u.last_login_at).toDateString() === today;
+  }).length + " 人";
+  var saves = window.__saves || {};
+  $("sSaved").textContent = users.filter(function(u){ return !!saves[u.id]; }).length + " 人";
+  $("listTip").textContent = "共 "+filtered.length+" 条";
+
+  var box = $("list");
+  if(!filtered.length){ box.innerHTML = '<div class="mini">无匹配档案</div>'; return; }
+  box.innerHTML = filtered.map(function(u){
+    var l = u.last_login_at ? new Date(u.last_login_at).toLocaleString("zh-CN") : "从未登录";
+    var on = hasActiveCol && isOnline(u);
+    return '<div class="u">'+
+      '<div class="t1">'+
+        '<span class="nm">'+esc(u.name||"（未填姓名）")+'</span>'+
+        '<span class="eid">'+esc(u.emp_id)+'</span>'+
+        '<span class="tag tag-'+esc(u.status)+'">'+esc(u.status)+'</span>'+
+        (on ? '<span class="tag tag-on">在线</span>' : "")+
+      '</div>'+
+      '<div class="t2">'+esc(u.contact||"—")+' · 登录 '+(u.login_count||0)+' 次<br>'+
+        '存档：'+saveText(u)+'<br>最近：'+esc(l)+'</div>'+
+      '<div class="btnrow">'+
+        '<button class="sm" data-act="编辑" data-id="'+u.id+'">📝 修改数据</button>'+
+        '<button class="sm" data-act="对账" data-id="'+u.id+'">🔍 对账</button>'+
+        (u.status==="冻结" || u.status==="注销"
+          ? '<button class="sm" data-act="恢复" data-id="'+u.id+'">恢复</button>'
+          : '<button class="sm" data-act="冻结" data-id="'+u.id+'">冻结</button>')+
+        '<button class="sm" data-act="重置口令" data-id="'+u.id+'">重置口令</button>'+
+        '<button class="sm dgr" data-act="注销" data-id="'+u.id+'">注销</button>'+
+      '</div></div>';
+  }).join("");
+  Array.prototype.forEach.call(box.querySelectorAll("button[data-act]"), function(b){
+    b.onclick = function(){ onAct(b.getAttribute("data-act"), b.getAttribute("data-id")); };
+  });
+}
+
+function onAct(act, id){
+  var u = (window.__users||[]).filter(function(x){return x.id===id;})[0];
+  if(!u) return;
+  if(act === "编辑"){ openEdit(u); return; }
+  if(act === "对账"){ openRecon(u); return; }
+  if(act === "注销"){
+    if(!confirm("确认注销【"+u.emp_id+"】？\n\n将尝试真删账号并清除云端存档；若无真删权限则降级为「标记注销 + 清空存档」，同样立即生效、并退出排行榜。此操作不可恢复。")) return;
+  } else if(act === "冻结" || act === "恢复"){
+    if(!confirm("确认"+act+"【"+u.emp_id+"】？")) return;
+  } else if(act === "重置口令"){
+    var np = prompt("为【"+u.emp_id+"】设置新口令：");
+    if(!np) return;
+    sha256(np).then(function(h){
+      Cloud.adminResetPwd(id, h).then(function(r){
+        Cloud.adminLog("重置口令", u.emp_id, r.ok?"成功":("失败："+(r.msg||"")));
+        alert(r.ok ? "口令已重置" : ("失败："+(r.msg||"离线"))); loadAll();
+      });
+    });
+    return;
+  }
+  var fn = (act==="注销") ? Cloud.adminDeleteUser(id)
+         : Cloud.adminSetStatus(id, act==="冻结"?"冻结":"正常");
+  fn.then(function(r){
+    Cloud.adminLog(act, u.emp_id, r.ok?("成功"+(r.mode?("（"+r.mode+"）"):"")):("失败："+(r.msg||"")));
+    if(r.ok && r.mode === "soft"){
+      alert("已标记为「注销」并清空云端存档"+(r.cleared ? "" : "（存档清空失败，可重试）")+
+            "。\n\n当前数据库未授予真删权限，故账号行保留、状态为注销，不再进入排行榜；"+
+            "执行后台改档脚本中的 ql_admin_delete_user 后可真删。");
+    } else {
+      alert(r.ok ? (act+"成功") : (act+"失败："+(r.msg||"离线")));
+    }
+    loadAll();
+  });
+}
+
+/* ============================================================
+   对账：存档本体 vs 榜单来源
+   ------------------------------------------------------------
+   后台名录与游戏排行榜读的是同一列 game_saves.summary，
+   理论上不会不一致。真被管理员问到"两份对不上"时，差别只可能出在
+   「summary 摘要」与「data 存档本体」之间——例如改档只写了 data、
+   或玩家端同步后用旧 S 重算了一遍摘要。
+
+   这里把两边并排列出并标红差异，让管理员一眼看到到底哪一层没同步，
+   而不是靠猜。
+   ============================================================ */
+function num(v){ return (v===undefined||v===null||v==="") ? "—" : String(v); }
+/* ------------------------------------------------------------
+   比对口径：单人弹窗与批量对账共用同一套行定义与差异计数，
+   避免两处各写一份、口径悄悄走偏。
+   ------------------------------------------------------------ */
+function reconRows(sm, d){
+  sm = sm || {}; d = d || {};
+  var rk = parseInt(d.rank, 10);
+  var tp = (!isNaN(rk) && window.ADMIN_RANKS && window.ADMIN_RANKS[rk])
+         ? window.ADMIN_RANKS[rk] : ["", ""];
+  return {
+    rank: rk, tp: tp,
+    rows: [
+      ["姓名", sm["姓名"], d.name],
+      ["职务", sm["职务"], tp[0] || "（职级 " + num(rk) + " 未匹配）"],
+      ["层次", sm["层次"], tp[1]],
+      ["位阶", sm["位阶"], isNaN(rk) ? "—" : rk],
+      ["年龄", sm["年龄"], d.age],
+      ["年份", sm["年份"], ((d.year||0)+"年"+(d.month||0)+"月")],
+      ["政绩", sm["政绩"], (d.政绩===undefined?"—":Math.round(d.政绩))],
+      ["道德", sm["道德"], (d.道德===undefined?"—":Math.round(d.道德))],
+      ["廉政", sm["廉政"], (d.廉政===undefined?"—":Math.round(d.廉政))],
+      ["上榜", (sm["上榜"]===false?"否":"是"), (d.不上榜===true?"否":"是")]
+    ]
+  };
+}
+function reconDiffN(rows){
+  var n = 0;
+  rows.forEach(function(p){
+    var a = num(p[1]), b = num(p[2]);
+    if(String(a) !== String(b) && !(a === "—" && b === "—")) n++;
+  });
+  return n;
+}
+function reconTableHtml(rows){
+  var diffN = reconDiffN(rows);
+  var html = '<table style="width:100%;border-collapse:collapse;font-size:13px">'+
+    '<tr style="opacity:.6;font-size:11px"><th align="left">字段</th>'+
+    '<th align="left">摘要（榜单来源）</th><th align="left">存档本体</th></tr>';
+  rows.forEach(function(p){
+    var a = num(p[1]), b = num(p[2]);
+    var same = (String(a) === String(b));
+    html += '<tr style="border-top:1px solid rgba(255,255,255,.08)">'+
+      '<td style="padding:6px 4px;opacity:.7">'+esc(p[0])+'</td>'+
+      '<td style="padding:6px 4px;color:'+(same?"#8fd0a0":"#ff8b8b")+'">'+esc(a)+'</td>'+
+      '<td style="padding:6px 4px;color:'+(same?"#c9bfae":"#ff8b8b")+'">'+esc(b)+'</td></tr>';
+  });
+  html += '</table>';
+  return {html: html, diffN: diffN};
+}
+/* 按存档本体重算摘要并回写。
+   注意：回写会整份覆盖 data，故必须传整份存档——
+   批量扫描拿到的只是投影字段，直接回写会把其余字段清空。 */
+function reconFixSave(userId, sm, d, cb){
+  var rr = reconRows(sm, d);
+  var sum = (typeof Cloud.adminBuildSummary === "function")
+    ? Cloud.adminBuildSummary(d, sm) : sm;
+  if(!isNaN(rr.rank) && window.ADMIN_RANKS && window.ADMIN_RANKS[rr.rank]){
+    sum["职务"] = window.ADMIN_RANKS[rr.rank][0];
+    sum["层次"] = window.ADMIN_RANKS[rr.rank][1];
+  }
+  Cloud.adminWriteSave(userId, d, {summary: sum, prevSummary: sm}).then(cb);
+}
+
+function openRecon(u){
+  var box = document.createElement("div");
+  box.style.cssText = "position:fixed;inset:0;z-index:99998;background:rgba(0,0,0,.6);"+
+    "display:flex;align-items:flex-end;justify-content:center";
+  box.innerHTML = '<div style="background:#141110;color:#e8e2d8;width:100%;max-width:520px;'+
+    'max-height:86vh;overflow:auto;border-radius:14px 14px 0 0;padding:14px 14px 20px">'+
+    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">'+
+      '<b style="font-size:15px">🔍 对账 · '+esc(u.emp_id)+'</b>'+
+      '<span style="flex:1"></span>'+
+      '<button id="rcClose" style="background:transparent;border:0;color:#c9bfae;font-size:20px">✕</button>'+
+    '</div>'+
+    '<div id="rcBody"><div style="opacity:.7;font-size:13px">读取中…</div></div></div>';
+  document.body.appendChild(box);
+  var close = function(){ if(box.parentNode) box.parentNode.removeChild(box); };
+  box.querySelector("#rcClose").onclick = close;
+  box.onclick = function(e){ if(e.target === box) close(); };
+
+  var body = box.querySelector("#rcBody");
+  var finish = function(html){ body.innerHTML = html; };
+
+  if(typeof Cloud.adminReadSave !== "function"){
+    finish('<div style="color:#e8838a;font-size:13px;line-height:1.8">'+
+      '当前 cloud.js 过旧，不含 adminReadSave，无法对账。<br>请刷新页面重新拉取。</div>');
+    return;
+  }
+  Cloud.adminReadSave(u.id).then(function(r){
+    if(!r.ok){
+      finish('<div style="color:#e8838a;font-size:13px">读取失败：'+esc(r.msg||"离线")+'</div>');
+      return;
+    }
+    if(r.empty){
+      finish('<div style="opacity:.75;font-size:13px">该账号尚无云端存档。</div>');
+      return;
+    }
+    var sm = r.summary || {}, d = r.data || {};
+    var t = reconTableHtml(reconRows(sm, d).rows);
+    var diffN = t.diffN;
+    var html = '<div style="font-size:12px;opacity:.75;line-height:1.8;margin-bottom:10px">'+
+      '左：<b>存档摘要 summary</b>（后台名录与游戏排行榜共同读取的来源）<br>'+
+      '右：<b>存档本体 data</b>（玩家实际进度）　·　不一致处标红</div>'+ t.html;
+    html += '<div style="margin-top:12px;padding:10px;border-radius:8px;font-size:12px;line-height:1.9;'+
+      'background:'+(diffN? "rgba(232,67,79,.12)":"rgba(111,192,138,.12)")+
+      ';border:1px solid '+(diffN? "rgba(232,67,79,.35)":"rgba(111,192,138,.3)")+'">'+
+      (diffN
+        ? ('有 <b>'+diffN+'</b> 处不一致。<br>'+
+           '摘要滞后于本体：多因玩家端自动同步时用旧存档重算了摘要，'+
+           '或改档只写入了本体。<br>'+
+           '点「按本体重算摘要」即可让名录与排行榜立即对齐。')
+        : '两边一致。若排行榜仍显示别的值，那是玩家端尚未同步——'+
+          '让其退出游戏后重新登录即可拉取。')+
+      '</div>';
+    if(diffN){
+      html += '<button id="rcFix" style="margin-top:10px;width:100%;padding:11px;border:0;'+
+        'border-radius:8px;background:#e8434f;color:#fff;font-weight:700;font-size:14px">'+
+        '按本体重算摘要</button>';
+    }
+    html += '<div style="margin-top:10px;font-size:11px;opacity:.55">'+
+      '存档时间：'+esc(r.savedAt ? new Date(r.savedAt).toLocaleString("zh-CN") : "—")+'</div>';
+    finish(html);
+    var fb = box.querySelector("#rcFix");
+    if(fb && typeof Cloud.adminWriteSave === "function"){
+      fb.onclick = function(){
+        fb.disabled = true; fb.textContent = "重算中…";
+        reconFixSave(u.id, sm, d, function(res){
+          Cloud.adminLog("重算摘要", u.emp_id, res.ok ? "成功" : ("失败："+(res.msg||"")));
+          alert(res.ok ? "已按存档本体重算摘要，名录与排行榜刷新后即一致。"
+                       : ("重算失败："+(res.msg||"")));
+          close(); loadAll();
+        });
+      };
+    }
+  });
+}
+
+/* ============================================================
+   一键对账：全库扫描「摘要 vs 本体」
+   ------------------------------------------------------------
+   单人弹窗只能一个个点，几百份档案根本查不过来——
+   真正要回答的是"到底哪些人的摘要滞后了"，这需要全库比对。
+
+   扫描只取比对所需的少量字段（jsonb 投影），不拉整份存档；
+   修正时才逐个取整份回写，因为回写会整份覆盖 data。
+   ============================================================ */
+function openReconAll(){
+  var users = (window.__users || []).slice();
+  var box = document.createElement("div");
+  box.style.cssText = "position:fixed;inset:0;z-index:99998;background:rgba(0,0,0,.6);"+
+    "display:flex;align-items:flex-end;justify-content:center";
+  box.innerHTML = '<div style="background:#141110;color:#e8e2d8;width:100%;max-width:560px;'+
+    'max-height:88vh;overflow:auto;border-radius:14px 14px 0 0;padding:14px 14px 20px">'+
+    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">'+
+      '<b style="font-size:15px">🔍 一键对账 · 全库</b>'+
+      '<span style="flex:1"></span>'+
+      '<button id="rcaClose" style="background:transparent;border:0;color:#c9bfae;font-size:20px">✕</button>'+
+    '</div>'+
+    '<div id="rcaBody"><div style="opacity:.7;font-size:13px">扫描中…</div></div></div>';
+  document.body.appendChild(box);
+  var close = function(){ if(box.parentNode) box.parentNode.removeChild(box); };
+  box.querySelector("#rcaClose").onclick = close;
+  box.onclick = function(e){ if(e.target === box) close(); };
+  var body = box.querySelector("#rcaBody");
+
+  if(typeof Cloud.adminReconAll !== "function"){
+    body.innerHTML = '<div style="color:#e8838a;font-size:13px;line-height:1.8">'+
+      '当前 cloud.js 过旧，不含 adminReconAll。<br>请刷新页面重新拉取。</div>';
+    return;
+  }
+  if(!users.length){
+    body.innerHTML = '<div style="opacity:.75;font-size:13px">名录为空，请先刷新。</div>';
+    return;
+  }
+
+  var byId = {};
+  users.forEach(function(u){ byId[u.id] = u; });
+
+  Cloud.adminReconAll(users.map(function(u){ return u.id; }), function(done, total){
+    body.innerHTML = '<div style="font-size:13px;opacity:.8">扫描中… '+done+
+      (total ? (" / "+total) : "")+'</div>';
+  }).then(function(r){
+    if(!r.ok){
+      body.innerHTML = '<div style="color:#e8838a;font-size:13px;line-height:1.8">'+
+        '扫描失败：'+esc(r.msg||"离线")+'</div>';
+      return;
+    }
+    var bad = [];
+    r.rows.forEach(function(row){
+      var n = reconDiffN(reconRows(row.summary, row.data).rows);
+      if(n) bad.push({userId: row.userId, n: n, sm: row.summary || {}, partial: !!row.partial});
+    });
+    var html = '<div style="font-size:12px;opacity:.75;line-height:1.8;margin-bottom:10px">'+
+      '已扫描 <b>'+r.rows.length+'</b> 份存档，其中 <b style="color:'+
+      (bad.length?"#ff8b8b":"#8fd0a0")+'">'+bad.length+'</b> 份摘要与本体不一致。'+
+      (r.via === "full" ? '<br><span style="opacity:.7">（逐份读取模式，耗时略长）</span>' : '')+
+      '</div>';
+    if(!bad.length){
+      html += '<div style="padding:10px;border-radius:8px;font-size:12px;line-height:1.9;'+
+        'background:rgba(111,192,138,.12);border:1px solid rgba(111,192,138,.3)">'+
+        '全部一致。若排行榜仍显示别的值，那是玩家端尚未同步——让其退出后重新登录即可。</div>';
+      body.innerHTML = html;
+      return;
+    }
+    html += '<button id="rcaFixAll" style="width:100%;padding:11px;border:0;border-radius:8px;'+
+      'background:#e8434f;color:#fff;font-weight:700;font-size:14px;margin-bottom:10px">'+
+      '一键修正全部 '+bad.length+' 份</button>';
+    html += bad.map(function(it, i){
+      var u = byId[it.userId] || {};
+      return '<div style="border-top:1px solid rgba(255,255,255,.08);padding:9px 0">'+
+        '<div style="font-size:13px"><b>'+esc(u.emp_id||"（未知工号）")+'</b> '+
+        '<span style="opacity:.7">'+esc(u.name||"")+'</span></div>'+
+        '<div style="font-size:12px;opacity:.75;margin:3px 0 7px">'+
+          '摘要：'+esc((it.sm["职务"]||"—")+" · 政绩 "+num(it.sm["政绩"]))+
+          '　·　<span style="color:#ff8b8b">'+it.n+' 处不一致</span></div>'+
+        '<button class="sm" data-fix="'+i+'" style="min-height:36px">修正这一份</button>'+
+      '</div>';
+    }).join("");
+    body.innerHTML = html;
+
+    Array.prototype.forEach.call(body.querySelectorAll("button[data-fix]"), function(b){
+      b.onclick = function(){
+        var it = bad[parseInt(b.getAttribute("data-fix"), 10)];
+        var u = byId[it.userId] || {};
+        b.disabled = true; b.textContent = "修正中…";
+        /* 投影数据不能直接回写，先取整份 */
+        Cloud.adminReadSave(it.userId).then(function(rr){
+          if(!rr.ok || rr.empty){ b.textContent = "读取失败"; return; }
+          reconFixSave(it.userId, rr.summary || {}, rr.data || {}, function(res){
+            Cloud.adminLog("重算摘要", u.emp_id || "", res.ok ? "成功" : ("失败："+(res.msg||"")));
+            b.textContent = res.ok ? "已修正" : "失败";
+            if(res.ok) b.style.color = "#8fd0a0";
+          });
+        });
+      };
+    });
+
+    var fa = body.querySelector("#rcaFixAll");
+    if(fa){
+      fa.onclick = function(){
+        if(!confirm("将按存档本体重算 "+bad.length+" 份摘要，使名录与排行榜对齐。继续？")) return;
+        fa.disabled = true;
+        var i = 0, ok = 0, fail = 0;
+        var step = function(){
+          if(i >= bad.length){
+            Cloud.adminLog("一键修正", "全库", "成功 "+ok+" 份，失败 "+fail+" 份");
+            alert("修正完成：成功 "+ok+" 份，失败 "+fail+" 份。");
+            close(); loadAll(); return;
+          }
+          var it = bad[i++], u = byId[it.userId] || {};
+          fa.textContent = "修正中… " + i + " / " + bad.length;
+          Cloud.adminReadSave(it.userId).then(function(rr){
+            if(!rr.ok || rr.empty){ fail++; step(); return; }
+            reconFixSave(it.userId, rr.summary || {}, rr.data || {}, function(res){
+              if(res.ok) ok++; else fail++;
+              Cloud.adminLog("重算摘要", u.emp_id || "", res.ok ? "成功" : ("失败："+(res.msg||"")));
+              step();
+            });
+          });
+        };
+        step();
+      };
+    }
+  });
+}
+
+/* ============================================================
+   修改玩家档案数据
+   ------------------------------------------------------------
+   此前后台能看摘要、能冻结注销，唯独不能改数据：
+   玩家存档损坏、数值异常、误触结局时，管理员只能注销重来，
+   而注销会连带清除整个档案，代价远大于问题本身。
+
+   现在：点「修改数据」拉取该玩家整份存档，分组列出常用字段
+   直接编辑，保存时回写 data 并重算 summary（否则名录与排行榜
+   仍显示旧值，看起来像没改成功）。
+
+   必须说清的一点：游戏以本机 localStorage 为权威，云端是副本。
+   玩家若正在游戏，其下一次自动同步会覆盖此处修改。因此界面
+   上明确提示——修改适用于处置异常存档、协助离线玩家，
+   对在线玩家不保证持久。
+   ============================================================ */
+var FIELDS = [
+  {sec:"基础信息", items:[
+    {k:"name",   t:"姓名", type:"text"},
+    {k:"gender", t:"性别", type:"text"},
+    {k:"age",    t:"年龄", type:"num"},
+    {k:"edu",    t:"学历", type:"text"},
+    {k:"hometown", t:"籍贯", type:"text"},
+    {k:"school", t:"毕业院校", type:"text"}
+  ]},
+  {sec:"职务与时间", items:[
+    {k:"rank",  t:"职级索引（0 起）", type:"num", rank:true},
+    {k:"year",  t:"年份", type:"num"},
+    {k:"month", t:"月份", type:"num"},
+    {k:"任现职起始月", t:"任现职起始月", type:"num"},
+    {k:"基层月数", t:"基层工作月数", type:"num"}
+  ]},
+  {sec:"核心数值", items:[
+    {k:"政绩", t:"政绩", type:"num"},
+    {k:"能力", t:"能力", type:"num"},
+    {k:"道德", t:"道德", type:"num"},
+    {k:"健康", t:"健康", type:"num"},
+    {k:"人脉", t:"人脉", type:"num"},
+    {k:"上司好感", t:"上司好感", type:"num"},
+    {k:"廉政", t:"廉政", type:"num"},
+    {k:"廉政风险暴露", t:"廉政风险暴露", type:"num"},
+    {k:"cash", t:"可支配资金", type:"num"}
+  ]},
+  {sec:"治理指标", items:[
+    {k:"财政", t:"财政", type:"num"},
+    {k:"GDP",  t:"GDP", type:"num"},
+    {k:"民生", t:"民生", type:"num"},
+    {k:"生态", t:"生态", type:"num"},
+    {k:"营商", t:"营商", type:"num"},
+    {k:"治安", t:"治安", type:"num"}
+  ]},
+  {sec:"派系与风险", items:[
+    {k:"partyRep", t:"党内声望", type:"num"},
+    {k:"neutralRep", t:"中立声望", type:"num"},
+    {k:"reformRep", t:"改革声望", type:"num"},
+    {k:"攀附风险", t:"攀附风险", type:"num"},
+    {k:"一票否决次数", t:"一票否决次数", type:"num"},
+    {k:"处置得当", t:"处置得当次数", type:"num"}
+  ]}
+];
+
+function openEdit(u){
+  EDIT.user = u; EDIT.S = null; EDIT.summary = null;
+  $("shTitle").textContent = "📝 " + (u.emp_id||"") + " · " + (u.name||"");
+  $("shBody").innerHTML = '<div class="mini">正在读取云端存档…</div>';
+  $("mask").setAttribute("data-open","1");
+  $("sheet").setAttribute("data-open","1");
+  if(typeof Cloud.adminReadSave !== "function"){
+    $("shBody").innerHTML = '<div class="msg msg-err">云端模块过旧，不支持读取整份存档。请刷新页面重新拉取 cloud.js。</div>';
+    return;
+  }
+  Cloud.adminReadSave(u.id).then(function(r){
+    if(!r.ok){ $("shBody").innerHTML = '<div class="msg msg-err">读取失败：'+esc(r.msg||"离线")+'</div>'; return; }
+    if(r.empty){ $("shBody").innerHTML = '<div class="msg msg-info">该账号尚无云端存档，无法修改数据。</div>'; return; }
+    EDIT.S = r.data; EDIT.summary = r.summary || {};
+    renderEdit();
+  });
+}
+
+function renderEdit(){
+  var S = EDIT.S || {};
+  var html = "";
+  html += '<div class="hint" style="margin-bottom:10px">'+
+    '存档时间：'+esc((EDIT.summary&&EDIT.summary.年份)||"—")+' · 职务：'+esc((EDIT.summary&&EDIT.summary.职务)||"—")+
+    '<br><b style="color:#e8656e">注意</b>：玩家若此刻正在游戏，其自动同步可能在你写入后立刻覆盖回来。'+
+    '保存后会读回校验，不一致会明确提示——建议先让其退出游戏再改。</div>';
+
+  FIELDS.forEach(function(g, gi){
+    html += '<div class="sec-h" data-ef="'+gi+'" data-open="'+(gi===0?"1":"0")+'">'+g.sec+' <span class="n">'+g.items.length+' 项</span></div>';
+    html += '<div class="sec-b" data-efb="'+gi+'" data-open="'+(gi===0?"1":"0")+'"><div class="card"><div class="card-b"><div class="grid2">';
+    g.items.forEach(function(f){
+      var v = S[f.k];
+      if(v === undefined || v === null) v = "";
+      html += '<div class="fld"><label class="f">'+f.t+'<span class="mini" style="margin-left:4px">'+f.k+'</span></label>'+
+              '<input type="'+(f.type==="num"?"number":"text")+'" data-k="'+f.k+'" value="'+esc(String(v))+'">'+
+              (f.rank ? '<div class="pv" data-pv="rank">'+esc(rankName(v))+'</div>' : '')+
+              '</div>';
+    });
+    html += '</div></div></div></div>';
+  });
+
+  html += '<div class="sec-h" data-ef="q" data-open="0">快捷处置</div>'+
+    '<div class="sec-b" data-efb="q" data-open="0"><div class="card"><div class="card-b">'+
+    '<div class="btnrow" style="margin-top:0">'+
+      '<button class="sm" data-q="rankup">职级 +1</button>'+
+      '<button class="sm" data-q="rankdn">职级 −1</button>'+
+      '<button class="sm" data-q="heal">健康满值</button>'+
+      '<button class="sm" data-q="clean">廉政风险清零</button>'+
+      '<button class="sm" data-q="money">资金 +10 万</button>'+
+      '<button class="sm" data-q="resetend">清除结局</button>'+
+    '</div></div></div></div>';
+
+  html += '<div class="sec-h" data-ef="j" data-open="0">原始存档（JSON）</div>'+
+    '<div class="sec-b" data-efb="j" data-open="0"><div class="card"><div class="card-b">'+
+    '<div class="mini" style="margin-bottom:6px">整份读取与替换。改动将覆盖上面的分项编辑。</div>'+
+    '<textarea id="rawJson" rows="8" style="width:100%">'+esc(JSON.stringify(S))+'</textarea>'+
+    '<div class="btnrow"><button class="sm" data-q="fmt">格式化</button>'+
+    '<button class="sm" data-q="reload">还原为刚读取的内容</button></div>'+
+    '<div class="mini" id="jsonMsg" style="margin-top:6px"></div>'+
+    '</div></div></div>';
+
+  $("shBody").innerHTML = html;
+  EDIT.raw0 = JSON.stringify(S||{});
+
+  Array.prototype.forEach.call($("shBody").querySelectorAll(".sec-h[data-ef]"), function(h){
+    h.onclick = function(){
+      var gi = h.getAttribute("data-ef");
+      var b = $("shBody").querySelector('[data-efb="'+gi+'"]');
+      if(!b) return;
+      var open = b.getAttribute("data-open") === "1";
+      b.setAttribute("data-open", open?"0":"1");
+      h.setAttribute("data-open", open?"0":"1");
+    };
+  });
+  var rk = $("shBody").querySelector('[data-k="rank"]');
+  if(rk) rk.oninput = function(){
+    var pv = $("shBody").querySelector('[data-pv="rank"]');
+    if(pv) pv.textContent = rankName(rk.value) || "—";
+  };
+  Array.prototype.forEach.call($("shBody").querySelectorAll("button[data-q]"), function(b){
+    b.onclick = function(){ quickAct(b.getAttribute("data-q")); };
+  });
+}
+
+function collectEdits(){
+  var S = EDIT.S || {};
+  Array.prototype.forEach.call($("shBody").querySelectorAll("input[data-k]"), function(i){
+    var k = i.getAttribute("data-k");
+    var v = i.value;
+    if(i.type === "number"){ v = (v === "" ? 0 : parseFloat(v)); if(isNaN(v)) v = 0; }
+    S[k] = v;
+  });
+  return S;
+}
+
+function quickAct(q){
+  var S = collectEdits();
+  if(q === "rankup"){ S.rank = Math.min((window.ADMIN_RANKS||[]).length-1, (parseInt(S.rank,10)||0)+1); }
+  else if(q === "rankdn"){ S.rank = Math.max(0, (parseInt(S.rank,10)||0)-1); }
+  else if(q === "heal"){ S.健康 = 100; }
+  else if(q === "clean"){ S.廉政风险暴露 = 0; S.攀附风险 = 0; }
+  else if(q === "money"){ S.cash = (parseFloat(S.cash)||0) + 100000; }
+  else if(q === "resetend"){ S.ending = ""; }
+  else if(q === "fmt"){
+    var ta = $("rawJson");
+    try{ ta.value = JSON.stringify(JSON.parse(ta.value), null, 2); $("jsonMsg").textContent = "已格式化"; }
+    catch(e){ $("jsonMsg").textContent = "JSON 解析失败："+e.message; }
+    return;
+  }
+  else if(q === "reload"){
+    var ta2 = $("rawJson");
+    if(ta2){ ta2.value = JSON.stringify(EDIT.S||{}); $("jsonMsg").textContent = "已还原"; }
+    return;
+  }
+  EDIT.S = S;
+  renderEdit();
+  var rk = $("shBody").querySelector('[data-k="rank"]');
+  if(rk){ rk.scrollIntoView({block:"center"}); }
+}
+
+function closeEdit(){
+  $("mask").setAttribute("data-open","0");
+  $("sheet").setAttribute("data-open","0");
+}
+$("shClose").onclick = closeEdit;
+$("shCancel").onclick = closeEdit;
+$("mask").onclick = closeEdit;
+
+$("shSave").onclick = function(){
+  if(!EDIT.user || !EDIT.S) return;
+  var ta = $("rawJson");
+  /* 先取分项编辑结果；仅当「整份 JSON」区确实被改动过才以它为准。
+     旧实现里只要 textarea 存在就永远走 JSON 分支，而 textarea 内容是
+     刚读取时的原样——结果分项输入框里改的数值一个都存不进去。 */
+  var S = collectEdits();
+  if(ta && (ta.value||"").trim() && ta.value !== EDIT.raw0){
+    try{
+      var parsed = JSON.parse(ta.value);
+      if(parsed && typeof parsed === "object") S = parsed;
+    }catch(e){
+      alert("原始 JSON 解析失败，已按分项编辑保存。\n"+e.message);
+    }
+  }
+  var r = parseInt(S.rank,10);
+  var sum = (typeof Cloud.adminBuildSummary === "function")
+    ? Cloud.adminBuildSummary(S, EDIT.summary||{})
+    : (EDIT.summary||{});
+  if(!isNaN(r) && window.ADMIN_RANKS && window.ADMIN_RANKS[r]){
+    sum["职务"] = window.ADMIN_RANKS[r][0];
+    sum["层次"] = window.ADMIN_RANKS[r][1];
+  }
+  if(typeof Cloud.adminWriteSave !== "function"){
+    alert("云端模块过旧，不支持写回存档。请刷新页面重新拉取 cloud.js。"); return;
+  }
+  var btn = $("shSave");
+  btn.disabled = true; btn.textContent = "保存中…";
+  Cloud.adminWriteSave(EDIT.user.id, S, {summary:sum, prevSummary:EDIT.summary||{}})
+    .then(function(res){
+      var detail = "职级 "+r+" · 政绩 "+(sum["政绩"]||0)+" · "+
+                   (res.ok ? ("成功["+(res.via||"table")+"]") : ("失败："+(res.msg||"")));
+      Cloud.adminLog("修改存档", EDIT.user.emp_id, detail);
+      if(!res.ok){
+        btn.disabled = false; btn.textContent = "保存修改";
+        alert("保存失败：" + (res.msg||"离线") +
+              "\n\n若含「权限」「policy」「permission」字样，请在 Supabase 执行\n「后台改档_一键安装.sql」后再试。");
+        return;
+      }
+      /* 写后读回：确认云端真的变了，而不是刚写进去就被玩家端同步盖回去 */
+      btn.textContent = "校验中…";
+      var probe = {};
+      ["rank","政绩","cash","廉政","健康"].forEach(function(k){
+        if(S[k] !== undefined) probe[k] = S[k];
+      });
+      if(typeof Cloud.adminVerifySave !== "function"){
+        btn.disabled = false; btn.textContent = "保存修改";
+        alert("已保存。名录稍后刷新可见新数值。"); closeEdit(); loadAll(); return;
+      }
+      Cloud.adminVerifySave(EDIT.user.id, probe).then(function(v){
+        btn.disabled = false; btn.textContent = "保存修改";
+        if(!v.ok){
+          alert("已写入，但读回校验没完成：" + (v.msg||"") + "\n请稍后在名录中确认。");
+        } else if(v.matched === false){
+          alert("⚠️ 写入成功，但读回发现数值不一致：\n\n" + (v.diff||[]).join("\n") +
+                "\n\n最常见的原因：该玩家此刻正在游戏，自动同步在写入后立刻覆盖回来。\n" +
+                "请让其退出游戏后再改，或改后由其重新登录拉取。");
+        } else {
+          alert("已保存并校验通过（修订号 " + v.rev + "）。\n玩家重新登录或稍后自动同步即可看到新数值。");
+        }
+        closeEdit(); loadAll();
+      });
+    });
+};
+
+$("q").oninput = render;
+
+function hardReloadAdmin(url){
+  var done = function(){
+    try{ location.replace(url); }
+    catch(e){ try{ location.href = url; }catch(e2){} }
+  };
+  var p = null;
+  try{ if(typeof fetch === "function") p = fetch(url, {cache:"reload", credentials:"same-origin"}); }catch(e){ p = null; }
+  if(p && p.then){ p.then(function(){ setTimeout(done, 80); }, function(){ setTimeout(done, 80); }); }
+  else { setTimeout(done, 30); }
+}
+
+function checkAdminUpdate(){
+  try{
+    if(typeof fetch !== "function") return;
+    var href = location.href || "";
+    var pure = href.split("#")[0].split("?")[0];
+    var base = pure.replace(/[^\/]*$/, "");
+    var cur = String(window.ADMIN_VERSION||"");
+    var tries = 0;
+    try{ tries = parseInt(sessionStorage.getItem("qlp_admin_bust_n")||"0",10)||0; }catch(e){}
+    fetch(base + "admin_version.json?t=" + Date.now(), {cache:"no-store", headers:{"Cache-Control":"no-cache"}})
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .catch(function(){ return null; })
+      .then(function(d){
+        if(!d || !d.v) return;
+        var latest = String(d.v);
+        if(latest === cur){ try{ sessionStorage.removeItem("qlp_admin_bust_n"); }catch(e){} return; }
+        if(tries < 1){
+          try{ sessionStorage.setItem("qlp_admin_bust_n", String(tries+1)); }catch(e){}
+          hardReloadAdmin(pure + "?_v=" + encodeURIComponent(latest) + "&_t=" + Date.now());
+          return;
+        }
+        var old = document.getElementById("adminUpdBar");
+        if(old && old.parentNode) old.parentNode.removeChild(old);
+        var dismissKey = "qlp_admin_skip_" + latest;
+        var skipped = "";
+        try{ skipped = localStorage.getItem(dismissKey)||""; }catch(e){}
+        if(skipped === cur) return;   /* 该版本已手动忽略，不再反复提示 */
+        var bar = document.createElement("div");
+        bar.id = "adminUpdBar";
+        bar.style.cssText = "position:fixed;left:0;right:0;bottom:0;z-index:99999;background:#b01e23;"+
+          "color:#fff;padding:10px 12px;font-size:13px;display:flex;align-items:center;gap:8px;box-shadow:0 -2px 12px rgba(0,0,0,.3)";
+        bar.innerHTML = '<div style="flex:1;line-height:1.6">后台有新版本：v'+cur+' → v'+latest+
+          '<br><span style="opacity:.85;font-size:12px">页面被缓存，请强制刷新</span></div>';
+        var b = document.createElement("button");
+        b.textContent = "强制刷新";
+        b.style.cssText = "background:#fff;color:#b01e23;border:0;border-radius:6px;padding:8px 12px;font-weight:700;white-space:nowrap";
+        b.onclick = function(){
+          if(tries >= 3){
+            // 多次强刷仍不一致：多半是版本号本身没同步，不再反复刷新，改为提示
+            b.textContent = "已尝试多次";
+            try{ sessionStorage.setItem("qlp_admin_bust_n", "0"); }catch(e){}
+            try{ window.location.reload(); }catch(e){}
+            return;
+          }
+          b.disabled = true; b.textContent = "刷新中…";
+          try{ sessionStorage.setItem("qlp_admin_bust_n", String(tries+1)); }catch(e){}
+          hardReloadAdmin(pure + "?_v=" + encodeURIComponent(latest) + "&_t=" + Date.now());
+        };
+        bar.appendChild(b);
+        var close = document.createElement("button");
+        close.textContent = "忽略";
+        close.style.cssText = "background:transparent;color:#fff;border:1px solid rgba(255,255,255,.6);"+
+          "border-radius:6px;padding:7px 10px;font-size:12px;white-space:nowrap";
+        close.onclick = function(){
+          try{ localStorage.setItem(dismissKey, String(cur)); }catch(e){}
+          if(bar.parentNode) bar.parentNode.removeChild(bar);
+        };
+        bar.appendChild(close);
+        document.body.appendChild(bar);
+      });
+  }catch(e){}
+}
+try{ checkAdminUpdate(); }catch(e){}
+
+/* 自动刷新：输入时不打断 */
+setInterval(function(){
+  try{
+    if(!$("main") || $("main").style.display === "none") return;
+    if($("mask").getAttribute("data-open") === "1") return;   /* 编辑中不刷新，避免覆盖输入 */
+    var ae = document.activeElement;
+    if(ae && (ae.tagName === "INPUT" || ae.tagName === "SELECT" || ae.tagName === "TEXTAREA")) return;
+    var q = $("q").value, fs = $("fStatus").value;
+    loadAll();
+    $("q").value = q; $("fStatus").value = fs;
+  }catch(e){}
+}, 60000);
+$("fStatus").onchange = render;
+$("btnRefresh").onclick = loadAll;
+$("btnRecon").onclick = openReconAll;
+
+(function(){
+  try{
+    var raw = localStorage.getItem("qlp_cloud_cfg");
+    if(raw){ var c = JSON.parse(raw); $("url").value = c.url||""; $("key").value = c.key||""; }
+  }catch(e){}
+})();
+</script>
+</body>
+</html>

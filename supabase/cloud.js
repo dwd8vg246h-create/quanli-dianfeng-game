@@ -577,8 +577,12 @@ var Cloud = (function(){
       return isNaN(x) ? undefined : x;
     }
     var bs = r.d_bs;
+    /* 「取不到」与「取到空值」必须区分开：
+       前者意味着这个键在本体里根本不存在，摘要应保持原样；
+       后者是真实值。早前一律转成 ""/false，导致本体缺字段的存档
+       被判成"摘要与本体不一致"，而修正又改不动它——永远修不完。 */
     return {
-      name:  r.d_name || "",
+      name:  (r.d_name === null || r.d_name === undefined) ? undefined : r.d_name,
       rank:  n(r.d_rank),
       age:   n(r.d_age),
       year:  n(r.d_year),
@@ -586,7 +590,8 @@ var Cloud = (function(){
       政绩: n(r.d_zj),
       道德: n(r.d_dd),
       廉政: n(r.d_lz),
-      不上榜: (bs === true || bs === "true")
+      不上榜: (bs === null || bs === undefined || bs === "")
+            ? undefined : (bs === true || bs === "true")
     };
   }
 
@@ -644,25 +649,43 @@ var Cloud = (function(){
      与所在机构），沿用旧值并交由管理端传入覆盖；位阶、政绩、
      道德、年龄、年份这些纯数值一律按新 data 重算。
      ============================================================ */
+  /* 本体字段「存在」的判定：0 是合法值，不能拿 falsy 判断 */
+  function _hasV(v){ return (v !== undefined && v !== null && v !== ""); }
+  /* 取数值，取不到则用旧摘要的值兜底（0 亦视为合法新值） */
+  function _numOr(v, alt){
+    if(!_hasV(v)) return (typeof alt === "number" ? alt : (Number(alt) || 0));
+    var x = Number(v);
+    return isNaN(x) ? (typeof alt === "number" ? alt : (Number(alt) || 0)) : x;
+  }
+
   function adminBuildSummary(S, prev){
     prev = prev || {};
     var tier = (typeof S.rank === "number") ? S.rank
              : (typeof prev["位阶"] === "number" ? prev["位阶"] : -1);
+    var yv = S.year, mv = S.month;
+    var hasY = (yv !== undefined && yv !== null && yv !== "");
+    var hasM = (mv !== undefined && mv !== null && mv !== "");
     return {
-      姓名: S.name || prev["姓名"] || "",
+      姓名: _hasV(S.name) ? S.name : (prev["姓名"] || ""),
       /* 职务、层次由调用端（admin.html 内联职级表）算出后传入；
          算不出则沿用旧值，绝不置空——空职务会让排行榜显示空白。 */
       职务: prev["职务"] || "",
       层次: prev["层次"] || "",
       位阶: tier,
-      年龄: S.age || 0,
-      年份: (S.year||0) + "年" + (S.month||0) + "月",
-      政绩: Math.round(S.政绩||0),
-      道德: Math.round(S.道德||0),
-      结局: S.ending || "",
-      上榜: S.不上榜 !== true,
+      /* 关键：本体没有这个键时沿用旧摘要，而不是补 0。
+         补 0 会造成两类灾难——
+         ① 批量对账时投影取不到的字段被判成"不一致"，而修正写入 0
+            后又仍然不一致，永远修不完；
+         ② 修正真的把 0 写进摘要，把原本正确的年龄/政绩抹成 0。 */
+      年龄: _numOr(S.age, prev["年龄"]),
+      年份: (hasY || hasM) ? ((hasY?yv:0)+"年"+(hasM?mv:0)+"月") : (prev["年份"] || ""),
+      政绩: Math.round(_numOr(S.政绩, prev["政绩"])),
+      道德: Math.round(_numOr(S.道德, prev["道德"])),
+      结局: _hasV(S.ending) ? S.ending : (prev["结局"] || ""),
+      上榜: (S.不上榜 === undefined || S.不上榜 === null)
+           ? (prev["上榜"] !== false) : (S.不上榜 !== true),
       净资产: (typeof prev["净资产"] === "number") ? prev["净资产"] : 0,
-      廉政: Math.round(S.廉政||0)
+      廉政: Math.round(_numOr(S.廉政, prev["廉政"]))
     };
   }
 

@@ -410,6 +410,39 @@ $("btnConn").onclick = function(){
   }catch(e){}
 })();
 
+
+/* ---------- 改档能力自检 ----------
+   后台改档依赖两只 SECURITY DEFINER 函数（ql_admin_read_save /
+   ql_admin_write_save）。它们没部署时，保存会直连 game_saves 写入，
+   多数项目被 Data API 访问策略拒绝，表现就是"点了保存没反应、
+   改了游戏里没变"，而管理员看不出是自己操作错了还是库里缺东西。
+   这里在登录后主动探测一次，缺什么就在顶部红条里写明。 */
+function probeFuncs(){
+  try{
+    if(typeof Cloud.adminProbeFunctions !== "function") return;
+    Cloud.adminProbeFunctions().then(function(r){
+      var el = document.getElementById("fnWarn");
+      if(!el){
+        el = document.createElement("div");
+        el.id = "fnWarn";
+        el.style.cssText = "position:sticky;top:0;z-index:9999;background:#7d1620;color:#ffd9d9;padding:10px 12px;font-size:13px;line-height:1.7;border-bottom:1px solid #e8434f";
+        var host = document.getElementById("main") || document.body;
+        host.parentNode.insertBefore(el, host);
+      }
+      if(!r.ok){ el.style.display="none"; return; }
+      if(r.read && r.write){ el.style.display="none"; return; }
+      var miss = [];
+      if(!r.read) miss.push("ql_admin_read_save");
+      if(!r.write) miss.push("ql_admin_write_save");
+      el.innerHTML = "⚠️ <b>后台改档函数未部署，修改无法写入云端</b><br>" +
+        "缺少：" + miss.join("、") +
+        "<br>请在 Supabase → SQL Editor 执行「<b>后台改档_一键安装.sql</b>」后刷新本页。" +
+        (r.uncertain ? "<br><span style='opacity:.8;font-size:12px'>（未能读取 API 定义，结论由试调用推断，可能不准）</span>" : "");
+      el.style.display = "";
+    });
+  }catch(e){}
+}
+
 /* ---------- 口令 ---------- */
 $("btnPwd").onclick = function(){
   var v = $("adminPwd").value;
@@ -421,6 +454,7 @@ $("btnPwd").onclick = function(){
     $("main").style.display = "";
     $("pwdCard").style.display = "none";
     loadAll();
+    probeFuncs();
   });
 };
 

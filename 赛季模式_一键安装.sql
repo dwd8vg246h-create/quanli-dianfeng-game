@@ -2,7 +2,8 @@
 -- 赛季模式 · 一键安装
 -- ============================================================
 -- 规则（由后台设定，此处为默认）：
---   · 每两个月一个赛季：1-2月=S1，3-4月=S2，… 11-12月=S6
+--   · 赛季纪元 2026-09-18 为 S1 起点，此后每 2 个月一季（每月 18 日换季）：
+--       S1 = 2026-09-18 ～ 2026-11-17，S2 = 2026-11-18 ～ 2027-01-17 …
 --   · 赛季切换时，旧存档归档为「往季档案」，可回看但不参与新赛季
 --   · 赛季榜按「赛季内峰值」计名次：
 --       记录本赛季达到过的最高政绩 / 最高位阶，
@@ -22,7 +23,7 @@
 
 -- ---------- 1. 赛季表 ----------
 create table if not exists public.game_seasons (
-  season_key  text primary key,          -- '2026-S5'
+  season_key  text primary key,          -- 'S1' / 'S2' …（跨年连续递增）
   seq         int  not null,             -- 第几季（1 起）
   started_at  timestamptz not null,
   ends_at     timestamptz not null,
@@ -232,14 +233,15 @@ exception when others then
 end $$;
 
 -- ---------- 6. 预置赛季（当前季 + 上一季，便于立即验证）----------
--- 赛季号：seq = (年-2026)*6 + floor((月-1)/2) + 1
+-- 赛季号：S1 起自 2026-09-18，每 2 个月递增 1
 insert into public.game_seasons(season_key, seq, started_at, ends_at, status, note)
 values
-  ('2026-S5', 5, '2026-09-01 00:00:00+08', '2026-10-31 23:59:59+08', 'active', '双月赛季'),
-  ('2026-S6', 6, '2026-11-01 00:00:00+08', '2026-12-31 23:59:59+08', 'active', '双月赛季')
+  ('S1', 1, '2026-09-18 00:00:00+08', '2026-11-17 23:59:59+08', 'active', '双月赛季（纪元）'),
+  ('S2', 2, '2026-11-18 00:00:00+08', '2027-01-17 23:59:59+08', 'active', '双月赛季'),
+  ('S3', 3, '2027-01-18 00:00:00+08', '2027-03-17 23:59:59+08', 'active', '双月赛季')
 on conflict (season_key) do nothing;
 
 -- 校验：
 --   select * from public.game_seasons order by seq;
---   select * from public.ql_rank_season('2026-S5','merit',20);
---   select * from public.ql_rank_season_me('工号前8位','2026-S5','merit');
+--   select * from public.ql_rank_season('S1','merit',20);
+--   select * from public.ql_rank_season_me('工号前8位','S1','merit');

@@ -669,6 +669,168 @@ var Cloud = (function(){
     });
   }
 
+  /* ============================================================
+     赛季模式
+     ------------------------------------------------------------
+     规则（与「赛季模式_一键安装.sql」一一对应）：
+       · 每两个月一赛季：1-2月=S1 … 9-10月=S5，11-12月=S6
+       · 赛季切换时旧档归档为「往季档案」，可回看但不计入新赛季
+       · 赛季榜按「赛季内峰值」计名次——后来被查办降级，峰值仍保留
+
+     ⚠️ 三条容错，缺一不可：
+       ① 未部署赛季表时，全部接口返回 notDeployed，游戏端照常玩
+       ② 上报走 upsert，只增不减：peak_* 取新旧最大值，绝不回退
+       ③ 归档先于重置——归档失败就不允许重置，避免存档丢失
+     ============================================================ */
+
+  /* 赛季键：由存档内的年份/月份推导，不依赖网络 */
+  function seasonKeyOf(year, month){
+    var y = parseInt(year, 10) || 2026;
+    var m = parseInt(month, 10) || 1;
+    if(m < 1) m = 1; if(m > 12) m = 12;
+    var seq = (y - 2026) * 6 + Math.floor((m - 1) / 2) + 1;
+    return y + "-S" + seq;
+  }
+
+  /* 赛季起止月：给定赛季键，返回 [起始年, 起始月, 结束年, 结束月] */
+  function seasonRangeOf(key){
+    var m = String(key || "").match(/^(\d{4})-S(\d+)$/);
+    if(!m) return null;
+    var y = parseInt(m[1], 10), seq = parseInt(m[2], 10);
+    var idx = seq - 1;
+    var yy = y + Math.floor(idx / 6);
+    var half = idx % 6;
+    return [yy, half * 2 + 1, yy, half * 2 + 2];
+  }
+
+  /* 当前赛季（按真实日期推导，离线也能算） */
+  function currentSeason(now){
+    var d = now || new Date();
+    /* 按 CST-8 取年月，避免 UTC 跨日把赛季算错 */
+    var s = new Date(d.getTime() + 8 * 3600 * 1000);
+    return seasonKeyOf(s.getUTCFullYear(), s.getUTCMonth() + 1);
+  }
+
+  /* 读赛季表：未部署时明确告知，不静默失败 */
+  function seasonList(){
+    if(!isReady()) return Promise.resolve({ok:false, offline:true});
+    return req("GET", "game_seasons?select=season_key,seq,started_at,ends_at,status,note&order=seq.asc",
+      null, null, 10000).then(function(res){
+      if(res.error){
+        var msg = String(res.error.message || "");
+        if(/does not exist|relation|42P01/i.test(msg)) return {ok:false, notDeployed:true};
+        return {ok:false, msg:msg};
+      }
+      return {ok:true, seasons:res.data || []};
+    });
+  }
+
+  /* 上报赛季成绩：peak_* 只增不减
+     stat: {peak_merit, peak_tier, peak_title, final_merit, final_tier,
+            final_title, ending, months} */
+  function seasonSubmit(seasonKey, userId, stat){
+    if(!isReady()) return Promise.resolve({ok:false, offline:true});
+    if(!seasonKey || !userId) return Promise.resolve({ok:false, msg:"赛季或用户缺失"});
+    var row = {
+      season_key: seasonKey,
+      user_id: userId,
+      peak_merit:  Math.round(stat.peak_merit  || 0),
+      peak_tier:   Math.round(stat.peak_tier   || 0),
+      peak_title:  String(stat.peak_title  || ""),
+      final_merit: Math.round(stat.final_merit || 0),
+      final_tier:  Math.round(stat.final_tier  || 0),
+      final_title: String(stat.final_title || ""),
+      ending:      String(stat.ending || ""),
+      months:      Math.round(stat.months || 0),
+      updated_at:  new Date().toISOString()
+    };
+    /* 先读旧值再合并：PostgREST 的 merge-duplicates 会整体覆盖，
+       直接 upsert 会让峰值在同步失败重传时被较小的旧值打回去。 */
+    return req("GET",
+      "game_season_stats?select=peak_merit,peak_tier,peak_title&season_key=eq."+eqv(seasonKey)+
+      "&user_id=eq."+eqv(userId)+"&limit=1", null, null, 10000).then(function(prev){
+      var old = (prev && !prev.error && prev.data && prev.data.length) ? prev.data[0] : null;
+      if(old){
+        if((old.peak_merit||0) > row.peak_merit){ row.peak_merit = old.peak_merit; row.peak_title = old.peak_title; }
+        if((old.peak_tier||0)  > row.peak_tier){  row.peak_tier  = old.peak_tier;  row.peak_title = old.peak_title; }
+      }
+      return req("POST", "game_season_stats", row,
+        "return=minimal,resolution=merge-duplicates", 12000).then(function(res){
+        if(res.error){
+          var mg = String(res.error.message || "");
+          if(/does not exist|relation|42P01/i.test(mg)) return {ok:false, notDeployed:true};
+          return {ok:false, msg:mg};
+        }
+        return {ok:true, stat:row};
+      });
+    });
+  }
+
+  /* 归档往季档案：赛季切换时保存整份存档，供回看 */
+  function seasonArchive(seasonKey, userId, S, summary){
+    if(!isReady()) return Promise.resolve({ok:false, offline:true});
+    if(!seasonKey || !userId) return Promise.resolve({ok:false, msg:"赛季或用户缺失"});
+    return req("POST", "game_season_archive", {
+      season_key: seasonKey,
+      user_id: userId,
+      data: S || {},
+      summary: summary || {},
+      archived_at: new Date().toISOString()
+    }, "return=minimal,resolution=merge-duplicates", 15000).then(function(res){
+      if(res.error){
+        var mg = String(res.error.message || "");
+        if(/does not exist|relation|42P01/i.test(mg)) return {ok:false, notDeployed:true};
+        return {ok:false, msg:mg};
+      }
+      return {ok:true};
+    });
+  }
+
+  /* 取回某季的往季档案 */
+  function seasonArchiveGet(seasonKey, userId){
+    if(!isReady()) return Promise.resolve({ok:false, offline:true});
+    return req("GET",
+      "game_season_archive?select=data,summary,archived_at&season_key=eq."+eqv(seasonKey)+
+      "&user_id=eq."+eqv(userId)+"&limit=1", null, null, 10000).then(function(res){
+      if(res.error) return {ok:false, msg:res.error.message};
+      if(!res.data || !res.data.length) return {ok:true, empty:true};
+      return {ok:true, data:res.data[0].data, summary:res.data[0].summary||{},
+              archivedAt:res.data[0].archived_at};
+    });
+  }
+
+  /* 赛季榜 */
+  function seasonBoard(seasonKey, sort, limit){
+    if(!isReady()) return Promise.resolve({ok:false, offline:true});
+    var srt = sort || "merit";
+    var lim = Math.max(1, Math.min(300, parseInt(limit, 10) || 100));
+    return rpc("ql_rank_season", {p_season: seasonKey || null, p_sort: srt, p_limit: lim})
+      .then(function(res){
+      if(res.error){
+        if(rpcMissed(res.error)) return {ok:false, notDeployed:true};
+        return {ok:false, msg:res.error.message};
+      }
+      return {ok:true, rows: res.data || []};
+    });
+  }
+
+  /* 我的赛季名次 */
+  function seasonBoardMe(self, seasonKey, sort){
+    if(!isReady()) return Promise.resolve({ok:false, offline:true});
+    return rpc("ql_rank_season_me",
+      {p_self: self || "", p_season: seasonKey || null, p_sort: sort || "merit"})
+      .then(function(res){
+      if(res.error){
+        if(rpcMissed(res.error)) return {ok:false, notDeployed:true};
+        return {ok:false, msg:res.error.message};
+      }
+      var r = (res.data && res.data.length) ? res.data[0] : null;
+      if(!r) return {ok:true, empty:true};
+      return {ok:true, pos:r.pos, total:r.total_count,
+              peakMerit:r.peak_merit, peakTier:r.peak_tier};
+    });
+  }
+
   /* ---------- 连通性自检 ---------- */
   function ping(){
     if(!isReady()) return Promise.resolve({ok:false, msg:"未初始化"});
@@ -723,6 +885,19 @@ var Cloud = (function(){
     adminDeleteUser: adminDeleteUser,
     adminLog: adminLog,
     adminLogs: adminLogs,
+    /* 赛季模式 */
+    /* 当前登录用户的 uuid。赛季上报/归档需要它；
+       未登录时返回 null，调用端据此静默降级。 */
+    userId: function(){ return state.uid || null; },
+    seasonKeyOf: seasonKeyOf,
+    seasonRangeOf: seasonRangeOf,
+    currentSeason: currentSeason,
+    seasonList: seasonList,
+    seasonSubmit: seasonSubmit,
+    seasonArchive: seasonArchive,
+    seasonArchiveGet: seasonArchiveGet,
+    seasonBoard: seasonBoard,
+    seasonBoardMe: seasonBoardMe,
     ping: ping,
     statusText: statusText,
     hasPending: hasPending,

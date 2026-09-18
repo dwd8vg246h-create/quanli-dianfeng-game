@@ -554,6 +554,79 @@ var Cloud = (function(){
 
 
   /* ============================================================
+     批量对账：一次拉回全部存档的「摘要 + 比对所需少量本体字段」
+     ------------------------------------------------------------
+     后台名录与游戏排行榜读的都是 game_saves.summary，
+     玩家真实进度在 game_saves.data。两者不同源，改档、玩家端重算
+     都可能让摘要滞后，表现就是「名录/排行榜与存档对不上」。
+
+     逐人读整份 data 在本项目里不可行：单份 jsonb 可达数百 KB，
+     几百人同屏会把响应拖垮。故优先用 PostgREST 的 jsonb 投影
+     只取比对需要的几个键；投影不被支持时退回逐个读取（并发 4，带进度）。
+     ============================================================ */
+  var RECON_PROJ = "user_id,summary," +
+    "data->>'name' as d_name,data->>'rank' as d_rank,data->>'age' as d_age," +
+    "data->>'year' as d_year,data->>'month' as d_month," +
+    "data->>'政绩' as d_zj,data->>'道德' as d_dd," +
+    "data->>'廉政' as d_lz,data->>'不上榜' as d_bs";
+
+  function _projToData(r){
+    function n(v){
+      if(v === null || v === undefined || v === "") return undefined;
+      var x = Number(v);
+      return isNaN(x) ? undefined : x;
+    }
+    var bs = r.d_bs;
+    return {
+      name:  r.d_name || "",
+      rank:  n(r.d_rank),
+      age:   n(r.d_age),
+      year:  n(r.d_year),
+      month: n(r.d_month),
+      政绩: n(r.d_zj),
+      道德: n(r.d_dd),
+      廉政: n(r.d_lz),
+      不上榜: (bs === true || bs === "true")
+    };
+  }
+
+  function adminReconAll(ids, onProgress){
+    if(!isReady()) return Promise.resolve({ok:false, offline:true});
+    return req("GET",
+      "game_saves?select=" + encodeURIComponent(RECON_PROJ) + "&limit=1000",
+      null, null, 25000).then(function(res){
+      if(!res.error){
+        return {ok:true, via:"proj", rows:(res.data||[]).map(function(r){
+          return {userId: r.user_id, summary: r.summary||{}, data: _projToData(r), partial: true};
+        })};
+      }
+      /* 投影不被支持（PostgREST 较旧 / 键名含中文）→ 逐个读整份。
+         整份读取较慢，故限并发并回报进度，界面能显示「第 n/N」。 */
+      var list = (ids||[]).slice(0, 400);
+      if(!list.length) return {ok:false, msg:res.error.message};
+      var out = [], i = 0, CONC = 4, done = 0, total = list.length;
+      return new Promise(function(resolve){
+        /* 以「已完成数」判定结束，不能用 i >= list.length：
+           后者会让最后一个线程在别人的读取还没回来时就 resolve，
+           结果是扫描空——看似成功，实际一份都没比对。 */
+        function next(){
+          if(i >= list.length) return;
+          var id = list[i++];
+          adminReadSave(id).then(function(r){
+            if(r.ok && !r.empty)
+              out.push({userId: id, summary: r.summary||{}, data: r.data||{}});
+            done++;
+            if(onProgress){ try{ onProgress(done, total); }catch(e){} }
+            if(done >= total) resolve({ok:true, via:"full", rows:out});
+            else next();
+          });
+        }
+        for(var k = 0; k < Math.min(CONC, total); k++) next();
+      });
+    });
+  }
+
+  /* ============================================================
      管理员读写整份存档（后台「修改档案数据」用）
      ------------------------------------------------------------
      此前后台只有摘要（summary），能看不能改：
@@ -744,13 +817,56 @@ var Cloud = (function(){
       });
   }
 
+  function _deniedErr(err){
+    var e = err || {};
+    return (e.status === 403) || (e.status === 401)
+        || /permission denied|row-level security|violates|not allowed/i.test(String(e.message||""));
+  }
+
+  /* 软注销：没有 DELETE 权限时也能真正生效。
+     ------------------------------------------------------------
+     绝大多数项目按 安全加固_数据库权限.sql 收回了 anon 的 DELETE
+     （不收回的话，任何人一条请求就能清空全部档案），所以真删必然被拒——
+     这正是后台「注销」一直失败、又不说清原因的根源。
+
+     这里改为「置状态注销 + 清空云端存档」，只用到 UPDATE/INSERT，
+     这两项在加固脚本里是明确保留的。摘要清空后该账号即退出排行榜。 */
+  function adminSoftDelete(userId, why){
+    var blankSummary = {姓名:"", 职务:"", 层次:"", 位阶:-1,
+      年龄:0, 年份:"", 政绩:0, 道德:0, 结局:"",
+      上榜:false, 净资产:0, 廉政:0, 管理端修订: Date.now()};
+    return req("PATCH", "game_users?id=eq."+eqv(userId), {status:"注销"}, null, 10000)
+      .then(function(res){
+        if(res.error)
+          return {ok:false, msg:(res.error.message||"未知错误")
+                  + (why ? "（真删失败："+why+"）" : "")};
+        /* 清档失败不回滚：账号已标记注销，空档下次可重试 */
+        return req("POST", "game_saves",
+          {user_id:userId, data:{_deleted:true}, summary:blankSummary,
+           saved_at:new Date().toISOString(), version:1},
+          "return=representation,resolution=merge-duplicates", 15000)
+          .then(function(r2){
+            return {ok:true, mode:"soft", cleared:!r2.error, via:"table",
+                    note: why ? ("真删不可用："+why) : ""};
+          });
+      });
+  }
+
   function adminDeleteUser(userId){
     if(!isReady()) return Promise.resolve({ok:false, offline:true});
-    // 存档表设了 on delete cascade，删用户即连带清档
+    /* ① 直连真删：多数项目已收回该权限，失败属预期，继续兜底 */
     return req("DELETE", "game_users?id=eq."+eqv(userId), null, null, 10000)
       .then(function(res){
-        if(res.error) return {ok:false, msg:res.error.message};
-        return {ok:true};
+        if(!res.error) return {ok:true, mode:"hard", via:"table"};
+        if(!_deniedErr(res.error)) return {ok:false, msg:res.error.message};
+        /* ② SECURITY DEFINER 函数真删（需执行 后台改档_一键安装.sql）。
+              函数内先删 game_saves 再删 game_users，不受权限策略限制。 */
+        return req("POST", "rpc/ql_admin_delete_user", {p_user_id:String(userId)},
+          null, 15000).then(function(rp){
+          if(!rp.error) return {ok:true, mode:"hard", via:"rpc"};
+          /* ③ 软注销兜底 */
+          return adminSoftDelete(userId, rp.error.message || res.error.message || "");
+        });
       });
   }
 
@@ -951,6 +1067,8 @@ var Cloud = (function(){
     adminSetStatus: adminSetStatus,
     adminResetPwd: adminResetPwd,
     adminDeleteUser: adminDeleteUser,
+    adminSoftDelete: adminSoftDelete,
+    adminReconAll: adminReconAll,
     adminLog: adminLog,
     adminLogs: adminLogs,
     ping: ping,

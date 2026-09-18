@@ -15,7 +15,16 @@ set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 
 REPO="dwd8vg246h-create/quanli-dianfeng-game"
-RAW="https://raw.githubusercontent.com/${REPO}/main"
+# 多源候选：境外不通时自动回退（按连通性依次尝试）
+# 说明：你手机能打开 GitHub Pages 玩游戏，说明 Pages 在国内多半可达。
+CANDS=(
+  "https://dwd8vg246h-create.github.io/quanli-dianfeng-game"
+  "https://raw.gitmirror.com/${REPO}/main"
+  "https://gh-proxy.com/https://raw.githubusercontent.com/${REPO}/main"
+  "https://ghproxy.net/https://raw.githubusercontent.com/${REPO}/main"
+  "https://raw.githubusercontent.com/${REPO}/main"
+)
+RAW=""
 DEST="/var/www/quanli-dianfeng"
 CONF="/etc/nginx/conf.d/quanli.conf"
 SB_HOST="zgkovjgkkvxoajcqxwfw.supabase.co"
@@ -32,6 +41,14 @@ if command -v nginx >/dev/null 2>&1; then
   ok "Nginx 已安装"
 else
   if command -v apt-get >/dev/null 2>&1; then
+    # 境外源常不通（changelogs.ubuntu.com 已报失败），先换国内镜像
+    if [ -f /etc/apt/sources.list ] && ! grep -q 'mirrors.aliyun.com\|mirrors.tencent.com' /etc/apt/sources.list; then
+      cp /etc/apt/sources.list /etc/apt/sources.list.bak.$(date +%s) 2>/dev/null || true
+      sed -i 's|http://\(archive\|security\)\.ubuntu\.com|https://mirrors.aliyun.com|g; s|https://\(archive\|security\)\.ubuntu\.com|https://mirrors.aliyun.com|g' /etc/apt/sources.list 2>/dev/null || true
+      [ -f /etc/apt/sources.list.d/ubuntu.sources ] && \
+        sed -i 's|http://\(archive\|security\)\.ubuntu\.com|https://mirrors.aliyun.com|g; s|https://\(archive\|security\)\.ubuntu\.com|https://mirrors.aliyun.com|g' /etc/apt/sources.list.d/ubuntu.sources 2>/dev/null || true
+      info "apt 源已切换为阿里云镜像"
+    fi
     apt-get update -qq >/dev/null 2>&1 || true
     apt-get install -y -qq nginx curl python3 >/dev/null 2>&1
   elif command -v yum >/dev/null 2>&1; then
@@ -134,10 +151,21 @@ if [ -f /etc/nginx/conf.d/default.conf ] && [ "$CONF" != "/etc/nginx/conf.d/defa
 fi
 ok "配置已写入 $CONF"
 
-say "4/8 拉取游戏文件"
+say "4/8 拉取游戏文件（自动挑选可用源）"
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
+pick_source(){
+  for c in "${CANDS[@]}"; do
+    code=$(curl -sS -m 20 -o "$TMP/_probe" -w '%{http_code}' "$c/version.json" 2>/dev/null || echo 000)
+    if [ "$code" = "200" ] && head -c 20 "$TMP/_probe" 2>/dev/null | grep -q '{'; then
+      RAW="$c"; info "选定下载源：$c"; return 0
+    fi
+    info "不可用（HTTP $code）：$c"
+  done
+  return 1
+}
+pick_source || { bad "所有下载源均不可达，见下方提示"; exit 1; }
 for f in index.html admin.html cloud.js version.json admin_version.json; do
-  code=$(curl -sS -m 90 -o "$TMP/$f" -w '%{http_code}' "$RAW/$f" || echo 000)
+  code=$(curl -sS -m 120 -o "$TMP/$f" -w '%{http_code}' "$RAW/$f" || echo 000)
   [ "$code" = "200" ] || { bad "拉取 $f 失败（HTTP $code）"; exit 1; }
   printf '    %-20s %9d 字节\n' "$f" "$(wc -c < "$TMP/$f")"
 done

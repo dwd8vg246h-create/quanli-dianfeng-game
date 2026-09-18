@@ -353,10 +353,12 @@ var Cloud = (function(){
     setState("syncing");
     /* upsert：PostgREST 用 POST + resolution=merge-duplicates 实现。
        注意 jsonb 字段直接传对象，JSON.stringify 后即为其值。 */
+    var _sum = buildSummary(S);
+    if(S && typeof S._adminRev === "number") _sum["管理端修订"] = S._adminRev;
     return req("POST", "game_saves", {
       user_id: userId,
       data: S,
-      summary: buildSummary(S),
+      summary: _sum,
       saved_at: new Date().toISOString(),
       version: 1
     }, "return=representation,resolution=merge-duplicates", 12000).then(function(res){
@@ -596,10 +598,22 @@ var Cloud = (function(){
     return req("GET",
       "game_saves?select=data,summary,saved_at,version&user_id=eq."+eqv(userId)+"&limit=1",
       null, null, 15000).then(function(res){
-      if(res.error) return {ok:false, msg:res.error.message};
-      if(!res.data || !res.data.length) return {ok:true, empty:true};
-      return {ok:true, data:res.data[0].data, summary:res.data[0].summary||{},
-              savedAt:res.data[0].saved_at};
+      if(!res.error && res.data && res.data.length)
+        return {ok:true, data:res.data[0].data, summary:res.data[0].summary||{},
+                savedAt:res.data[0].saved_at, via:"table"};
+      if(!res.error) return {ok:true, empty:true, via:"table"};
+      var em = String(res.error.message||"");
+      var denied = (res.error.status === 403) || (res.error.status === 401)
+                || /permission denied|row-level security|violates/i.test(em);
+      if(!denied) return {ok:false, msg:em};
+      return req("POST", "rpc/ql_admin_read_save", {p_user_id:String(userId)}, null, 15000)
+        .then(function(r2){
+        if(r2.error) return {ok:false, msg:em+" ｜ 函数兜底也失败："+(r2.error.message||"")};
+        var rows = r2.data || [];
+        if(!rows.length) return {ok:true, empty:true, via:"rpc"};
+        return {ok:true, data:rows[0].data, summary:rows[0].summary||{},
+                savedAt:rows[0].saved_at, via:"rpc"};
+      });
     });
   }
 
@@ -614,16 +628,34 @@ var Cloud = (function(){
        游戏端上传前会比对它——若云端比本机新，说明管理员改过档，
        本机须先让位（拉取覆盖），否则下一次自动同步就会把后台的
        修改无声覆盖回去，表现为"后台改了，游戏里没变"。 */
-    sum.管理端修订 = (typeof opt.rev === "number") ? opt.rev : Date.now();
-    return req("POST", "game_saves", {
+    var rev = (typeof opt.rev === "number") ? opt.rev : Date.now();
+    sum["管理端修订"] = rev;
+    /* 修订号同时写进 data 本体：summary 会被玩家端 pushSave 重算，
+       只有留在 data 里的这一份能跨同步存活，登录时的新旧比对才有基准。 */
+    try{ S._adminRev = rev; }catch(e){}
+    var body = {
       user_id: userId,
       data: S,
       summary: sum,
       saved_at: new Date().toISOString(),
       version: (typeof S.version === "number") ? S.version : 1
-    }, "return=representation,resolution=merge-duplicates", 15000).then(function(res){
-      if(res.error) return {ok:false, msg:res.error.message};
-      return {ok:true, summary:sum};
+    };
+    return req("POST", "game_saves", body,
+      "return=representation,resolution=merge-duplicates", 15000).then(function(res){
+      if(!res.error) return {ok:true, summary:sum, rev:rev, via:"table"};
+      /* 直写被拒（多数是 Data API 访问策略未放开 game_saves 的写权限）
+         时改走 SECURITY DEFINER 函数：同样的语义，但不受该策略限制。
+         需先在 Supabase 执行 后台改档_一键安装.sql。 */
+      var em = String(res.error.message||"");
+      var denied = (res.error.status === 403) || (res.error.status === 401)
+                || /permission denied|row-level security|violates/i.test(em);
+      if(!denied) return {ok:false, msg:em, via:"table"};
+      return req("POST", "rpc/ql_admin_write_save",
+        {p_user_id:String(userId), p_data:S, p_summary:sum, p_rev:rev},
+        null, 15000).then(function(r2){
+        if(r2.error) return {ok:false, msg:em+" ｜ 函数兜底也失败："+(r2.error.message||""), via:"rpc"};
+        return {ok:true, summary:sum, rev:rev, via:"rpc"};
+      });
     });
   }
 
@@ -641,6 +673,26 @@ var Cloud = (function(){
       var s = res.data[0].summary || {};
       return {ok:true, rev:(typeof s["管理端修订"] === "number") ? s["管理端修订"] : 0};
     }).catch(function(e){ return {ok:false, msg:String(e && e.message || e), rev:0}; });
+  }
+
+  /* 写后读回校验：后台改档"显示已保存但云端没变"时，
+     到底是没写进去、还是被玩家端覆盖了，只有读回来比对才知道。
+     返回 matched 与差异明细，供界面如实告知管理员。 */
+  function adminVerifySave(userId, expect){
+    if(!isReady()) return Promise.resolve({ok:false, offline:true});
+    return adminReadSave(userId).then(function(r){
+      if(!r.ok) return {ok:false, msg:r.msg};
+      if(r.empty) return {ok:true, empty:true, matched:false};
+      var diff = [];
+      var cur = r.data || {};
+      var exp = expect || {};
+      Object.keys(exp).forEach(function(k){
+        if(String(cur[k]) !== String(exp[k])) diff.push(k+"："+cur[k]+" → 期望 "+exp[k]);
+      });
+      return {ok:true, matched:diff.length===0, diff:diff,
+              rev:(cur && typeof cur._adminRev === "number") ? cur._adminRev : 0,
+              via:r.via||""};
+    });
   }
 
   function adminSetStatus(userId, status){
@@ -863,6 +915,7 @@ var Cloud = (function(){
     adminWriteSave: adminWriteSave,
     adminBuildSummary: adminBuildSummary,
     adminRevOf: adminRevOf,
+    adminVerifySave: adminVerifySave,
     adminSetStatus: adminSetStatus,
     adminResetPwd: adminResetPwd,
     adminDeleteUser: adminDeleteUser,

@@ -5,6 +5,9 @@
 # 在服务器上执行这一行即可：
 #   curl -fsSL https://raw.githubusercontent.com/dwd8vg246h-create/quanli-dianfeng-game/main/deploy/bootstrap.sh | sudo bash
 #
+# NAT 转发 / 自动探测不到公网 IP 时，把公网 IP 作为参数传入：
+#   curl -fsSL .../bootstrap.sh -o /tmp/b.sh && sudo bash /tmp/b.sh 你的公网IP
+#
 # 自动完成：装 Nginx → 探测公网 IP → 写配置 → 拉游戏文件
 #           → 注入域名白名单 → 启动 → 健康检查 → 失败回滚
 # ============================================================
@@ -41,16 +44,44 @@ else
   command -v nginx >/dev/null 2>&1 && ok "Nginx 安装完成" || { bad "安装失败"; exit 1; }
 fi
 
-say "2/8 探测本机公网 IP"
-PUBIP=""
-for svc in "https://api.ipify.org" "https://ifconfig.me/ip" "https://ipecho.net/plain" "http://myip.ipip.net"; do
-  PUBIP=$(curl -fsS -m 8 "$svc" 2>/dev/null | grep -oE '[0-9]{1,3}(\.[0-9]{1,3}){3}' | head -1 || true)
-  [ -n "$PUBIP" ] && break
-done
-if [ -z "$PUBIP" ]; then
-  PUBIP=$(ip -4 addr show scope global 2>/dev/null | grep -oP 'inet \K[\d.]+' | head -1 || true)
+say "2/8 确定访问地址（NAT 环境支持）"
+# NAT 转发下，服务器本机往往只有内网 IP（10.x / 172.x / 192.168.x），
+# 直接用 ip addr 会拿到错误地址。必须用外部服务探测网关的公网 IP。
+is_private(){ case "$1" in
+  10.*|172.1[6-9].*|172.2[0-9].*|172.3[0-1].*|192.168.*|127.*|169.254.*) return 0;;
+  *) return 1;; esac; }
+
+PUBIP="${1:-}"
+if [ -n "$PUBIP" ]; then
+  PUBIP="${PUBIP#http://}"; PUBIP="${PUBIP#https://}"; PUBIP="${PUBIP%%:*}"
+  ok "使用指定地址：$PUBIP"
+else
+  for svc in "https://api.ipify.org" "https://ifconfig.me/ip" \
+             "https://ipecho.net/plain" "https://myip.ipip.net" \
+             "https://v4.ident.me" "http://ip.3322.net"; do
+    C=$(curl -fsS -m 8 "$svc" 2>/dev/null | grep -oE '[0-9]{1,3}(\.[0-9]{1,3}){3}' | head -1 || true)
+    if [ -n "$C" ] && ! is_private "$C"; then PUBIP="$C"; break; fi
+  done
+  if [ -n "$PUBIP" ]; then
+    ok "探测到公网 IP：$PUBIP"
+  else
+    # 回退到本机地址，但内网地址不能用于白名单
+    C=$(ip -4 addr show scope global 2>/dev/null | grep -oP 'inet \K[\d.]+' | head -1 || true)
+    if [ -n "$C" ] && ! is_private "$C"; then
+      PUBIP="$C"; ok "使用本机地址：$PUBIP"
+    else
+      bad "未能自动确定公网 IP（NAT 环境常见）"
+      echo
+      echo "  请按下面方式重跑，把你的公网 IP 直接告诉我："
+      echo "    curl -fsSL .../deploy/bootstrap.sh | sudo bash -s 你的公网IP"
+      echo "  或下载后执行："
+      echo "    curl -fsSL .../deploy/bootstrap.sh -o /tmp/b.sh && sudo bash /tmp/b.sh 你的公网IP"
+      echo
+      exit 1
+    fi
+  fi
 fi
-[ -n "$PUBIP" ] && ok "公网 IP：$PUBIP" || { PUBIP="127.0.0.1"; bad "未探测到公网 IP，先用 127.0.0.1，稍后可重跑指定"; }
+info "注：游戏只校验 IP（hostname），不含端口，NAT 随机外部端口不受影响"
 
 say "3/8 写入 Nginx 配置"
 mkdir -p "$(dirname "$CONF")" "$DEST"
@@ -198,10 +229,14 @@ fi
 VER=$(python3 -c "import json;print(json.load(open('$DEST/version.json')).get('v','?'))" 2>/dev/null || echo '?')
 echo
 echo "══════════════ 部署完成 ══════════════"
-echo "  游戏   : http://$PUBIP/"
-echo "  后台   : http://$PUBIP/admin.html"
+echo "  服务器监听: 内部 80 端口（已就绪）"
+echo "  NAT 转发  : 内部端口填 80，外部端口用自动生成的那个"
+echo ""
+echo "  游戏   : http://$PUBIP:你的外部端口/"
+echo "  后台   : http://$PUBIP:你的外部端口/admin.html"
 echo "  版本   : $VER"
 echo "  站点目录: $DEST"
 echo "══════════════════════════════════════"
 echo
-echo "  若打不开，多半是云服务器安全组未放行 80 端口。"
+echo "  把最后生成的外部端口号填进上面的地址即可访问。"
+echo "  打不开先确认 NAT 规则的内网 IP 指向这台机器、内部端口为 80。"

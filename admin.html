@@ -270,7 +270,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
      是自己填错还是服务不通。 -->
 <script>
 /* 后台版本：由 build.js 同步 */
-var ADMIN_VERSION = "20260918.0913";
+var ADMIN_VERSION = "20260918.1130";
 var CLOUD_CONFIG = {
   enabled: true,
   url: "https://zgkovjgkkvxoajcqxwfw.supabase.co",
@@ -821,7 +821,7 @@ function checkAdminUpdate(){
     var cur = String(window.ADMIN_VERSION||"");
     var tries = 0;
     try{ tries = parseInt(sessionStorage.getItem("qlp_admin_bust_n")||"0",10)||0; }catch(e){}
-    fetch(base + "version.json?t=" + Date.now(), {cache:"no-store", headers:{"Cache-Control":"no-cache"}})
+    fetch(base + "admin_version.json?t=" + Date.now(), {cache:"no-store", headers:{"Cache-Control":"no-cache"}})
       .then(function(r){ return r.ok ? r.json() : null; })
       .catch(function(){ return null; })
       .then(function(d){
@@ -845,6 +845,13 @@ function checkAdminUpdate(){
         b.textContent = "强制刷新";
         b.style.cssText = "background:#fff;color:#b01e23;border:0;border-radius:6px;padding:8px 12px;font-weight:700;white-space:nowrap";
         b.onclick = function(){
+          if(tries >= 3){
+            // 多次强刷仍不一致：多半是版本号本身没同步，不再反复刷新，改为提示
+            b.textContent = "已尝试多次";
+            try{ sessionStorage.setItem("qlp_admin_bust_n", "0"); }catch(e){}
+            try{ window.location.reload(); }catch(e){}
+            return;
+          }
           b.disabled = true; b.textContent = "刷新中…";
           try{ sessionStorage.setItem("qlp_admin_bust_n", String(tries+1)); }catch(e){}
           hardReloadAdmin(pure + "?_v=" + encodeURIComponent(latest) + "&_t=" + Date.now());

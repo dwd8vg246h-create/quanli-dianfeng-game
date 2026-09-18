@@ -271,7 +271,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
      是自己填错还是服务不通。 -->
 <script>
 /* 后台版本：由 build.js 同步 */
-var ADMIN_VERSION = "20260918.1331";
+var ADMIN_VERSION = "20260918.1429";
 var CLOUD_CONFIG = {
   enabled: true,
   url: "https://zgkovjgkkvxoajcqxwfw.supabase.co",
@@ -632,24 +632,48 @@ function num(v){ return (v===undefined||v===null||v==="") ? "—" : String(v); }
    比对口径：单人弹窗与批量对账共用同一套行定义与差异计数，
    避免两处各写一份、口径悄悄走偏。
    ------------------------------------------------------------ */
+/* 「修正后会写成的值」——比对与写入共用这一个口径。
+   此前比对是按本体字段手工推一遍、修正又是另一套写法，
+   两边对不上时，修正写进去的值依然满足不了比对口径：
+   点了修正、提示成功，重新扫描却还是不一致——永远修不完。
+   现在比对的就是"将要写入的值"，写完必然一致。 */
+function reconExpect(sm, d){
+  sm = sm || {}; d = d || {};
+  if(typeof Cloud.adminBuildSummary !== "function") return null;
+  var sum = Cloud.adminBuildSummary(d, sm);
+  var rk = parseInt(d.rank, 10);
+  if(!isNaN(rk) && window.ADMIN_RANKS && window.ADMIN_RANKS[rk]){
+    sum["职务"] = window.ADMIN_RANKS[rk][0];
+    sum["层次"] = window.ADMIN_RANKS[rk][1];
+  } else {
+    /* 职级表算不出（rank 缺失或超范围）就沿用旧值：
+       此时没有"正确答案"可写，硬写一个只会永远对不上。 */
+    sum["职务"] = sm["职务"] || "";
+    sum["层次"] = sm["层次"] || "";
+  }
+  return sum;
+}
+
 function reconRows(sm, d){
   sm = sm || {}; d = d || {};
   var rk = parseInt(d.rank, 10);
   var tp = (!isNaN(rk) && window.ADMIN_RANKS && window.ADMIN_RANKS[rk])
          ? window.ADMIN_RANKS[rk] : ["", ""];
+  var ex = reconExpect(sm, d);                 /* 修正后会写成的值 */
+  var e  = ex || {};
   return {
-    rank: rk, tp: tp,
+    rank: rk, tp: tp, expect: e,
     rows: [
-      ["姓名", sm["姓名"], d.name],
-      ["职务", sm["职务"], tp[0] || "（职级 " + num(rk) + " 未匹配）"],
-      ["层次", sm["层次"], tp[1]],
-      ["位阶", sm["位阶"], isNaN(rk) ? "—" : rk],
-      ["年龄", sm["年龄"], d.age],
-      ["年份", sm["年份"], ((d.year||0)+"年"+(d.month||0)+"月")],
-      ["政绩", sm["政绩"], (d.政绩===undefined?"—":Math.round(d.政绩))],
-      ["道德", sm["道德"], (d.道德===undefined?"—":Math.round(d.道德))],
-      ["廉政", sm["廉政"], (d.廉政===undefined?"—":Math.round(d.廉政))],
-      ["上榜", (sm["上榜"]===false?"否":"是"), (d.不上榜===true?"否":"是")]
+      ["姓名", sm["姓名"], e["姓名"]],
+      ["职务", sm["职务"], e["职务"]],
+      ["层次", sm["层次"], e["层次"]],
+      ["位阶", sm["位阶"], e["位阶"]],
+      ["年龄", sm["年龄"], e["年龄"]],
+      ["年份", sm["年份"], e["年份"]],
+      ["政绩", sm["政绩"], e["政绩"]],
+      ["道德", sm["道德"], e["道德"]],
+      ["廉政", sm["廉政"], e["廉政"]],
+      ["上榜", (sm["上榜"]===false?"否":"是"), (e["上榜"]===false?"否":"是")]
     ]
   };
 }
@@ -665,7 +689,7 @@ function reconTableHtml(rows){
   var diffN = reconDiffN(rows);
   var html = '<table style="width:100%;border-collapse:collapse;font-size:13px">'+
     '<tr style="opacity:.6;font-size:11px"><th align="left">字段</th>'+
-    '<th align="left">摘要（榜单来源）</th><th align="left">存档本体</th></tr>';
+    '<th align="left">当前摘要</th><th align="left">按本体重算后</th></tr>';
   rows.forEach(function(p){
     var a = num(p[1]), b = num(p[2]);
     var same = (String(a) === String(b));
@@ -681,13 +705,11 @@ function reconTableHtml(rows){
    注意：回写会整份覆盖 data，故必须传整份存档——
    批量扫描拿到的只是投影字段，直接回写会把其余字段清空。 */
 function reconFixSave(userId, sm, d, cb){
-  var rr = reconRows(sm, d);
-  var sum = (typeof Cloud.adminBuildSummary === "function")
-    ? Cloud.adminBuildSummary(d, sm) : sm;
-  if(!isNaN(rr.rank) && window.ADMIN_RANKS && window.ADMIN_RANKS[rr.rank]){
-    sum["职务"] = window.ADMIN_RANKS[rr.rank][0];
-    sum["层次"] = window.ADMIN_RANKS[rr.rank][1];
-  }
+  /* 写入的就是比对时展示的那个值（同一函数算出），
+     因此修正成功后重新扫描必然为 0 处不一致。
+     唯一还会不一致的情况是写入本身失败（权限/函数未部署），
+     那属于数据库配置，界面会单独报出原因。 */
+  var sum = reconExpect(sm, d) || sm;
   Cloud.adminWriteSave(userId, d, {summary: sum, prevSummary: sm}).then(cb);
 }
 
@@ -729,8 +751,9 @@ function openRecon(u){
     var t = reconTableHtml(reconRows(sm, d).rows);
     var diffN = t.diffN;
     var html = '<div style="font-size:12px;opacity:.75;line-height:1.8;margin-bottom:10px">'+
-      '左：<b>存档摘要 summary</b>（后台名录与游戏排行榜共同读取的来源）<br>'+
-      '右：<b>存档本体 data</b>（玩家实际进度）　·　不一致处标红</div>'+ t.html;
+      '左：<b>当前摘要</b>（后台名录与游戏排行榜读的就是它）<br>'+
+      '右：<b>按存档本体重算后应当写成的值</b>　·　不一致处标红<br>'+
+      '<span style="opacity:.6">右列即点「修正」后写入的内容，故修正成功后重新对账必为 0 处。</span></div>'+ t.html;
     html += '<div style="margin-top:12px;padding:10px;border-radius:8px;font-size:12px;line-height:1.9;'+
       'background:'+(diffN? "rgba(232,67,79,.12)":"rgba(111,192,138,.12)")+
       ';border:1px solid '+(diffN? "rgba(232,67,79,.35)":"rgba(111,192,138,.3)")+'">'+
@@ -842,7 +865,7 @@ function openReconAll(){
         '<span style="opacity:.7">'+esc(u.name||"")+'</span></div>'+
         '<div style="font-size:12px;opacity:.75;margin:3px 0 7px">'+
           '摘要：'+esc((it.sm["职务"]||"—")+" · 政绩 "+num(it.sm["政绩"]))+
-          '　·　<span style="color:#ff8b8b">'+it.n+' 处不一致</span></div>'+
+          '　·　<span class="diffTag" style="color:#ff8b8b">'+it.n+' 处不一致</span></div>'+
         '<button class="sm" data-fix="'+i+'" style="min-height:36px">修正这一份</button>'+
       '</div>';
     }).join("");
@@ -858,8 +881,22 @@ function openReconAll(){
           if(!rr.ok || rr.empty){ b.textContent = "读取失败"; return; }
           reconFixSave(it.userId, rr.summary || {}, rr.data || {}, function(res){
             Cloud.adminLog("重算摘要", u.emp_id || "", res.ok ? "成功" : ("失败："+(res.msg||"")));
-            b.textContent = res.ok ? "已修正" : "失败";
-            if(res.ok) b.style.color = "#8fd0a0";
+            if(!res.ok){
+              b.textContent = "写入失败"; b.style.color = "#ff8b8b";
+              b.title = res.msg || "";
+              return;
+            }
+            /* 写入后本地复检：写入的就是比对口径算出的值，故应为 0 处 */
+            var left = reconDiffN(reconRows(res.summary || {}, rr.data).rows);
+            it.n = left;
+            var tag = b.parentNode ? b.parentNode.querySelector(".diffTag") : null;
+            if(left === 0){
+              b.textContent = "已对齐"; b.style.color = "#8fd0a0";
+              if(tag){ tag.textContent = "已对齐"; tag.style.color = "#8fd0a0"; }
+            } else {
+              b.textContent = "仍差 " + left + " 处"; b.style.color = "#ff8b8b";
+              if(tag){ tag.textContent = left + " 处不一致"; }
+            }
           });
         });
       };
@@ -870,19 +907,37 @@ function openReconAll(){
       fa.onclick = function(){
         if(!confirm("将按存档本体重算 "+bad.length+" 份摘要，使名录与排行榜对齐。继续？")) return;
         fa.disabled = true;
-        var i = 0, ok = 0, fail = 0;
+        var i = 0, ok = 0, fail = 0, fails = [];
         var step = function(){
           if(i >= bad.length){
             Cloud.adminLog("一键修正", "全库", "成功 "+ok+" 份，失败 "+fail+" 份");
-            alert("修正完成：成功 "+ok+" 份，失败 "+fail+" 份。");
-            close(); loadAll(); return;
+            /* 复检：修正完重新扫描一遍，用结果说话，
+               而不是让管理员"感觉还是不一致"却无从判断。 */
+            fa.textContent = "复核中…";
+            Cloud.adminReconAll(users.map(function(u){ return u.id; })).then(function(r2){
+              var left = 0;
+              if(r2.ok) r2.rows.forEach(function(row){
+                if(reconDiffN(reconRows(row.summary, row.data).rows)) left++;
+              });
+              var msg = "修正完成：成功 " + ok + " 份，失败 " + fail + " 份。\n\n" +
+                "重新扫描：" + (r2.ok ? ("仍不一致 " + left + " 份") : ("复核扫描失败：" + (r2.msg||"")));
+              if(fail){
+                msg += "\n\n失败原因（最多 3 条）：\n" + fails.slice(0,3).join("\n");
+                if(/permission denied|42501|row-level|violates|function.*not exist|PGRST202/i.test(fails.join(" ")))
+                  msg += "\n\n数据库未授予写权限或改档函数未部署：请执行「后台改档_一键安装.sql」。";
+              }
+              alert(msg);
+              close(); loadAll();
+            });
+            return;
           }
           var it = bad[i++], u = byId[it.userId] || {};
           fa.textContent = "修正中… " + i + " / " + bad.length;
           Cloud.adminReadSave(it.userId).then(function(rr){
             if(!rr.ok || rr.empty){ fail++; step(); return; }
             reconFixSave(it.userId, rr.summary || {}, rr.data || {}, function(res){
-              if(res.ok) ok++; else fail++;
+              if(res.ok) ok++;
+              else { fail++; if(fails.length < 5) fails.push((u.emp_id||it.userId)+"："+(res.msg||"未知原因")); }
               Cloud.adminLog("重算摘要", u.emp_id || "", res.ok ? "成功" : ("失败："+(res.msg||"")));
               step();
             });

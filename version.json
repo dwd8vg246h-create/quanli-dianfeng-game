@@ -1,6 +1,6 @@
 {
- "v": "20260918.1826",
+ "v": "20260918.1841",
  "force": false,
- "note": "【黑屏根因修复】顶栏进度条按 RANKS[Math.min(S.rank+1, RANKS.length-1)][2] 取下一档政绩门槛，但 S.rank 一旦为 undefined 或非数字（NaN），Math.min 的结果就是 NaN —— RANKS[NaN] 为 undefined，再读 [2] 直接抛错，整页脚本中断、界面全黑（报错：Cannot read properties of undefined (reading '2')）。现已在 load() 载入存档后立即归一化职级索引（非数字→0、越界→末档、字符串数字→整数），并对顶栏该处读取补了兜底。",
+ "note": "【档案页崩溃 + 顶栏 undefined 修复】① 档案页整页报「Cannot read properties of undefined (reading 'slice')」：渲染末尾按 S.eventsLog.slice() 取事件流，而 eventsLog 自始至终没有在 load() 里补初始化（全文件 0 处），只在新建档的默认对象里有。老存档或后台改过的档一旦缺该字段，档案页即整页崩溃（其余 9 处 eventsLog 读取都写了保护，唯独这处裸奔）。已在载入存档时统一补全缺失字段（eventsLog 等 25 个数组 + 年月 + 政绩 + 上司好感），并对该处读取加保护、对 pushLog 加保护。② 顶栏「上司」「第X年X月」「政绩」裸奔插值，缺值即显示 undefined——其余数值都写了 ||0 保底，这三处漏了。已补齐。",
  "t": "Fri Sep 18 17:43:28 CST 2026"
 }

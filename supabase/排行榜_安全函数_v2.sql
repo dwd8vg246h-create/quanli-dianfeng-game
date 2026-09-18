@@ -69,7 +69,7 @@ as $$
                then coalesce(nullif(b.summary ->> '政绩', '')::int, 0) end desc nulls last,
           case when p_sort = 'young'
                then case when coalesce(nullif(b.summary ->> '年龄','')::int, 0)
-                          between 16 and 90
+                          between 22 and 90
                          then coalesce(nullif(b.summary ->> '年龄','')::int, 0)
                          else 999 end end asc  nulls last,
           case when p_sort = 'rich'
@@ -137,7 +137,7 @@ as $$
                then coalesce(nullif(b.summary ->> '政绩', '')::int, 0) end desc nulls last,
           case when p_sort = 'young'
                then case when coalesce(nullif(b.summary ->> '年龄','')::int, 0)
-                          between 16 and 90
+                          between 22 and 90
                          then coalesce(nullif(b.summary ->> '年龄','')::int, 0)
                          else 999 end end asc  nulls last,
           case when p_sort = 'rich'

@@ -414,6 +414,7 @@ var Cloud = (function(){
     return out;
   }
   /* 页内排序：仅用于兜底路径（服务端未排序时） */
+  function lbAgeKey(v){ var n = parseInt(v,10); return (isFinite(n) && n>=16 && n<=90) ? n : 9999; }
   function lbSortLocal(rows, sort){
     var arr = (rows || []).slice();
     arr.sort(function(a, b){
@@ -421,7 +422,7 @@ var Cloud = (function(){
       if(sort === "rich")  return (b.wealth||0) - (a.wealth||0);
       if(sort === "clean") return (b.clean||0) - (a.clean||0);
       if(sort === "young"){
-        var ay = (a.age>0 ? a.age : 999), by = (b.age>0 ? b.age : 999);
+        var ay = lbAgeKey(a.age), by = lbAgeKey(b.age);
         return ay - by;
       }
       return (b.tier||-1) - (a.tier||-1) || (b.merit||0) - (a.merit||0);

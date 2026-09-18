@@ -270,7 +270,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
      是自己填错还是服务不通。 -->
 <script>
 /* 后台版本：由 build.js 同步 */
-var ADMIN_VERSION = "20260918.1245";
+var ADMIN_VERSION = "20260918.1304";
 var CLOUD_CONFIG = {
   enabled: true,
   url: "https://zgkovjgkkvxoajcqxwfw.supabase.co",
@@ -567,6 +567,7 @@ function render(){
         '存档：'+saveText(u)+'<br>最近：'+esc(l)+'</div>'+
       '<div class="btnrow">'+
         '<button class="sm" data-act="编辑" data-id="'+u.id+'">📝 修改数据</button>'+
+        '<button class="sm" data-act="对账" data-id="'+u.id+'">🔍 对账</button>'+
         (u.status==="冻结"
           ? '<button class="sm" data-act="恢复" data-id="'+u.id+'">恢复</button>'
           : '<button class="sm" data-act="冻结" data-id="'+u.id+'">冻结</button>')+
@@ -583,6 +584,7 @@ function onAct(act, id){
   var u = (window.__users||[]).filter(function(x){return x.id===id;})[0];
   if(!u) return;
   if(act === "编辑"){ openEdit(u); return; }
+  if(act === "对账"){ openRecon(u); return; }
   if(act === "注销"){
     if(!confirm("确认注销【"+u.emp_id+"】？其云端存档将一并清除，且不可恢复。")) return;
   } else if(act === "冻结" || act === "恢复"){
@@ -604,6 +606,125 @@ function onAct(act, id){
     Cloud.adminLog(act, u.emp_id, r.ok?"成功":("失败："+(r.msg||"")));
     alert(r.ok ? (act+"成功") : (act+"失败："+(r.msg||"离线")));
     loadAll();
+  });
+}
+
+/* ============================================================
+   对账：存档本体 vs 榜单来源
+   ------------------------------------------------------------
+   后台名录与游戏排行榜读的是同一列 game_saves.summary，
+   理论上不会不一致。真被管理员问到"两份对不上"时，差别只可能出在
+   「summary 摘要」与「data 存档本体」之间——例如改档只写了 data、
+   或玩家端同步后用旧 S 重算了一遍摘要。
+
+   这里把两边并排列出并标红差异，让管理员一眼看到到底哪一层没同步，
+   而不是靠猜。
+   ============================================================ */
+function num(v){ return (v===undefined||v===null||v==="") ? "—" : String(v); }
+function openRecon(u){
+  var box = document.createElement("div");
+  box.style.cssText = "position:fixed;inset:0;z-index:99998;background:rgba(0,0,0,.6);"+
+    "display:flex;align-items:flex-end;justify-content:center";
+  box.innerHTML = '<div style="background:#141110;color:#e8e2d8;width:100%;max-width:520px;'+
+    'max-height:86vh;overflow:auto;border-radius:14px 14px 0 0;padding:14px 14px 20px">'+
+    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">'+
+      '<b style="font-size:15px">🔍 对账 · '+esc(u.emp_id)+'</b>'+
+      '<span style="flex:1"></span>'+
+      '<button id="rcClose" style="background:transparent;border:0;color:#c9bfae;font-size:20px">✕</button>'+
+    '</div>'+
+    '<div id="rcBody"><div style="opacity:.7;font-size:13px">读取中…</div></div></div>';
+  document.body.appendChild(box);
+  var close = function(){ if(box.parentNode) box.parentNode.removeChild(box); };
+  box.querySelector("#rcClose").onclick = close;
+  box.onclick = function(e){ if(e.target === box) close(); };
+
+  var body = box.querySelector("#rcBody");
+  var finish = function(html){ body.innerHTML = html; };
+
+  if(typeof Cloud.adminReadSave !== "function"){
+    finish('<div style="color:#e8838a;font-size:13px;line-height:1.8">'+
+      '当前 cloud.js 过旧，不含 adminReadSave，无法对账。<br>请刷新页面重新拉取。</div>');
+    return;
+  }
+  Cloud.adminReadSave(u.id).then(function(r){
+    if(!r.ok){
+      finish('<div style="color:#e8838a;font-size:13px">读取失败：'+esc(r.msg||"离线")+'</div>');
+      return;
+    }
+    if(r.empty){
+      finish('<div style="opacity:.75;font-size:13px">该账号尚无云端存档。</div>');
+      return;
+    }
+    var sm = r.summary || {}, d = r.data || {};
+    var rk = parseInt(d.rank, 10);
+    var titlePair = (!isNaN(rk) && window.ADMIN_RANKS && window.ADMIN_RANKS[rk])
+                  ? window.ADMIN_RANKS[rk] : ["", ""];
+    var rows = [
+      ["姓名",   sm["姓名"],   d.name],
+      ["职务",   sm["职务"],   titlePair[0] || "（职级 "+num(rk)+" 未匹配）"],
+      ["层次",   sm["层次"],   titlePair[1]],
+      ["位阶",   sm["位阶"],   isNaN(rk) ? "—" : rk],
+      ["年龄",   sm["年龄"],   d.age],
+      ["年份",   sm["年份"],   ((d.year||0)+"年"+(d.month||0)+"月")],
+      ["政绩",   sm["政绩"],   (d.政绩===undefined?"—":Math.round(d.政绩))],
+      ["道德",   sm["道德"],   (d.道德===undefined?"—":Math.round(d.道德))],
+      ["廉政",   sm["廉政"],   (d.廉政===undefined?"—":Math.round(d.廉政))],
+      ["上榜",   (sm["上榜"]===false?"否":"是"), (d.不上榜===true?"否":"是")]
+    ];
+    var diffN = 0;
+    var html = '<div style="font-size:12px;opacity:.75;line-height:1.8;margin-bottom:10px">'+
+      '左：<b>存档摘要 summary</b>（后台名录与游戏排行榜共同读取的来源）<br>'+
+      '右：<b>存档本体 data</b>（玩家实际进度）　·　不一致处标红</div>'+
+      '<table style="width:100%;border-collapse:collapse;font-size:13px">'+
+      '<tr style="opacity:.6;font-size:11px"><th align="left">字段</th>'+
+      '<th align="left">摘要（榜单来源）</th><th align="left">存档本体</th></tr>';
+    rows.forEach(function(p){
+      var a = num(p[1]), b = num(p[2]);
+      var same = (String(a) === String(b));
+      if(!same && !(a === "—" && b === "—")) diffN++;
+      html += '<tr style="border-top:1px solid rgba(255,255,255,.08)">'+
+        '<td style="padding:6px 4px;opacity:.7">'+esc(p[0])+'</td>'+
+        '<td style="padding:6px 4px;color:'+(same?"#8fd0a0":"#ff8b8b")+'">'+esc(a)+'</td>'+
+        '<td style="padding:6px 4px;color:'+(same?"#c9bfae":"#ff8b8b")+'">'+esc(b)+'</td></tr>';
+    });
+    html += '</table>';
+    html += '<div style="margin-top:12px;padding:10px;border-radius:8px;font-size:12px;line-height:1.9;'+
+      'background:'+(diffN? "rgba(232,67,79,.12)":"rgba(111,192,138,.12)")+
+      ';border:1px solid '+(diffN? "rgba(232,67,79,.35)":"rgba(111,192,138,.3)")+'">'+
+      (diffN
+        ? ('有 <b>'+diffN+'</b> 处不一致。<br>'+
+           '摘要滞后于本体：多因玩家端自动同步时用旧存档重算了摘要，'+
+           '或改档只写入了本体。<br>'+
+           '点「按本体重算摘要」即可让名录与排行榜立即对齐。')
+        : '两边一致。若排行榜仍显示别的值，那是玩家端尚未同步——'+
+          '让其退出游戏后重新登录即可拉取。')+
+      '</div>';
+    if(diffN){
+      html += '<button id="rcFix" style="margin-top:10px;width:100%;padding:11px;border:0;'+
+        'border-radius:8px;background:#e8434f;color:#fff;font-weight:700;font-size:14px">'+
+        '按本体重算摘要</button>';
+    }
+    html += '<div style="margin-top:10px;font-size:11px;opacity:.55">'+
+      '存档时间：'+esc(r.savedAt ? new Date(r.savedAt).toLocaleString("zh-CN") : "—")+'</div>';
+    finish(html);
+    var fb = box.querySelector("#rcFix");
+    if(fb && typeof Cloud.adminWriteSave === "function"){
+      fb.onclick = function(){
+        fb.disabled = true; fb.textContent = "重算中…";
+        var sum = (typeof Cloud.adminBuildSummary === "function")
+          ? Cloud.adminBuildSummary(d, sm) : sm;
+        if(!isNaN(rk) && window.ADMIN_RANKS && window.ADMIN_RANKS[rk]){
+          sum["职务"] = window.ADMIN_RANKS[rk][0];
+          sum["层次"] = window.ADMIN_RANKS[rk][1];
+        }
+        Cloud.adminWriteSave(u.id, d, {summary:sum, prevSummary:sm}).then(function(res){
+          Cloud.adminLog("重算摘要", u.emp_id, res.ok ? "成功" : ("失败："+(res.msg||"")));
+          alert(res.ok ? "已按存档本体重算摘要，名录与排行榜刷新后即一致。"
+                       : ("重算失败："+(res.msg||"")));
+          close(); loadAll();
+        });
+      };
+    }
   });
 }
 

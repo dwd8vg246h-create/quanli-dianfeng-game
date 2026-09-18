@@ -1296,7 +1296,7 @@ var MAIL_CONFIG = {
    避免玩家长期停留在旧版缓存上——本作多次改动（在线统计、
    云端同步）都曾因浏览器缓存而"改了没生效"。
    放在独立 script 块中，不参与压缩，名称不会被改写。 */
-var APP_VERSION = "20260918.1528.1";
+var APP_VERSION = "20260918.1604";
 </script>
 </head>
 <body>
@@ -5735,5 +5735,553 @@ function pCouncil(){
   }catch(e){ window.__depth3d={normalize:function(){},enabled:false}; }
 })();
 </script>
+
+<script>
+/* ============================================================
+   守成期 · 巅峰失守
+   ------------------------------------------------------------
+   现象：到达最高等级（正国级、进入政治局常委会）之后，
+   游戏事实上只剩下「等结局」——没有对手、没有风险，
+   权力越大反而越平静。这与现实恰好相反。
+
+   现实中，最高层级的风险来自两处，且都不再是"向上攀"：
+
+     ① 身边人反噬（内压）
+        门生尾大不掉自成山头、亲信被查后为自保倒戈、
+        亲属借势敛财被查后反咬、利益关联商人供述。
+        权力到顶时，你已无法再给追随者更高的位置，
+        而他们手里的资源足以独立成势——这才是危险的开始。
+
+     ② 政敌合围（外压）
+        同僚结盟、架空分管权、推动离任审计、扶持梯队替代者。
+        到顶之后你不再有"上级"可依附，昔日的对手却在同一个
+        集体里，且换届时每个人都要重新排序。
+
+   本模块在到顶后开启守成期：两条压力线并行累积，
+   玩家用政治资本、权力与声誉去换喘息，
+   撑满一届（五年）即为平稳过渡，任一线满值即失守。
+
+   设计上刻意保留的取舍：所有减压手段都有代价，
+   「敲打山头」可能把人逼反，「切割关联」会寒人心，
+   「交出分管权」削弱政绩产出。守成不是变强，是变轻。
+   ============================================================ */
+
+const APEX_RULES = {
+  守成月数: 60,          // 撑满一届（五年）即平稳过渡
+  山头忠诚线: 68,        // 忠诚低于此、能力够强者可能自成山头
+  山头能力线: 62,
+  山头成熟: 8,           // 山头规模累积至此即爆雷
+  联盟成熟: 10,          // 政敌联盟强度累积至此即发难
+  压上限: 100,
+  /* 减压代价 */
+  敲打代价: {忠诚: 6, 政治资本: 30},
+  切割代价: {人脉: 8, 政治资本: 60},
+  申报代价: {廉政积分: 0},
+  分化代价: {政治资本: 45},
+  交权代价: {政绩: 120},
+  固本代价: {政治资本: 25},
+};
+
+/* ---------- 激活判定 ----------
+   必须「已居最高职级」且「已选定本届职务」。
+   只到职级未选职务时仍在 openTopNationalChoice 的窗口内，
+   此时开启守成会与弹窗抢流程。 */
+function apexActive(){
+  try{
+    if(!S || S.gameOver) return false;
+    if(typeof RANKS === "undefined" || !RANKS.length) return false;
+    if(!(S.rank >= RANKS.length - 1)) return false;
+    return !!(S.natPath && S.natPath.top);
+  }catch(e){ return false; }
+}
+
+function apexEnsure(){
+  if(!apexActive()) return null;
+  if(!S.守成 || typeof S.守成 !== "object") S.守成 = {};
+  const A = S.守成;
+  if(A.开启) return A;
+  A.开启 = true;
+  A.起始 = `${S.year}年${S.month}月`;
+  A.月数 = 0;
+  A.内压 = 0;
+  A.外压 = 0;
+  A.山头 = [];          // [{id,name,规模,危险,已敲打}]
+  A.倒戈 = [];          // 已倒戈/被查的关联人
+  A.联盟 = null;        // {强度,首领,手段:[],已分化}
+  A.已切断 = [];
+  A.已申报 = false;
+  A.交权 = 0;           // 已交出的分管权（次）
+  A.固本 = 0;
+  A.记录 = [];
+  A.结局 = null;
+  try{
+    pushLog(`🚨 <b>守成期开启</b>：你已身处最高领导集体，向上再无台阶可攀——`
+      + `此后的风险不再来自"升不上去"，而来自<b>身边人</b>与<b>同僚</b>。`
+      + `<br>　派系页新增「守成期 · 巅峰失守」，可查看两条压力线并采取应对。`);
+  }catch(e){}
+  return A;
+}
+
+function apexNote(txt){
+  try{
+    const A = S.守成; if(!A) return;
+    A.记录 = A.记录 || [];
+    A.记录.unshift({于:`${S.year}年${S.month}月`, 事:txt});
+    if(A.记录.length > 30) A.记录 = A.记录.slice(0, 30);
+  }catch(e){}
+}
+
+/* ---------- 内压：身边人反噬 ---------- */
+function apexInnerGrowth(A){
+  let g = 0;
+  /* 山头：已成势的门生圈子，按月坐大 */
+  g += (A.山头 || []).reduce(function(s, f){ return s + (f.规模 || 1) * 0.55; }, 0);
+  /* 已倒戈/被查的关联人：每人都掌握足以致命的细节 */
+  g += (A.倒戈 || []).length * 3.2;
+  /* 亲属借势敛财：家庭资产与廉政暴露度越高，亲属越难守住 */
+  try{
+    const 暴 = (S.grey && S.grey.暴露度) || 0;
+    const 灰额 = (S.grey && S.grey.assets && S.grey.assets.总额) || 0;
+    g += 暴 * 0.06 + Math.min(6, 灰额 / 6000000);
+  }catch(e){}
+  /* 关联商人：境外账户与未洗白资产是最容易被供出的一端 */
+  try{
+    const 未洗 = Math.max(0, ((S.grey && S.grey.assets && S.grey.assets.总额) || 0)
+                            - ((S.grey && S.grey.assets && S.grey.assets.已洗白) || 0));
+    g += Math.min(5, 未洗 / 8000000);
+  }catch(e){}
+  /* 主动申报可显著降低亲属与资产这一端的压力 */
+  if(A.已申报) g -= 4;
+  /* 切割过的关联不再计入 */
+  g -= (A.已切断 || []).length * 1.8;
+  /* 固本：稳固班底 */
+  g -= (A.固本 || 0) * 1.2;
+  return g;
+}
+
+/* ---------- 外压：政敌合围 ---------- */
+function apexOuterGrowth(A){
+  let g = 0;
+  /* 政敌联盟 */
+  if(A.联盟) g += (A.联盟.强度 || 0) * 0.7;
+  /* 竞争对手的实力 */
+  try{
+    const rivals = S.竞争对手 || [];
+    g += Math.min(5, rivals.length * 0.6);
+  }catch(e){}
+  /* 派系对立：条线站队越极端，被合围的理由越充分 */
+  try{
+    const st = (S.条线倾向 || S.laneStance || {});
+    let mx = 0;
+    Object.keys(st).forEach(function(k){
+      const v = Math.abs(Number(st[k]) || 0); if(v > mx) mx = v;
+    });
+    g += Math.min(4, mx / 25);
+  }catch(e){}
+  /* 政绩过高引发忌惮：功劳太盛，本身就是合围的由头 */
+  g += Math.min(3.5, ((S.政绩 || 0) / 12000));
+  /* 交出分管权可换喘息——权力变小，威胁也变小 */
+  g -= (A.交权 || 0) * 2.4;
+  /* 分化联盟 */
+  if(A.联盟 && A.联盟.已分化) g -= 3.2;
+  return g;
+}
+
+/* ---------- 山头生成 ---------- */
+function apexFactionTick(A){
+  const list = (S.门生 || []).filter(function(p){
+    return p && !p.isBetrayed && !p.retired && !p.cultivating;
+  });
+  const seated = {};
+  (A.山头 || []).forEach(function(f){ seated[f.id] = true; });
+  /* 忠诚低、能力强的门生最容易自成山头。
+     忠诚是唯一的闸门：忠诚高者即便位高权重也不反。 */
+  const risky = list.filter(function(p){
+    return (p.loyalty || 0) < APEX_RULES.山头忠诚线
+        && (p.ability || 0) >= APEX_RULES.山头能力线
+        && !seated[p.id];
+  });
+  if(!risky.length) return;
+  /* 每月至多起一个山头，避免一次性炸开 */
+  if(Math.random() > 0.42) return;
+  const p = risky[Math.floor(Math.random() * risky.length)];
+  A.山头.push({
+    id: p.id,
+    name: p.name,
+    职: p.positionName || "干部",
+    地: p.region || "",
+    规模: 1,
+    危险: Math.max(0, 100 - (p.loyalty || 0)) / 22,
+    已敲打: 0,
+  });
+  try{
+    pushLog(`🕸️ <b>${p.name}</b>（${p.positionName || "干部"}）在${p.region || "当地"}经营多年，`
+      + `身边渐成气候——忠诚仅 ${Math.round(p.loyalty || 0)}，已隐隐有自成山头之势。`);
+    apexNote(`山头坐大：${p.name}`);
+  }catch(e){}
+}
+
+/* ---------- 政敌联盟推进 ---------- */
+function apexAllianceTick(A){
+  if(!A.联盟){
+    /* 到顶后政敌不会立刻发难，需先积蓄 */
+    if(Math.random() > 0.30) return;
+    let 首领 = "部分同僚";
+    try{
+      const r = (S.竞争对手 || [])[0];
+      if(r && r.name) 首领 = r.name;
+    }catch(e){}
+    A.联盟 = {强度: 1, 首领: 首领, 手段: [], 已分化: false};
+    try{
+      pushLog(`⚔️ 有同僚开始串联——由<b>${首领}</b>牵头，就你的分管领域与任内旧事交换意见。`);
+      apexNote(`政敌串联：${首领}`);
+    }catch(e){}
+    return;
+  }
+  A.联盟.强度 = (A.联盟.强度 || 0) + (A.联盟.已分化 ? 0.15 : 0.85);
+  if(A.联盟.已分化) return;
+  /* 手段逐级升级 */
+  const lv = Math.floor((A.联盟.强度 || 0) / 3.5);
+  const 手段表 = ["在常委会上对你的分管工作提出质询",
+                  "推动对你任内重大项目的离任审计",
+                  "扶持梯队人选，准备在换届中接替你的席位",
+                  "就你身边人的问题向中央反映情况"];
+  if(手段表[lv] && A.联盟.手段.indexOf(手段表[lv]) < 0 && lv < 手段表.length){
+    A.联盟.手段.push(手段表[lv]);
+    try{
+      pushLog(`⚔️ <b>${A.联盟.首领}</b>一方：${手段表[lv]}。`);
+      apexNote(`合围升级：${手段表[lv]}`);
+    }catch(e){}
+  }
+}
+
+/* ---------- 爆雷：山头成熟 ---------- */
+function apexFactionBlow(A){
+  const ready = (A.山头 || []).filter(function(f){ return (f.规模 || 0) >= APEX_RULES.山头成熟; });
+  ready.forEach(function(f){
+    f.规模 = 0;
+    /* 被查者为自保而供述——这是身边人反噬最致命的一环 */
+    const p = (S.门生 || []).filter(function(x){ return x && x.id === f.id; })[0];
+    if(p){ p.isBetrayed = true; }
+    A.倒戈.push({名: f.name, 于: `${S.year}年${S.month}月`, 由: "山头坐大后为自保供述"});
+    /* 供述直接推高内压，并牵连廉政暴露 */
+    A.内压 = Math.min(APEX_RULES.压上限, (A.内压 || 0) + 16);
+    try{
+      S.廉政风险暴露 = clamp((S.廉政风险暴露 || 0) + 14, 0, 100);
+      pushLog(`💥 <b>${f.name}</b>的山头已查明。被立案后，他为争取从宽处理，`
+        + `供出了与你之间的全部往来——<b>身边人的供述，比任何举报都致命。</b>`);
+      apexNote(`爆雷：${f.name} 供述`);
+    }catch(e){}
+  });
+  if(ready.length) A.山头 = (A.山头 || []).filter(function(f){ return (f.规模 || 0) > 0; });
+}
+
+/* ---------- 合围发难 ---------- */
+function apexAllianceStrike(A){
+  if(!A.联盟 || A.联盟.已分化) return;
+  if((A.联盟.强度 || 0) < APEX_RULES.联盟成熟) return;
+  A.外压 = Math.min(APEX_RULES.压上限, (A.外压 || 0) + 18);
+  A.联盟.强度 = Math.max(0, (A.联盟.强度 || 0) - 4);
+  try{
+    pushLog(`⚔️ <b>${A.联盟.首领}</b>一方在常委会上正式发难：`
+      + `就你的分管领域与身边人的问题提出动议，要求组织核查。`);
+    apexNote(`正式发难：${A.联盟.首领}`);
+  }catch(e){}
+}
+
+/* ---------- 月度推进 ---------- */
+function apexTick(){
+  const A = apexEnsure();
+  if(!A || A.结局) return;
+  A.月数 = (A.月数 || 0) + 1;
+  (A.山头 || []).forEach(function(f){
+    f.规模 = (f.规模 || 0) + (f.已敲打 ? 0.35 : 0.9);
+  });
+  apexFactionTick(A);
+  apexAllianceTick(A);
+  apexFactionBlow(A);
+  apexAllianceStrike(A);
+  A.内压 = clamp((A.内压 || 0) + apexInnerGrowth(A), 0, APEX_RULES.压上限);
+  A.外压 = clamp((A.外压 || 0) + apexOuterGrowth(A), 0, APEX_RULES.压上限);
+  /* 结局判定 */
+  if((A.内压 || 0) >= APEX_RULES.压上限){
+    A.结局 = "内";
+    try{
+      const 重 = ((S.grey && S.grey.暴露度) || 0) >= 55 || (S.廉政风险暴露 || 0) >= 55;
+      endGame(重 ? "身陷囹圄" : "东窗事发");
+    }catch(e){}
+    return;
+  }
+  if((A.外压 || 0) >= APEX_RULES.压上限){
+    A.结局 = "外";
+    try{
+      endGame((A.联盟 && (A.联盟.强度 || 0) >= 8) ? "派系倾轧" : "换届落选");
+    }catch(e){}
+    return;
+  }
+  /* 撑满一届：平稳过渡 */
+  if((A.月数 || 0) >= APEX_RULES.守成月数){
+    A.结局 = "稳";
+    try{
+      pushLog(`🕊️ 你在最高领导集体中安然履职满一届。权力交替从来不由个人意志决定，`
+        + `而你在这一程里守住了自己人，也守住了自己。`);
+      endGame("功成身退");
+    }catch(e){}
+  }
+}
+
+/* ---------- 应对手段 ---------- */
+function apexCrack(){        /* 敲打山头 */
+  const A = apexEnsure(); if(!A) return {ok:false, msg:"尚未进入守成期"};
+  const list = (A.山头 || []).filter(function(f){ return (f.规模 || 0) > 0; });
+  if(!list.length) return {ok:false, msg:"目前没有成势的山头可敲"};
+  list.sort(function(a,b){ return (b.规模||0) - (a.规模||0); });
+  const f = list[0];
+  f.已敲打 = (f.已敲打 || 0) + 1;
+  f.规模 = Math.max(0, (f.规模 || 0) - 3.2);
+  A.内压 = clamp((A.内压 || 0) - 9, 0, APEX_RULES.压上限);
+  /* 代价：敲打会普遍寒人心，忠诚低者可能被逼反 */
+  let 逼反 = false;
+  try{
+    (S.门生 || []).forEach(function(p){
+      if(!p || p.isBetrayed || p.retired) return;
+      p.loyalty = clamp((p.loyalty || 0) - APEX_RULES.敲打代价.忠诚, 0, 100);
+      if(p.id === f.id && (p.loyalty || 0) < 38 && Math.random() < 0.55){
+        p.isBetrayed = true; 逼反 = true;
+        A.倒戈.push({名:p.name, 于:`${S.year}年${S.month}月`, 由:"被敲打后主动脱离"});
+      }
+    });
+    S.政治资本 = Math.max(0, (S.政治资本 || 0) - APEX_RULES.敲打代价.政治资本);
+  }catch(e){}
+  A.山头 = (A.山头 || []).filter(function(x){ return (x.规模 || 0) > 0; });
+  apexNote(`敲打山头：${f.name}`);
+  try{ clampAll(); save(); }catch(e){}
+  return {ok:true, msg: 逼反
+    ? `敲打${f.name}后，对方索性撕破脸脱离——内压暂降，但多了一个知情者。`
+    : `已敲打${f.name}的山头，内压 −9；全体门生忠诚 −${APEX_RULES.敲打代价.忠诚}。`};
+}
+
+function apexCut(){          /* 切割关联 */
+  const A = apexEnsure(); if(!A) return {ok:false, msg:"尚未进入守成期"};
+  A.已切断.push({于:`${S.year}年${S.month}月`, 由:"主动切割"});
+  A.内压 = clamp((A.内压 || 0) - 18, 0, APEX_RULES.压上限);
+  try{
+    S.人脉 = clamp((S.人脉 || 0) - APEX_RULES.切割代价.人脉, 0, 100);
+    S.政治资本 = Math.max(0, (S.政治资本 || 0) - APEX_RULES.切割代价.政治资本);
+  }catch(e){}
+  apexNote("主动切割关联");
+  try{ clampAll(); save(); }catch(e){}
+  return {ok:true, msg:`已与一处利益关联彻底切割：内压 −18，人脉 −${APEX_RULES.切割代价.人脉}、政治资本 −${APEX_RULES.切割代价.政治资本}。`};
+}
+
+function apexDeclare(){      /* 主动申报 */
+  const A = apexEnsure(); if(!A) return {ok:false, msg:"尚未进入守成期"};
+  if(A.已申报) return {ok:false, msg:"本届已就个人有关事项作过申报"};
+  A.已申报 = true;
+  A.内压 = clamp((A.内压 || 0) - 13, 0, APEX_RULES.压上限);
+  try{
+    S.廉政积分 = (S.廉政积分 || 0) + 25;
+    S.廉政风险暴露 = clamp((S.廉政风险暴露 || 0) - 10, 0, 100);
+    pushLog(`📋 你就个人有关事项向组织作了如实申报。亲属从业与资产情况摆到桌面上，`
+      + `反倒让"借势敛财"这一条再也无从被人做文章。`);
+  }catch(e){}
+  apexNote("主动申报个人有关事项");
+  try{ clampAll(); save(); }catch(e){}
+  return {ok:true, msg:"已如实申报个人有关事项：内压 −13，廉政积分 +25。"};
+}
+
+function apexDivide(){       /* 分化联盟 */
+  const A = apexEnsure(); if(!A) return {ok:false, msg:"尚未进入守成期"};
+  if(!A.联盟) return {ok:false, msg:"目前并无成形的联盟需要分化"};
+  if((S.政治资本 || 0) < APEX_RULES.分化代价.政治资本)
+    return {ok:false, msg:`政治资本不足（需 ${APEX_RULES.分化代价.政治资本}）`};
+  A.联盟.已分化 = true;
+  A.联盟.强度 = Math.max(0, (A.联盟.强度 || 0) - 5);
+  A.外压 = clamp((A.外压 || 0) - 17, 0, APEX_RULES.压上限);
+  try{
+    S.政治资本 = Math.max(0, (S.政治资本 || 0) - APEX_RULES.分化代价.政治资本);
+    pushLog(`🤝 你逐一做工作，${A.联盟.首领}一方的同盟出现松动——`
+      + `有人开始权衡，跟着起哄究竟值不值得。`);
+  }catch(e){}
+  apexNote(`分化联盟：${A.联盟.首领}`);
+  try{ clampAll(); save(); }catch(e){}
+  return {ok:true, msg:`联盟已松动：外压 −17，政治资本 −${APEX_RULES.分化代价.政治资本}。`};
+}
+
+function apexYield(){        /* 交出分管权 */
+  const A = apexEnsure(); if(!A) return {ok:false, msg:"尚未进入守成期"};
+  if((A.交权 || 0) >= 3) return {ok:false, msg:"分管权已交出过三次，再交便无职可守"};
+  A.交权 = (A.交权 || 0) + 1;
+  A.外压 = clamp((A.外压 || 0) - 20, 0, APEX_RULES.压上限);
+  try{
+    S.政绩 = Math.max(0, (S.政绩 || 0) - APEX_RULES.交权代价.政绩);
+    pushLog(`➡️ 你主动交出一部分分管权。权力小了，威胁也小了——`
+      + `只是这些年的政绩里，有一块不再计入你的名下。`);
+  }catch(e){}
+  apexNote("交出部分分管权");
+  try{ clampAll(); save(); }catch(e){}
+  return {ok:true, msg:`已交出部分分管权：外压 −20，政绩 −${APEX_RULES.交权代价.政绩}。`};
+}
+
+function apexConsolidate(){  /* 稳固班底 */
+  const A = apexEnsure(); if(!A) return {ok:false, msg:"尚未进入守成期"};
+  if((S.政治资本 || 0) < APEX_RULES.固本代价.政治资本)
+    return {ok:false, msg:`政治资本不足（需 ${APEX_RULES.固本代价.政治资本}）`};
+  A.固本 = (A.固本 || 0) + 1;
+  A.内压 = clamp((A.内压 || 0) - 8, 0, APEX_RULES.压上限);
+  try{
+    S.政治资本 = Math.max(0, (S.政治资本 || 0) - APEX_RULES.固本代价.政治资本);
+    (S.门生 || []).forEach(function(p){
+      if(!p || p.isBetrayed || p.retired) return;
+      p.loyalty = clamp((p.loyalty || 0) + 4, 0, 100);
+    });
+  }catch(e){}
+  apexNote("稳固班底");
+  try{ clampAll(); save(); }catch(e){}
+  return {ok:true, msg:`班底更为稳固：内压 −8，全体门生忠诚 +4，政治资本 −${APEX_RULES.固本代价.政治资本}。`};
+}
+
+/* ---------- 界面 ---------- */
+function apexBar(v, max, color){
+  const p = Math.max(0, Math.min(100, (v / max) * 100));
+  return `<div style="background:#2a1518;border:1px solid #4a2226;border-radius:6px;height:14px;overflow:hidden;margin-top:5px">
+    <div style="width:${p.toFixed(1)}%;height:100%;background:${color};
+      box-shadow:inset 0 1px 0 rgba(255,255,255,.25)"></div></div>`;
+}
+
+function apexCard(){
+  const A = apexEnsure();
+  if(!A) return "";
+  const 内 = Math.round(A.内压 || 0), 外 = Math.round(A.外压 || 0);
+  const 剩 = Math.max(0, APEX_RULES.守成月数 - (A.月数 || 0));
+  let h = `<div class="card" style="border-color:#7d1620">
+    <div class="card-h">🚨 守成期 · 巅峰失守 <span style="font-weight:400;font-size:11px;color:#a8858a">已履职 ${A.月数||0} 个月 · 距本届届满 ${剩} 个月</span></div>
+    <div class="card-b">
+      <div class="mini" style="line-height:1.85;color:#9a9186;margin-bottom:8px">
+        你已身处最高领导集体，向上再无台阶。此后的风险来自两处：
+        <b style="color:#e8434f">身边人</b>——你已无法给他们更高的位置，
+        而他们手里的资源足以独立成势；
+        <b style="color:#e8434f">同僚</b>——换届时每个人都要重新排序。
+        守成不是变强，是变轻。
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <div style="flex:1;min-width:150px;background:#1a0f11;border:1px solid #4a2226;border-radius:8px;padding:8px 10px">
+          <div style="font-size:12px;font-weight:800;color:#ff9c9c">🕸️ 内压 · 身边人反噬</div>
+          <div style="font-size:19px;font-weight:800;color:${内>=70?'#e8434f':'#f0e6d8'}">${内}<span style="font-size:11px;color:#8a8170">/100</span></div>
+          ${apexBar(内, 100, 内>=70?'#b01e23':'#e8434f')}
+          <div class="mini" style="margin-top:5px;color:#8a8170">山头 ${(A.山头||[]).length} 处 · 已倒戈 ${(A.倒戈||[]).length} 人${A.已申报?' · 已申报':''}</div>
+        </div>
+        <div style="flex:1;min-width:150px;background:#1a0f11;border:1px solid #4a2226;border-radius:8px;padding:8px 10px">
+          <div style="font-size:12px;font-weight:800;color:#ff9c9c">⚔️ 外压 · 政敌合围</div>
+          <div style="font-size:19px;font-weight:800;color:${外>=70?'#e8434f':'#f0e6d8'}">${外}<span style="font-size:11px;color:#8a8170">/100</span></div>
+          ${apexBar(外, 100, 外>=70?'#b01e23':'#e8434f')}
+          <div class="mini" style="margin-top:5px;color:#8a8170">${A.联盟?('联盟：'+A.联盟.首领+(A.联盟.已分化?'（已松动）':'')):'尚未串联'}${A.交权?(' · 已交权 '+A.交权+' 次'):''}</div>
+        </div>
+      </div>`;
+
+  /* 山头列表 */
+  if((A.山头 || []).length){
+    h += `<div style="margin-top:10px"><div class="mini" style="font-weight:800;color:#ff9c9c;margin-bottom:4px">已成势的山头</div>`;
+    A.山头.forEach(function(f){
+      const 危 = Math.min(100, Math.round(((f.规模||0) / APEX_RULES.山头成熟) * 100));
+      h += `<div style="background:#1a0f11;border:1px solid #4a2226;border-radius:6px;padding:6px 9px;margin-top:5px">
+        <div style="font-size:12px;font-weight:700;color:#f0e6d8">${f.name}
+          <span style="font-weight:400;color:#8a8170">　${f.职}${f.地?' · '+f.地:''}</span></div>
+        <div class="mini" style="color:#8a8170;margin-top:2px">坐大程度 ${危}%${f.已敲打?('　已敲打 '+f.已敲打+' 次'):''}</div>
+        ${apexBar(危, 100, '#8a6a35')}
+      </div>`;
+    });
+    h += `<div class="mini" style="color:#8a8170;margin-top:5px">规模满 ${APEX_RULES.山头成熟} 即爆雷：被立案者往往会为自保而供述。</div></div>`;
+  }
+
+  /* 联盟手段 */
+  if(A.联盟 && (A.联盟.手段 || []).length){
+    h += `<div style="margin-top:10px"><div class="mini" style="font-weight:800;color:#ff9c9c;margin-bottom:4px">对方的手段</div>
+      <div style="background:#1a0f11;border:1px solid #4a2226;border-radius:6px;padding:6px 9px">
+      ${A.联盟.手段.map(function(s){ return `<div class="mini" style="color:#c9a0a4;line-height:1.8">· ${s}</div>`; }).join("")}
+      </div></div>`;
+  }
+
+  /* 应对 */
+  h += `<div style="margin-top:10px"><div class="mini" style="font-weight:800;color:#ff9c9c;margin-bottom:5px">应对（皆有代价）</div>
+    <button class="btn" data-apex="crack" style="padding:6px 10px"><span class="bt">🔨 敲打山头<span style="font-weight:400">　内压 −9，全员忠诚 −6</span></span></button>
+    <button class="btn" data-apex="cut" style="padding:6px 10px"><span class="bt">✂️ 切割关联<span style="font-weight:400">　内压 −18，人脉 −8</span></span></button>
+    <button class="btn" data-apex="declare" ${A.已申报?'disabled style="padding:6px 10px;opacity:.45"':'style="padding:6px 10px"'}><span class="bt">📋 申报个人事项<span style="font-weight:400">　内压 −13，廉政 +25</span></span></button>
+    <button class="btn" data-apex="consolidate" style="padding:6px 10px"><span class="bt">🤝 稳固班底<span style="font-weight:400">　内压 −8，忠诚 +4</span></span></button>
+    <button class="btn" data-apex="divide" style="padding:6px 10px"><span class="bt">🕊️ 分化联盟<span style="font-weight:400">　外压 −17，政治资本 −45</span></span></button>
+    <button class="btn" data-apex="yield" style="padding:6px 10px"><span class="bt">➡️ 交出分管权<span style="font-weight:400">　外压 −20，政绩 −120</span></span></button>
+  </div>`;
+
+  /* 记录 */
+  if((A.记录 || []).length){
+    h += `<details style="margin-top:10px"><summary class="mini" style="cursor:pointer;color:#8a8170">守成记录（${A.记录.length}）</summary>
+      <div style="margin-top:5px">${A.记录.slice(0,10).map(function(r){
+        return `<div class="mini" style="color:#8a8170;line-height:1.8">${r.于} · ${r.事}</div>`;
+      }).join("")}</div></details>`;
+  }
+  h += `</div></div>`;
+  return h;
+}
+
+/* ---------- 挂到派系页 ----------
+   派系页本就是政治博弈的所在；守成期的对手是同僚与身边人，
+   放在此处比新建页签更贴合，也不打乱底部导航。 */
+(function(){
+  if(typeof pFaction !== "function") return;
+  if(window.__apexFactionWrapped) return;
+  window.__apexFactionWrapped = true;
+  const _orig = pFaction;
+  pFaction = function(){
+    let h = "";
+    try{ h = _orig.apply(this, arguments) || ""; }catch(e){ h = ""; }
+    try{ h = apexCard() + h; }catch(e){}
+    return h;
+  };
+})();
+
+/* ---------- 月度结算挂钩 ---------- */
+(function(){
+  if(typeof monthlySettlement !== "function") return;
+  if(window.__apexMonthlyWrapped) return;
+  window.__apexMonthlyWrapped = true;
+  const _orig = monthlySettlement;
+  monthlySettlement = function(){
+    const r = _orig.apply(this, arguments);
+    try{ if(S && !S.gameOver) apexTick(); }catch(e){}
+    return r;
+  };
+})();
+
+/* ---------- 操作事件委托 ----------
+   不用 data-x7：那段委托对未知 act 直接 return，
+   挂上去不会有任何反馈。独立委托避免与既有路由冲突。 */
+(function(){
+  if(window.__apexBound) return;
+  window.__apexBound = true;
+  document.addEventListener("click", function(ev){
+    try{
+      const el = ev && ev.target;
+      if(!el || !el.closest) return;
+      const b = el.closest("[data-apex]");
+      if(!b || b.disabled) return;
+      const act = b.getAttribute("data-apex");
+      let res = null;
+      if(act === "crack") res = apexCrack();
+      else if(act === "cut") res = apexCut();
+      else if(act === "declare") res = apexDeclare();
+      else if(act === "divide") res = apexDivide();
+      else if(act === "yield") res = apexYield();
+      else if(act === "consolidate") res = apexConsolidate();
+      else return;
+      if(res && res.msg){
+        try{ if(typeof x7toast === "function") x7toast(res.msg); }catch(e){}
+      }
+      try{ if(typeof renderMain === "function") renderMain(typeof curTab !== "undefined" ? curTab : "faction"); }catch(e){}
+      try{ if(typeof renderTopbar === "function") renderTopbar(); }catch(e){}
+    }catch(e){}
+  }, false);
+})();
+</script>
+
 </body>
 </html>

@@ -695,6 +695,37 @@ var Cloud = (function(){
     });
   }
 
+
+  /* 后台改档所需的两只 SECURITY DEFINER 函数是否已在库中部署。
+     未部署时，后台保存会直连 game_saves 写入——多数项目被 Data API
+     访问策略拒绝，于是"点保存没反应/改了没变"，而管理员无从判断
+     是自己操作错了还是库里缺东西。
+
+     探测方式：读 OpenAPI 定义的 paths，比直接调用 RPC 可靠——
+     直接调用时"函数不存在"与"被策略拒绝"都表现为 403，无法区分。 */
+  function adminProbeFunctions(){
+    if(!isReady()) return Promise.resolve({ok:false, offline:true});
+    return req("GET", "", null, null, 12000).then(function(res){
+      var paths = (res.data && res.data.paths) || null;
+      if(!paths){
+        /* 拿不到定义时退回逐个试调用，至少区分 404（确实没有） */
+        return req("POST", "rpc/ql_admin_read_save", {p_user_id:"__probe__"}, null, 12000)
+          .then(function(r){
+            var st = (r.error && r.error.status) || 0;
+            return { ok:true, via:"probe", read: st !== 404, write: st !== 404, uncertain:true };
+          }).catch(function(){ return {ok:false, msg:"探测失败"}; });
+      }
+      var keys = Object.keys(paths);
+      var has = function(n){
+        for(var i=0;i<keys.length;i++) if(keys[i].indexOf(n) >= 0) return true;
+        return false;
+      };
+      return { ok:true, via:"openapi",
+               read: has("ql_admin_read_save"),
+               write: has("ql_admin_write_save") };
+    }).catch(function(e){ return {ok:false, msg:String(e && e.message || e)}; });
+  }
+
   function adminSetStatus(userId, status){
     if(!isReady()) return Promise.resolve({ok:false, offline:true});
     return req("PATCH", "game_users?id=eq."+eqv(userId), {status:status}, null, 10000)
@@ -915,6 +946,7 @@ var Cloud = (function(){
     adminWriteSave: adminWriteSave,
     adminBuildSummary: adminBuildSummary,
     adminRevOf: adminRevOf,
+    adminProbeFunctions: adminProbeFunctions,
     adminVerifySave: adminVerifySave,
     adminSetStatus: adminSetStatus,
     adminResetPwd: adminResetPwd,

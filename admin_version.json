@@ -1,6 +1,6 @@
 {
- "v": "20260918.1543",
- "force": false,
- "note": "注销/冻结「提示成功但列表照旧」：PostgREST 的 PATCH/DELETE 在 0 行受影响时同样返回 204、不带 error，此前只看 res.error，于是未授予 UPDATE 权限或 RLS 拦截时也报成功，账号自然还在。现先取 return=representation 看影响行数，再读回确认状态确实已变（DELETE 则确认账号确实消失）；真删函数返回成功但账号仍在时继续降级软注销，不谎报 hard。失败时明确给出排查方向（grant update on game_users to anon）。名录新增「隐藏已注销」开关（默认开启）——软注销保留账号行，照常显示会让人以为没注销掉；注销成功后就地从列表移除，不用等刷新。",
- "t": "2026-09-18 15:43"
+  "v": "20260918.1604",
+  "force": false,
+  "note": "注销/冻结「提示成功但列表照旧」：PostgREST 的 PATCH/DELETE 在 0 行受影响时同样返回 204、不带 error，此前只看 res.error，于是未授予 UPDATE 权限或 RLS 拦截时也报成功，账号自然还在。现先取 return=representation 看影响行数，再读回确认状态确实已变（DELETE 则确认账号确实消失）；真删函数返回成功但账号仍在时继续降级软注销，不谎报 hard。失败时明确给出排查方向（grant update on game_users to anon）。名录新增「隐藏已注销」开关（默认开启）——软注销保留账号行，照常显示会让人以为没注销掉；注销成功后就地从列表移除，不用等刷新。",
+  "t": "2026-09-18 16:04"
 }

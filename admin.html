@@ -270,7 +270,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
      是自己填错还是服务不通。 -->
 <script>
 /* 后台版本：由 build.js 同步 */
-var ADMIN_VERSION = "20260918.1130";
+var ADMIN_VERSION = "20260918.1224";
 var CLOUD_CONFIG = {
   enabled: true,
   url: "https://zgkovjgkkvxoajcqxwfw.supabase.co",
@@ -312,7 +312,7 @@ var ADMIN_RANKS = [
 ["中共中央政治局常委","国家级正职"],["中共中央总书记（兼国家主席、中央军委主席）","国家级正职"]
 ];
 </script>
-<script src="cloud.js?v=6"></script>
+<script src="cloud.js?v=7"></script>
 <script>
 /* eslint-disable */
 var $ = function(id){ return document.getElementById(id); };
@@ -657,8 +657,8 @@ function renderEdit(){
   var html = "";
   html += '<div class="hint" style="margin-bottom:10px">'+
     '存档时间：'+esc((EDIT.summary&&EDIT.summary.年份)||"—")+' · 职务：'+esc((EDIT.summary&&EDIT.summary.职务)||"—")+
-    '<br><b style="color:#e8656e">注意</b>：游戏以玩家本机存档为权威。玩家若正在游戏，其下一次自动同步会覆盖此处修改。'+
-    '修改适用于处置异常存档、协助离线玩家。</div>';
+    '<br><b style="color:#e8656e">注意</b>：玩家若此刻正在游戏，其自动同步可能在你写入后立刻覆盖回来。'+
+    '保存后会读回校验，不一致会明确提示——建议先让其退出游戏再改。</div>';
 
   FIELDS.forEach(function(g, gi){
     html += '<div class="sec-h" data-ef="'+gi+'" data-open="'+(gi===0?"1":"0")+'">'+g.sec+' <span class="n">'+g.items.length+' 项</span></div>';
@@ -791,11 +791,38 @@ $("shSave").onclick = function(){
   btn.disabled = true; btn.textContent = "保存中…";
   Cloud.adminWriteSave(EDIT.user.id, S, {summary:sum, prevSummary:EDIT.summary||{}})
     .then(function(res){
-      btn.disabled = false; btn.textContent = "保存修改";
-      var detail = "职级 "+r+" · 政绩 "+(sum["政绩"]||0)+" · "+(res.ok?"成功":"失败："+(res.msg||""));
+      var detail = "职级 "+r+" · 政绩 "+(sum["政绩"]||0)+" · "+
+                   (res.ok ? ("成功["+(res.via||"table")+"]") : ("失败："+(res.msg||"")));
       Cloud.adminLog("修改存档", EDIT.user.emp_id, detail);
-      if(res.ok){ alert("已保存。名录稍后刷新可见新数值。"); closeEdit(); loadAll(); }
-      else alert("保存失败："+(res.msg||"离线"));
+      if(!res.ok){
+        btn.disabled = false; btn.textContent = "保存修改";
+        alert("保存失败：" + (res.msg||"离线") +
+              "\n\n若含「权限」「policy」「permission」字样，请在 Supabase 执行\n「后台改档_一键安装.sql」后再试。");
+        return;
+      }
+      /* 写后读回：确认云端真的变了，而不是刚写进去就被玩家端同步盖回去 */
+      btn.textContent = "校验中…";
+      var probe = {};
+      ["rank","政绩","cash","廉政","健康"].forEach(function(k){
+        if(S[k] !== undefined) probe[k] = S[k];
+      });
+      if(typeof Cloud.adminVerifySave !== "function"){
+        btn.disabled = false; btn.textContent = "保存修改";
+        alert("已保存。名录稍后刷新可见新数值。"); closeEdit(); loadAll(); return;
+      }
+      Cloud.adminVerifySave(EDIT.user.id, probe).then(function(v){
+        btn.disabled = false; btn.textContent = "保存修改";
+        if(!v.ok){
+          alert("已写入，但读回校验没完成：" + (v.msg||"") + "\n请稍后在名录中确认。");
+        } else if(v.matched === false){
+          alert("⚠️ 写入成功，但读回发现数值不一致：\n\n" + (v.diff||[]).join("\n") +
+                "\n\n最常见的原因：该玩家此刻正在游戏，自动同步在写入后立刻覆盖回来。\n" +
+                "请让其退出游戏后再改，或改后由其重新登录拉取。");
+        } else {
+          alert("已保存并校验通过（修订号 " + v.rev + "）。\n玩家重新登录或稍后自动同步即可看到新数值。");
+        }
+        closeEdit(); loadAll();
+      });
     });
 };
 

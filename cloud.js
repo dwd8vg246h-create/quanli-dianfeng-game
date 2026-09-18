@@ -70,42 +70,6 @@ var Cloud = (function(){
   }
 
   /* ============================================================
-     RPC 通道
-     ------------------------------------------------------------
-     收紧数据库权限后，anon 不再拥有 game_users 的 SELECT 权限，
-     登录等读取只能经由 SECURITY DEFINER 函数完成。
-     函数尚未部署时（404 / PGRST202）自动回落到直连，
-     保证"先跑 SQL"与"先发版"两种顺序都不会把玩家锁在门外。
-     ============================================================ */
-  var _rpcOff = false;
-  function rpc(name, payload){
-    if(_rpcOff) return Promise.resolve({error:{message:"rpc unavailable", status:404}});
-    var url = URL + "/rest/v1/rpc/" + name;
-    var headers = {
-      "apikey": KEY,
-      "Authorization": "Bearer " + KEY,
-      "Content-Type": "application/json",
-      "Accept": "application/json"
-    };
-    return fetch(url, {method:"POST", headers:headers, body: JSON.stringify(payload||{})})
-      .then(function(r){
-        return r.text().then(function(t){
-          var data = null;
-          try{ data = t ? JSON.parse(t) : null; }catch(e){ data = t; }
-          if(!r.ok){
-            if(r.status === 404) _rpcOff = true;
-            return {error:{message:(data && (data.message||data.msg))||("HTTP "+r.status),
-                           status:r.status, code:(data && (data.code||data.hint))||""}};
-          }
-          return {data:data};
-        });
-      }).catch(function(e){ return {error:{message:String((e&&e.message)||e), status:0}}; });
-  }
-  function rpcMissed(err){
-    return err && (err.status === 404 || err.code === "PGRST202" || err.code === "42883");
-  }
-
-  /* ============================================================
      PostgREST 请求封装
      ============================================================ */
   function req(method, path, body, prefer, timeoutMs){
@@ -144,73 +108,6 @@ var Cloud = (function(){
       return { error: { message: (e && e.name === "AbortError") ? "请求超时" : ("网络不可达："+((e&&e.message)||"")) } };
     });
   }
-
-  /* ============================================================
-     口令哈希（必须与游戏本体完全一致）
-     ------------------------------------------------------------
-     此前后台用 sha256("qlp_admin_" + pwd) 计算，而游戏本体是
-     sha256Hex(PWD_SALT + pwd + PWD_SALT)，PWD_SALT = "QLP_GADB_2026"。
-     两者算法不同 —— 管理员在后台"重置口令"成功后提示"口令已重置"，
-     但玩家用新口令登录时算出的哈希与库里的对不上，永远登不进去。
-     这是静默失效：界面报成功，实际把玩家的账号锁死了。
-     ============================================================ */
-  var PWD_SALT = "QLP_GADB_2026";
-  function sha256Hex(msg){
-    // —— UTF-8 编码 ——
-    var utf8 = [];
-    for(var i=0;i<msg.length;i++){
-      var c = msg.charCodeAt(i);
-      if(c < 0x80) utf8.push(c);
-      else if(c < 0x800){ utf8.push(0xc0|(c>>6), 0x80|(c&0x3f)); }
-      else if(c < 0xd800 || c >= 0xe000){
-        utf8.push(0xe0|(c>>12), 0x80|((c>>6)&0x3f), 0x80|(c&0x3f));
-      } else {
-        i++;
-        c = 0x10000 + (((c & 0x3ff)<<10) | (msg.charCodeAt(i) & 0x3ff));
-        utf8.push(0xf0|(c>>18), 0x80|((c>>12)&0x3f), 0x80|((c>>6)&0x3f), 0x80|(c&0x3f));
-      }
-    }
-    var len = utf8.length;
-    utf8.push(0x80);
-    while(utf8.length % 64 !== 56) utf8.push(0);
-    var bitLen = len * 8;
-    for(var s=56;s>=0;s-=8) utf8.push((bitLen / Math.pow(2, s)) & 0xff);
-    var K=[0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
-      0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
-      0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
-      0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
-      0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
-      0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
-      0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
-      0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
-    var H=[0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
-    function rotr(x,n){ return (x>>>n)|(x<<(32-n)); }
-    var w = new Array(64);
-    for(var b=0;b<utf8.length;b+=64){
-      for(var j=0;j<16;j++){
-        w[j] = (utf8[b+j*4]<<24)|(utf8[b+j*4+1]<<16)|(utf8[b+j*4+2]<<8)|utf8[b+j*4+3];
-      }
-      for(j=16;j<64;j++){
-        var s0 = rotr(w[j-15],7)^rotr(w[j-15],18)^(w[j-15]>>>3);
-        var s1 = rotr(w[j-2],17)^rotr(w[j-2],19)^(w[j-2]>>>10);
-        w[j] = (w[j-16] + s0 + w[j-7] + s1) >>> 0;
-      }
-      var a0=H[0],b0=H[1],c0=H[2],d0=H[3],e0=H[4],f0=H[5],g0=H[6],h0=H[7];
-      for(j=0;j<64;j++){
-        var S1 = rotr(e0,6)^rotr(e0,11)^rotr(e0,25);
-        var ch = (e0 & f0) ^ ((~e0) & g0);
-        var t1 = (h0 + S1 + ch + K[j] + w[j]) >>> 0;
-        var S0 = rotr(a0,2)^rotr(a0,13)^rotr(a0,22);
-        var mj = (a0 & b0) ^ (a0 & c0) ^ (b0 & c0);
-        var t2 = (S0 + mj) >>> 0;
-        h0=g0; g0=f0; f0=e0; e0=(d0+t1)>>>0; d0=c0; c0=b0; b0=a0; a0=(t1+t2)>>>0;
-      }
-      H[0]=(H[0]+a0)>>>0; H[1]=(H[1]+b0)>>>0; H[2]=(H[2]+c0)>>>0; H[3]=(H[3]+d0)>>>0;
-      H[4]=(H[4]+e0)>>>0; H[5]=(H[5]+f0)>>>0; H[6]=(H[6]+g0)>>>0; H[7]=(H[7]+h0)>>>0;
-    }
-    return H.map(function(x){ return x.toString(16).padStart(8,"0"); }).join("");
-  }
-  function userPwdHash(pwd){ return sha256Hex(PWD_SALT + pwd + PWD_SALT); }
 
   /* URL 编码，避免中文姓名/联系方式破坏查询串 */
   function enc(v){ return encodeURIComponent(String(v==null?"":v)); }
@@ -301,38 +198,22 @@ var Cloud = (function(){
 
   function findUser(empId){
     if(!isReady()) return Promise.resolve({ok:false, offline:true});
-    return rpc("ql_login", {p_emp:String(empId||""), p_contact:null, p_hash:null})
-      .then(function(r){
-      if(!r.error){
-        if(r.data && r.data.length) return {ok:true, user:r.data[0]};
-        return {ok:false, notFound:true};
-      }
-      if(rpcMissed(r.error)) _rpcOff = true;
-      return req("GET", "game_users?select="+USER_COLS+"&emp_id=eq."+eqv(empId)+"&limit=1",
-        null, null, 8000).then(function(res){
-        if(res.error) return {ok:false, msg:res.error.message};
-        if(!res.data || !res.data.length) return {ok:false, notFound:true};
-        return {ok:true, user:res.data[0]};
-      });
+    return req("GET", "game_users?select="+USER_COLS+"&emp_id=eq."+eqv(empId)+"&limit=1",
+      null, null, 8000).then(function(res){
+      if(res.error) return {ok:false, msg:res.error.message};
+      if(!res.data || !res.data.length) return {ok:false, notFound:true};
+      return {ok:true, user:res.data[0]};
     });
   }
 
   /* 游戏内登录按"联系方式"匹配，云端须一致 */
   function findByContact(contact){
     if(!isReady()) return Promise.resolve({ok:false, offline:true});
-    return rpc("ql_login", {p_emp:null, p_contact:String(contact||""), p_hash:null})
-      .then(function(r){
-      if(!r.error){
-        if(r.data && r.data.length) return {ok:true, user:r.data[0]};
-        return {ok:false, notFound:true};
-      }
-      if(rpcMissed(r.error)) _rpcOff = true;
-      return req("GET", "game_users?select="+USER_COLS+"&contact=eq."+eqv(contact)+"&limit=1",
-        null, null, 8000).then(function(res){
-        if(res.error) return {ok:false, msg:res.error.message};
-        if(!res.data || !res.data.length) return {ok:false, notFound:true};
-        return {ok:true, user:res.data[0]};
-      });
+    return req("GET", "game_users?select="+USER_COLS+"&contact=eq."+eqv(contact)+"&limit=1",
+      null, null, 8000).then(function(res){
+      if(res.error) return {ok:false, msg:res.error.message};
+      if(!res.data || !res.data.length) return {ok:false, notFound:true};
+      return {ok:true, user:res.data[0]};
     });
   }
 
@@ -340,18 +221,14 @@ var Cloud = (function(){
   function touchLogin(userId){
     if(!isReady()) return;
     try{
-      rpc("ql_touch", {p_uid:String(userId||"")}).then(function(r){
-        if(!r.error) return;
-        if(rpcMissed(r.error)) _rpcOff = true;
-        req("GET", "game_users?select=login_count&id=eq."+eqv(userId), null, null, 8000)
-          .then(function(rr){
-            if(rr.error || !rr.data || !rr.data.length) return;
-            req("PATCH", "game_users?id=eq."+eqv(userId), {
-              login_count: (rr.data[0].login_count||0) + 1,
-              last_login_at: new Date().toISOString()
-            }, null, 8000);
-          });
-      });
+      req("GET", "game_users?select=login_count&id=eq."+eqv(userId), null, null, 8000)
+        .then(function(r){
+          if(r.error || !r.data || !r.data.length) return;
+          req("PATCH", "game_users?id=eq."+eqv(userId), {
+            login_count: (r.data[0].login_count||0) + 1,
+            last_login_at: new Date().toISOString()
+          }, null, 8000);
+        });
     }catch(e){}
   }
 
@@ -429,36 +306,44 @@ var Cloud = (function(){
     });
   }
 
-  /* 摘要字段：供后台列表直接展示，避免把整个 jsonb 拉下来解析
-     ------------------------------------------------------------
-     新增序列 / 军种 / 学历 / 世代 / 底蕴 / 财政 / 健康 / 任职地。
-     游戏这几次迭代加了身份序列（行政·军事·纪检）、九大军种、
-     家族传承（世代与底蕴），后台只显示职务与政绩，
-     管理员无从判断某人走的是哪条线、玩到什么程度。
+  /* 摘要字段：供后台列表直接展示，避免把整个 jsonb 拉下来解析 */
+  function __globalS(){
+    try{ return (typeof S !== "undefined") ? S : null; }catch(e){ return null; }
+  }
 
-     一律防御性读取：老存档没有这些字段时返回 undefined，
-     由后台显示为"—"，不能因为新增字段就让整行渲染失败。 */
   function buildSummary(S){
     try{
-      var 户 = (S.family && S.family.出身) || S.出身 || "";
       return {
         姓名: S.name || "",
         职务: (typeof rankTitle === "function") ? rankTitle(S.rank) : "",
+        /* 层次与位阶是排行榜排序的依据。
+           此前只存职务名，客户端无法按"走到哪一级"排序——
+           只能拿政绩排，于是低职级但刷分快的玩家会排在
+           高职级玩家前面，天梯榜失去意义。 */
+        层次: (typeof RANKS !== "undefined" && RANKS[S.rank]) ? RANKS[S.rank][1] : "",
+        位阶: (typeof S.rank === "number") ? S.rank : -1,
         年龄: S.age || 0,
         年份: (S.year||0) + "年" + (S.month||0) + "月",
         政绩: Math.round(S.政绩||0),
         道德: Math.round(S.道德||0),
         结局: S.ending || "",
-        序列: S.track || "行政",
-        军种: S.军种 || "",
-        学历: S.edu || "",
-        财政: (S.财政===undefined||S.财政===null) ? null : Math.round(S.财政),
-        健康: (S.健康===undefined||S.健康===null) ? null : Math.round(S.健康),
-        世代: (S.传承加成 && S.传承加成.世代) || S.世代 || 0,
-        底蕴: (S.传承加成 && S.传承加成.底蕴) || S.底蕴 || 0,
-        任职地: S.任职地 || "",
-        出身: 户,
-        在职: !S.ending
+        /* 上榜开关：玩家可在「排行榜」页退出。
+           默认为 true（上榜），显式设为 false 才退出。
+           安全函数 ql_rank 会据此过滤；若未部署该函数，
+           客户端直读时同样按此字段过滤，两种路径行为一致。 */
+        上榜: S.不上榜 !== true,
+        /* —— 排行榜排序字段 ——
+           位阶：位阶榜要用。此前漏写，导致全服档案位阶恒为 -1。
+           净资产 / 廉政：财富榜与清廉榜的排序依据。 */
+        位阶: (typeof S.rank === "number") ? S.rank : -1,
+        净资产: (function(){
+          try{
+            if(typeof netWorth !== "function") return 0;
+            if(typeof __globalS !== "function" || __globalS() !== S) return 0;
+            return Math.round(netWorth());
+          }catch(e){ return 0; }
+        })(),
+        廉政: Math.round(S.廉政 || 0)
       };
     }catch(e){ return {}; }
   }
@@ -484,6 +369,122 @@ var Cloud = (function(){
       setState("online");
       return {ok:true};
     });
+  }
+
+  /* ============================================================
+     排行榜（仕途天梯）
+     ------------------------------------------------------------
+     两种取数路径，都活着：
+      ① 安全函数 ql_rank（推荐）—— SECURITY DEFINER，
+         只吐脱敏字段，且尊重玩家的「上榜」开关。
+      ② 直读 game_saves.summary —— 适用于尚未执行
+         排行榜_安全函数.sql 的项目。客户端自行脱敏。
+
+     两条路都拿不到时返回 ok:false，由页面降级到本机榜，
+     绝不让一个附属功能拖住主流程。
+     ============================================================ */
+  function maskName(n){
+    n = String(n == null ? "" : n).trim();
+    if(!n) return "匿名干部";
+    if(n.length <= 1) return n + "*";
+    return n.slice(0,1) + new Array(Math.min(4, n.length)).join("*");
+  }
+  function lbFromSummary(rows){
+    var out = [];
+    (rows || []).forEach(function(r){
+      var s = r && r.summary ? r.summary : (r || {});
+      /* 尊重退出意愿：显式 false 才排除，缺失视为上榜 */
+      if(s["上榜"] === false) return;
+      out.push({
+        emp_id: String(r.user_id || "").slice(0, 8),
+        name_masked: maskName(s["姓名"]),
+        title: s["职务"] || "",
+        level: s["层次"] || "",
+        tier: (typeof s["位阶"] === "number") ? s["位阶"] : -1,
+        age: parseInt(s["年龄"], 10) || 0,
+        merit: parseInt(s["政绩"], 10) || 0,
+        wealth: parseInt(s["净资产"], 10) || 0,
+        clean: parseInt(s["廉政"], 10) || 0,
+        ending: s["结局"] || "",
+        saved_at: (r && r.saved_at) || null
+      });
+    });
+    return out;
+  }
+  /* 页内排序：仅用于兜底路径（服务端未排序时） */
+  function lbSortLocal(rows, sort){
+    var arr = (rows || []).slice();
+    arr.sort(function(a, b){
+      if(sort === "merit") return (b.merit||0) - (a.merit||0);
+      if(sort === "rich")  return (b.wealth||0) - (a.wealth||0);
+      if(sort === "clean") return (b.clean||0) - (a.clean||0);
+      if(sort === "young"){
+        var ay = (a.age>0 ? a.age : 999), by = (b.age>0 ? b.age : 999);
+        return ay - by;
+      }
+      return (b.tier||-1) - (a.tier||-1) || (b.merit||0) - (a.merit||0);
+    });
+    for(var i=0;i<arr.length;i++){ arr[i].pos = i+1; }
+    return arr;
+  }
+  function leaderboard(limit, sort){
+    var lim = Math.max(1, Math.min(300, parseInt(limit, 10) || 100));
+    var srt = String(sort || "tier");
+    if(!isReady()) return Promise.resolve({ok:false, offline:true, rows:[]});
+    /* 路径①：服务端按维度在全量数据上排名（真实名次 + 总数） */
+    return req("POST", "rpc/ql_rank2", {p_sort: srt, p_limit: lim}, null, 12000)
+      .then(function(res){
+        if(!res.error && Array.isArray(res.data) && res.data.length){
+          var rows = res.data;
+          return {ok:true, via:"rpc2", sort:srt, rows:rows,
+                  total:(rows[0] && parseInt(rows[0].total_count, 10)) || rows.length};
+        }
+        /* 路径②：第一版函数，只能按政绩取前 N 条 */
+        return req("POST", "rpc/ql_rank", {p_limit: lim}, null, 12000)
+          .then(function(r1){
+            if(!r1.error && Array.isArray(r1.data)){
+              var rr = (r1.data || []).map(function(x){
+                x.wealth = x.wealth || 0; x.clean = x.clean || 0; x.pos = 0; return x;
+              });
+              return {ok:true, via:"rpc1", sort:srt, rows:lbSortLocal(rr, srt),
+                      total:rr.length, partial:true};
+            }
+            /* 路径③：直读摘要 */
+            return req("GET",
+              "game_saves?select=user_id,summary,saved_at&limit=" + lim,
+              null, null, 15000).then(function(r2){
+              if(r2.error) return {ok:false, msg:r2.error.message, rows:[]};
+              var rr = lbFromSummary(r2.data || []);
+              return {ok:true, via:"direct", sort:srt, rows:lbSortLocal(rr, srt),
+                      total:rr.length, partial:true};
+            });
+          });
+      })
+      .catch(function(e){
+        return {ok:false, msg:(e && e.message) || "网络异常", rows:[]};
+      });
+  }
+  /* 只回答"我排第几"：不拉榜单也能知道自己的位置 */
+  function leaderboardMe(sort){
+    var srt = String(sort || "tier");
+    if(!isReady()) return Promise.resolve({ok:false, offline:true});
+    var self = "";
+    try{ self = String((state && state.uid) || "").slice(0, 8); }catch(e){ self = ""; }
+    if(!self) return Promise.resolve({ok:false, msg:"尚未登录"});
+    return req("POST", "rpc/ql_rank_me", {p_self: self, p_sort: srt}, null, 12000)
+      .then(function(res){
+        if(res.error || !Array.isArray(res.data) || !res.data.length){
+          return {ok:false, msg:(res.error && res.error.message) || "暂无法定位名次"};
+        }
+        var d = res.data[0] || {};
+        return {ok:true, sort:srt,
+                pos:(d.pos === null || d.pos === undefined) ? null : parseInt(d.pos, 10),
+                total:parseInt(d.total_count, 10) || 0,
+                avgTier:parseFloat(d.avg_tier) || 0,
+                endCount:parseInt(d.end_count, 10) || 0};
+      }).catch(function(e){
+        return {ok:false, msg:(e && e.message) || "网络异常"};
+      });
   }
 
   /* ---------- 联网重试 ---------- */
@@ -550,77 +551,6 @@ var Cloud = (function(){
 
 
 
-  /* ============================================================
-     管理员读写整份存档（后台「修改档案数据」用）
-     ------------------------------------------------------------
-     此前后台只有摘要（summary），能看不能改：
-     玩家遇到存档损坏、数值异常、误触结局时，管理员无从处置，
-     只能注销重来——而注销会连带清除整个档案与存档，代价过大。
-
-     读：按 user_id 取整份 jsonb data（单人，避免整表拉取）。
-     写：upsert 回写 data，并按新内容重算 summary。
-
-     为什么 summary 要在后台重算：
-       summary 是排行榜与名录展示的唯一来源，若只改 data 不改
-       summary，后台列表会继续显示旧职务旧政绩，看起来"没改成功"。
-
-     职务名后台算不出来的部分（rankTitle 依赖游戏内 52 级职级表
-     与所在机构），沿用旧值并交由管理端传入覆盖；位阶、政绩、
-     道德、年龄、年份这些纯数值一律按新 data 重算。
-     ============================================================ */
-  function adminBuildSummary(S, prev){
-    prev = prev || {};
-    var tier = (typeof S.rank === "number") ? S.rank
-             : (typeof prev["位阶"] === "number" ? prev["位阶"] : -1);
-    return {
-      姓名: S.name || prev["姓名"] || "",
-      /* 职务、层次由调用端（admin.html 内联职级表）算出后传入；
-         算不出则沿用旧值，绝不置空——空职务会让排行榜显示空白。 */
-      职务: prev["职务"] || "",
-      层次: prev["层次"] || "",
-      位阶: tier,
-      年龄: S.age || 0,
-      年份: (S.year||0) + "年" + (S.month||0) + "月",
-      政绩: Math.round(S.政绩||0),
-      道德: Math.round(S.道德||0),
-      结局: S.ending || "",
-      上榜: S.不上榜 !== true,
-      净资产: (typeof prev["净资产"] === "number") ? prev["净资产"] : 0,
-      廉政: Math.round(S.廉政||0)
-    };
-  }
-
-  function adminReadSave(userId){
-    if(!isReady()) return Promise.resolve({ok:false, offline:true});
-    return req("GET",
-      "game_saves?select=data,summary,saved_at,version&user_id=eq."+eqv(userId)+"&limit=1",
-      null, null, 15000).then(function(res){
-      if(res.error) return {ok:false, msg:res.error.message};
-      if(!res.data || !res.data.length) return {ok:true, empty:true};
-      return {ok:true, data:res.data[0].data, summary:res.data[0].summary||{},
-              savedAt:res.data[0].saved_at};
-    });
-  }
-
-  /* opt.summary：调用端算好的摘要（含职务/层次），缺省则内部重算 */
-  function adminWriteSave(userId, S, opt){
-    opt = opt || {};
-    if(!isReady()) return Promise.resolve({ok:false, offline:true});
-    if(!S || typeof S !== "object") return Promise.resolve({ok:false, msg:"存档内容无效"});
-    var prev = opt.prevSummary || {};
-    var sum = opt.summary || adminBuildSummary(S, prev);
-    return req("POST", "game_saves", {
-      user_id: userId,
-      data: S,
-      summary: sum,
-      saved_at: new Date().toISOString(),
-      version: (typeof S.version === "number") ? S.version : 1
-    }, "return=representation,resolution=merge-duplicates", 15000).then(function(res){
-      if(res.error) return {ok:false, msg:res.error.message};
-      return {ok:true, summary:sum};
-    });
-  }
-
   function adminSetStatus(userId, status){
     if(!isReady()) return Promise.resolve({ok:false, offline:true});
     return req("PATCH", "game_users?id=eq."+eqv(userId), {status:status}, null, 10000)
@@ -669,179 +599,13 @@ var Cloud = (function(){
     });
   }
 
-  /* ============================================================
-     赛季模式
-     ------------------------------------------------------------
-     规则（与「赛季模式_一键安装.sql」一一对应）：
-       · 每两个月一赛季：1-2月=S1 … 9-10月=S5，11-12月=S6
-       · 赛季切换时旧档归档为「往季档案」，可回看但不计入新赛季
-       · 赛季榜按「赛季内峰值」计名次——后来被查办降级，峰值仍保留
-
-     ⚠️ 三条容错，缺一不可：
-       ① 未部署赛季表时，全部接口返回 notDeployed，游戏端照常玩
-       ② 上报走 upsert，只增不减：peak_* 取新旧最大值，绝不回退
-       ③ 归档先于重置——归档失败就不允许重置，避免存档丢失
-     ============================================================ */
-
-  /* 赛季键：由存档内的年份/月份推导，不依赖网络 */
-  function seasonKeyOf(year, month){
-    var y = parseInt(year, 10) || 2026;
-    var m = parseInt(month, 10) || 1;
-    if(m < 1) m = 1; if(m > 12) m = 12;
-    var seq = (y - 2026) * 6 + Math.floor((m - 1) / 2) + 1;
-    return y + "-S" + seq;
-  }
-
-  /* 赛季起止月：给定赛季键，返回 [起始年, 起始月, 结束年, 结束月] */
-  function seasonRangeOf(key){
-    var m = String(key || "").match(/^(\d{4})-S(\d+)$/);
-    if(!m) return null;
-    var y = parseInt(m[1], 10), seq = parseInt(m[2], 10);
-    var idx = seq - 1;
-    var yy = y + Math.floor(idx / 6);
-    var half = idx % 6;
-    return [yy, half * 2 + 1, yy, half * 2 + 2];
-  }
-
-  /* 当前赛季（按真实日期推导，离线也能算） */
-  function currentSeason(now){
-    var d = now || new Date();
-    /* 按 CST-8 取年月，避免 UTC 跨日把赛季算错 */
-    var s = new Date(d.getTime() + 8 * 3600 * 1000);
-    return seasonKeyOf(s.getUTCFullYear(), s.getUTCMonth() + 1);
-  }
-
-  /* 读赛季表：未部署时明确告知，不静默失败 */
-  function seasonList(){
-    if(!isReady()) return Promise.resolve({ok:false, offline:true});
-    return req("GET", "game_seasons?select=season_key,seq,started_at,ends_at,status,note&order=seq.asc",
-      null, null, 10000).then(function(res){
-      if(res.error){
-        var msg = String(res.error.message || "");
-        if(/does not exist|relation|42P01/i.test(msg)) return {ok:false, notDeployed:true};
-        return {ok:false, msg:msg};
-      }
-      return {ok:true, seasons:res.data || []};
-    });
-  }
-
-  /* 上报赛季成绩：peak_* 只增不减
-     stat: {peak_merit, peak_tier, peak_title, final_merit, final_tier,
-            final_title, ending, months} */
-  function seasonSubmit(seasonKey, userId, stat){
-    if(!isReady()) return Promise.resolve({ok:false, offline:true});
-    if(!seasonKey || !userId) return Promise.resolve({ok:false, msg:"赛季或用户缺失"});
-    var row = {
-      season_key: seasonKey,
-      user_id: userId,
-      peak_merit:  Math.round(stat.peak_merit  || 0),
-      peak_tier:   Math.round(stat.peak_tier   || 0),
-      peak_title:  String(stat.peak_title  || ""),
-      final_merit: Math.round(stat.final_merit || 0),
-      final_tier:  Math.round(stat.final_tier  || 0),
-      final_title: String(stat.final_title || ""),
-      ending:      String(stat.ending || ""),
-      months:      Math.round(stat.months || 0),
-      updated_at:  new Date().toISOString()
-    };
-    /* 先读旧值再合并：PostgREST 的 merge-duplicates 会整体覆盖，
-       直接 upsert 会让峰值在同步失败重传时被较小的旧值打回去。 */
-    return req("GET",
-      "game_season_stats?select=peak_merit,peak_tier,peak_title&season_key=eq."+eqv(seasonKey)+
-      "&user_id=eq."+eqv(userId)+"&limit=1", null, null, 10000).then(function(prev){
-      var old = (prev && !prev.error && prev.data && prev.data.length) ? prev.data[0] : null;
-      if(old){
-        if((old.peak_merit||0) > row.peak_merit){ row.peak_merit = old.peak_merit; row.peak_title = old.peak_title; }
-        if((old.peak_tier||0)  > row.peak_tier){  row.peak_tier  = old.peak_tier;  row.peak_title = old.peak_title; }
-      }
-      return req("POST", "game_season_stats", row,
-        "return=minimal,resolution=merge-duplicates", 12000).then(function(res){
-        if(res.error){
-          var mg = String(res.error.message || "");
-          if(/does not exist|relation|42P01/i.test(mg)) return {ok:false, notDeployed:true};
-          return {ok:false, msg:mg};
-        }
-        return {ok:true, stat:row};
-      });
-    });
-  }
-
-  /* 归档往季档案：赛季切换时保存整份存档，供回看 */
-  function seasonArchive(seasonKey, userId, S, summary){
-    if(!isReady()) return Promise.resolve({ok:false, offline:true});
-    if(!seasonKey || !userId) return Promise.resolve({ok:false, msg:"赛季或用户缺失"});
-    return req("POST", "game_season_archive", {
-      season_key: seasonKey,
-      user_id: userId,
-      data: S || {},
-      summary: summary || {},
-      archived_at: new Date().toISOString()
-    }, "return=minimal,resolution=merge-duplicates", 15000).then(function(res){
-      if(res.error){
-        var mg = String(res.error.message || "");
-        if(/does not exist|relation|42P01/i.test(mg)) return {ok:false, notDeployed:true};
-        return {ok:false, msg:mg};
-      }
-      return {ok:true};
-    });
-  }
-
-  /* 取回某季的往季档案 */
-  function seasonArchiveGet(seasonKey, userId){
-    if(!isReady()) return Promise.resolve({ok:false, offline:true});
-    return req("GET",
-      "game_season_archive?select=data,summary,archived_at&season_key=eq."+eqv(seasonKey)+
-      "&user_id=eq."+eqv(userId)+"&limit=1", null, null, 10000).then(function(res){
-      if(res.error) return {ok:false, msg:res.error.message};
-      if(!res.data || !res.data.length) return {ok:true, empty:true};
-      return {ok:true, data:res.data[0].data, summary:res.data[0].summary||{},
-              archivedAt:res.data[0].archived_at};
-    });
-  }
-
-  /* 赛季榜 */
-  function seasonBoard(seasonKey, sort, limit){
-    if(!isReady()) return Promise.resolve({ok:false, offline:true});
-    var srt = sort || "merit";
-    var lim = Math.max(1, Math.min(300, parseInt(limit, 10) || 100));
-    return rpc("ql_rank_season", {p_season: seasonKey || null, p_sort: srt, p_limit: lim})
-      .then(function(res){
-      if(res.error){
-        if(rpcMissed(res.error)) return {ok:false, notDeployed:true};
-        return {ok:false, msg:res.error.message};
-      }
-      return {ok:true, rows: res.data || []};
-    });
-  }
-
-  /* 我的赛季名次 */
-  function seasonBoardMe(self, seasonKey, sort){
-    if(!isReady()) return Promise.resolve({ok:false, offline:true});
-    return rpc("ql_rank_season_me",
-      {p_self: self || "", p_season: seasonKey || null, p_sort: sort || "merit"})
-      .then(function(res){
-      if(res.error){
-        if(rpcMissed(res.error)) return {ok:false, notDeployed:true};
-        return {ok:false, msg:res.error.message};
-      }
-      var r = (res.data && res.data.length) ? res.data[0] : null;
-      if(!r) return {ok:true, empty:true};
-      return {ok:true, pos:r.pos, total:r.total_count,
-              peakMerit:r.peak_merit, peakTier:r.peak_tier};
-    });
-  }
-
   /* ---------- 连通性自检 ---------- */
   function ping(){
     if(!isReady()) return Promise.resolve({ok:false, msg:"未初始化"});
     var t0 = Date.now();
-    return rpc("ql_ping", {}).then(function(r){
-      if(!r.error) return {ok:true, ms:(Date.now()-t0)};
-      if(rpcMissed(r.error)) _rpcOff = true;
-      return req("GET", "game_users?select=id&limit=1", null, null, 8000).then(function(res){
-        if(res.error) return {ok:false, msg:res.error.message};
-        return {ok:true, ms:(Date.now()-t0)};
-      });
+    return req("GET", "game_users?select=id&limit=1", null, null, 8000).then(function(res){
+      if(res.error) return {ok:false, msg:res.error.message};
+      return {ok:true, ms:(Date.now()-t0)};
     });
   }
 
@@ -854,6 +618,129 @@ var Cloud = (function(){
       case "local":   return {icon:"💾", text:"仅本机", color:"#8a8170"};
       default:        return {icon:"📴", text:"未启用云端", color:"#8a8170"};
     }
+  }
+
+  /* ============================================================
+     赛季榜（game_season_stats / game_season_archive）
+     ------------------------------------------------------------
+     赛季序号由客户端按「本档开局日」锚点推算后上报，
+     云端只负责存成绩、排名与归档。
+     未部署赛季表 / 无云端时一律静默降级，绝不影响主流程。
+     ============================================================ */
+  function _isNotDeployed(err){
+    /* 逐个字段都要看：Supabase 有时只回 code（PGRST202）不带 message，
+       有时只回一句 "could not find the function"，只看 message 会漏判。 */
+    var e = err || {};
+    var t = [e.message, e.code, e.hint, e.details, e.status].join(" ");
+    if(!t.trim() && err) t = String(err);
+    return /PGRST202|could not find the function|does not exist|42P01|42883|\b404\b|rpc unavailable/i.test(t);
+  }
+  function _seasonErr(res){
+    return {ok:false, notDeployed:_isNotDeployed(res && res.error),
+            msg:(res && res.error && (res.error.message || res.error.hint)) || "赛季榜不可用"};
+  }
+
+  /* 上报本赛季峰值（只增不减，服务端用 greatest 兜底） */
+  function seasonSubmit(seasonKey, uid, stat){
+    if(!isReady()) return Promise.resolve({ok:false, offline:true});
+    var key = String(seasonKey || "S1");
+    var u = String(uid || (state && state.uid) || "");
+    if(!u) return Promise.resolve({ok:false, msg:"尚未登录"});
+    var body = {
+      season_key:  key,
+      user_id:     u,
+      peak_merit:  Math.max(0, parseInt((stat && stat.peak_merit), 10) || 0),
+      peak_tier:   Math.max(0, parseInt((stat && stat.peak_tier), 10) || 0),
+      peak_title:  String((stat && stat.peak_title) || ""),
+      final_merit: Math.max(0, parseInt((stat && stat.final_merit), 10) || 0),
+      final_tier:  Math.max(0, parseInt((stat && stat.final_tier), 10) || 0),
+      final_title: String((stat && stat.final_title) || ""),
+      ending:      String((stat && stat.ending) || ""),
+      months:      Math.max(0, parseInt((stat && stat.months), 10) || 0),
+      updated_at:  new Date().toISOString()
+    };
+    return req("POST", "game_season_stats", body,
+      "resolution=merge-duplicates,return=minimal", 10000)
+      .then(function(res){
+        if(res && res.error) return _seasonErr(res);
+        return {ok:true};
+      })
+      .catch(function(e){ return {ok:false, msg:String(e && e.message || e)}; });
+  }
+
+  /* 赛季榜：按赛季 + 维度排名（服务端全量） */
+  function seasonBoard(seasonKey, sort, limit){
+    if(!isReady()) return Promise.resolve({ok:false, offline:true, rows:[]});
+    var lim = Math.max(1, Math.min(300, parseInt(limit, 10) || 100));
+    var srt = String(sort || "merit");
+    var key = seasonKey ? String(seasonKey) : null;
+    return req("POST", "rpc/ql_rank_season",
+      {p_season: key, p_sort: srt, p_limit: lim}, null, 12000)
+      .then(function(res){
+        if(res && res.error) return _seasonErr(res);
+        var rows = (res && res.data) || [];
+        return {ok:true, sort:srt, rows:rows,
+                total:(rows[0] && parseInt(rows[0].total_count, 10)) || rows.length};
+      })
+      .catch(function(e){ return {ok:false, msg:String(e && e.message || e)}; });
+  }
+
+  /* 我的赛季名次 */
+  function seasonBoardMe(seasonKey, uid, sort){
+    if(!isReady()) return Promise.resolve({ok:false, offline:true});
+    var self = String(uid || (state && state.uid) || "").slice(0, 8);
+    if(!self) return Promise.resolve({ok:false, msg:"尚未登录"});
+    var key = seasonKey ? String(seasonKey) : null;
+    return req("POST", "rpc/ql_rank_season_me",
+      {p_self: self, p_season: key, p_sort: String(sort || "merit")}, null, 12000)
+      .then(function(res){
+        if(res && res.error) return _seasonErr(res);
+        var r = (res && res.data && res.data[0]) || null;
+        if(!r) return {ok:true, pos:0, total:0};
+        return {ok:true, pos:parseInt(r.pos, 10) || 0,
+                total:parseInt(r.total_count, 10) || 0,
+                peakMerit:parseInt(r.peak_merit, 10) || 0,
+                peakTier:parseInt(r.peak_tier, 10) || 0};
+      })
+      .catch(function(e){ return {ok:false, msg:String(e && e.message || e)}; });
+  }
+
+  /* 归档旧档（换季时） */
+  function seasonArchive(seasonKey, uid, save, summary){
+    if(!isReady()) return Promise.resolve({ok:false, offline:true});
+    var key = String(seasonKey || "S1");
+    var u = String(uid || (state && state.uid) || "");
+    if(!u) return Promise.resolve({ok:false, msg:"尚未登录"});
+    var data = {};
+    try{ data = JSON.parse(JSON.stringify(save || {})); }catch(e){ data = {}; }
+    return req("POST", "game_season_archive", {
+      season_key: key, user_id: u, data: data,
+      summary: summary || {}, archived_at: new Date().toISOString()
+    }, "resolution=merge-duplicates,return=minimal", 15000)
+      .then(function(res){
+        if(res && res.error) return _seasonErr(res);
+        return {ok:true};
+      })
+      .catch(function(e){ return {ok:false, msg:String(e && e.message || e)}; });
+  }
+
+  /* 读取往季档案（本季 key 即上季归档记录） */
+  function seasonArchiveGet(seasonKey, uid){
+    if(!isReady()) return Promise.resolve({ok:false, offline:true});
+    var key = String(seasonKey || "S1");
+    var u = String(uid || (state && state.uid) || "");
+    if(!u) return Promise.resolve({ok:false, msg:"尚未登录"});
+    return req("GET", "game_season_archive?select=summary,archived_at"
+      + "&season_key=eq." + encodeURIComponent(key)
+      + "&user_id=eq." + encodeURIComponent(u) + "&limit=1", null, null, 12000)
+      .then(function(res){
+        if(res && res.error) return _seasonErr(res);
+        var rows = (res && res.data) || [];
+        if(!rows.length) return {ok:true, empty:true};
+        return {ok:true, summary:rows[0].summary || {},
+                archivedAt:rows[0].archived_at || ""};
+      })
+      .catch(function(e){ return {ok:false, msg:String(e && e.message || e)}; });
   }
 
   return {
@@ -871,33 +758,20 @@ var Cloud = (function(){
     pullSave: pullSave,
     pushSave: pushSave,
     retryPending: retryPending,
-    /* 玩家口令哈希：必须与游戏本体一致，否则后台"重置口令"
-       会把玩家锁在门外（详见 sha256Hex 处的说明）。 */
-    userPwdHash: userPwdHash,
-    buildSummary: buildSummary,
+    leaderboard: leaderboard,
+    leaderboardMe: leaderboardMe,
+    seasonSubmit: seasonSubmit,
+    seasonBoard: seasonBoard,
+    seasonBoardMe: seasonBoardMe,
+    seasonArchive: seasonArchive,
+    seasonArchiveGet: seasonArchiveGet,
     adminList: adminList,
     adminSaves: adminSaves,
-    adminReadSave: adminReadSave,
-    adminWriteSave: adminWriteSave,
-    adminBuildSummary: adminBuildSummary,
     adminSetStatus: adminSetStatus,
     adminResetPwd: adminResetPwd,
     adminDeleteUser: adminDeleteUser,
     adminLog: adminLog,
     adminLogs: adminLogs,
-    /* 赛季模式 */
-    /* 当前登录用户的 uuid。赛季上报/归档需要它；
-       未登录时返回 null，调用端据此静默降级。 */
-    userId: function(){ return state.uid || null; },
-    seasonKeyOf: seasonKeyOf,
-    seasonRangeOf: seasonRangeOf,
-    currentSeason: currentSeason,
-    seasonList: seasonList,
-    seasonSubmit: seasonSubmit,
-    seasonArchive: seasonArchive,
-    seasonArchiveGet: seasonArchiveGet,
-    seasonBoard: seasonBoard,
-    seasonBoardMe: seasonBoardMe,
     ping: ping,
     statusText: statusText,
     hasPending: hasPending,

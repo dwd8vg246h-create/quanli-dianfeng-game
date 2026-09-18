@@ -224,10 +224,15 @@ var Cloud = (function(){
       req("GET", "game_users?select=login_count&id=eq."+eqv(userId), null, null, 8000)
         .then(function(r){
           if(r.error || !r.data || !r.data.length) return;
-          req("PATCH", "game_users?id=eq."+eqv(userId), {
-            login_count: (r.data[0].login_count||0) + 1,
-            last_login_at: new Date().toISOString()
-          }, null, 8000);
+          /* 优先走安全函数 ql_touch_login（库内自增，无读-改-写覆盖问题） */
+          _qlFn("ql_touch_login", {p_user_id:String(userId)}).then(function(rr){
+            if(rr.error || (rr.data && rr.data.ok === false)) throw new Error("fn");
+          }).catch(function(){
+            return req("PATCH", "game_users?id=eq."+eqv(userId), {
+              login_count: (r.data[0].login_count||0) + 1,
+              last_login_at: new Date().toISOString()
+            }, null, 8000);
+          });
         });
     }catch(e){}
   }
@@ -260,19 +265,28 @@ var Cloud = (function(){
     var now = Date.now();
     if(!force && (now - _hbLast) < _HB_MIN_GAP) return Promise.resolve({ok:true, skipped:true});
     _hbLast = now;
-    return req("PATCH", "game_users?id=eq."+eqv(uid), {
-      last_active_at: new Date().toISOString()
-    }, null, 8000).then(function(res){
-      if(res.error){
-        // 42703 = 列不存在；PGRST204 = PostgREST 未缓存到该列
-        if(res.error.code === "42703" || res.error.code === "PGRST204"){
-          _hbMissing = true;
-          return {ok:false, missing:true};
-        }
-        return {ok:false, msg:res.error.message};
+    /* 优先走安全函数 ql_ping_active */
+    return _qlFn("ql_ping_active", {p_user_id:String(uid)}, 8000).then(function(rr){
+      if(!rr.error && (!rr.data || rr.data.ok !== false)){
+        if(state.mode !== "online" && !state.pending) setState("online");
+        return {ok:true};
       }
-      if(state.mode !== "online" && !state.pending) setState("online");
-      return {ok:true};
+      if(rr.error && !rr.error.missing) return {ok:false, msg:rr.error.message};
+      /* 函数未部署 → 退回 PATCH */
+      return req("PATCH", "game_users?id=eq."+eqv(uid), {
+        last_active_at: new Date().toISOString()
+      }, null, 8000).then(function(res){
+        if(res.error){
+          // 42703 = 列不存在；PGRST204 = PostgREST 未缓存到该列
+          if(res.error.code === "42703" || res.error.code === "PGRST204"){
+            _hbMissing = true;
+            return {ok:false, missing:true};
+          }
+          return {ok:false, msg:res.error.message};
+        }
+        if(state.mode !== "online" && !state.pending) setState("online");
+        return {ok:true};
+      });
     });
   }
 
@@ -833,9 +847,51 @@ var Cloud = (function(){
       });
   }
 
-  /* 权限提示：写入 0 行时给出可执行的排查方向 */
+  /* 权限提示：写入 0 行时给出可执行的排查方向
+     ⚠️ 2026-09-18 修正：不再建议 grant update on game_users to anon;
+        那条语句把整张用户表的写权限交给任何拿到 key 的人，
+        一条请求即可冻结全服账号或批量改写密码。
+        正确做法是执行 安全加固_收回用户表写权限.sql，改用安全函数。 */
   function _writeHint(){
-    return "请在 Supabase → SQL Editor 执行：grant update on game_users to anon;";
+    return "请在 Supabase → SQL Editor 执行 安全加固_收回用户表写权限.sql（勿再开放整表 UPDATE）";
+  }
+
+  /* ------------------------------------------------------------
+     安全函数通道
+     ------------------------------------------------------------
+     执行加固 SQL 后，anon 对 game_users 的 UPDATE 被收回，
+     原先直连 PATCH 会全部被拒（表现为 403 / 0 行受影响）。
+     这里改为优先调用 SECURITY DEFINER 函数；函数未部署时自动退回 PATCH，
+     两种配置下都能工作。
+     函数每次只作用于传入的那一个 id，无法批量改写整表。 */
+  var _secFnAvail = {};
+
+  function _qlFn(name, args, ms){
+    if(_secFnAvail[name] === false)
+      return Promise.resolve({error:{message:"安全函数未部署", missing:true}});
+    return req("POST", "rpc/"+name, args, null, ms || 10000)
+      .then(function(res){
+        if(res.error){
+          var st = res.error.status || 0;
+          var msg = String(res.error.message || "");
+          /* 404 / PGRST202（函数不存在）= 未部署，记住后走 PATCH 兜底 */
+          if(st === 404 || st === 0 || /PGRST202|does not exist|Could not find/i.test(msg)){
+            _secFnAvail[name] = false;
+            return {error:{message:"安全函数未部署", missing:true}};
+          }
+        }
+        return res;
+      });
+  }
+
+  /* 服务端管理密钥：设置过 ql_admin_secret 后，管理类操作必须带上它 */
+  var ADMIN_TOKEN_KEY = "qlp_admin_token";
+  function _adminToken(){
+    try{ return localStorage.getItem(ADMIN_TOKEN_KEY) || null; }catch(e){ return null; }
+  }
+  function _setAdminToken(v){
+    try{ if(v) localStorage.setItem(ADMIN_TOKEN_KEY, v);
+         else localStorage.removeItem(ADMIN_TOKEN_KEY); }catch(e){}
   }
 
   function adminSetStatus(userId, status){
@@ -846,6 +902,28 @@ var Cloud = (function(){
        此前只看 res.error，于是"点了冻结/恢复提示成功、列表照旧"，
        管理员无从判断到底改没改成。现先取 representation 看影响行数，
        再读回确认状态确实已变。 */
+    /* 优先走安全函数 ql_admin_set_status（带服务端管理密钥校验） */
+    return _qlFn("ql_admin_set_status",
+        {p_user_id:String(userId), p_status:String(status), p_admin_token:_adminToken()},
+        10000).then(function(rr){
+      if(!rr.error && rr.data){
+        if(rr.data.ok === false)
+          return {ok:false, msg:rr.data.msg||"安全函数返回失败", hint:_writeHint(), noop:true};
+        return _userRow(userId).then(function(v){
+          if(!v.row) return {ok:true, warn:"已提交，读回校验未通过"};
+          if(String(v.row.status) !== String(status))
+            return {ok:false, msg:"写入未生效，状态仍为「"+String(v.row.status||"未知")+"」",
+                    hint:_writeHint(), noop:true};
+          return {ok:true, verified:true, via:"rpc", warn:rr.data.warn||""};
+        });
+      }
+      if(rr.error && !rr.error.missing) return {ok:false, msg:rr.error.message, hint:_writeHint()};
+      /* 函数未部署 → 退回 PATCH */
+      return _patchUserStatus(userId, status);
+    });
+
+    /* 原始 PATCH 路径（安全函数未部署时的兜底） */
+    function _patchUserStatus(userId, status){
     return req("PATCH", "game_users?id=eq."+eqv(userId), {status:status},
         "return=representation", 10000)
       .then(function(res){
@@ -862,14 +940,40 @@ var Cloud = (function(){
           return {ok:true, verified:true};
         });
       });
+    }
   }
 
   function adminResetPwd(userId, pwdHash){
     if(!isReady()) return Promise.resolve({ok:false, offline:true});
+    /* 安全函数要求提供旧哈希；后台重置场景无旧密码，故仍走 PATCH。
+       若已收回 UPDATE，此处会明确报错并指向加固脚本，不再谎报成功。 */
     return req("PATCH", "game_users?id=eq."+eqv(userId), {pwd_hash:pwdHash}, null, 10000)
       .then(function(res){
-        if(res.error) return {ok:false, msg:res.error.message};
+        if(res.error) return {ok:false, msg:res.error.message, hint:_writeHint()};
         return {ok:true};
+      });
+  }
+
+  /* 玩家自助改密：必须提供正确的旧哈希，服务端校验后才允许写入。
+     这堵住了"批量改写 pwd_hash 接管任意账号"这条路。 */
+  function changePwd(userId, oldHash, newHash){
+    if(!isReady()) return Promise.resolve({ok:false, offline:true});
+    return _qlFn("ql_set_pwd_hash",
+      {p_user_id:String(userId), p_old_hash:oldHash, p_new_hash:newHash}, 10000)
+      .then(function(rr){
+        if(rr.error){
+          if(rr.error.missing)   /* 函数未部署 → 退回本地校验后 PATCH */
+            return req("PATCH", "game_users?id=eq."+eqv(userId),
+                       {pwd_hash:newHash}, null, 10000)
+              .then(function(res){
+                return res.error ? {ok:false, msg:res.error.message, hint:_writeHint()}
+                                 : {ok:true, via:"table"};
+              });
+          return {ok:false, msg:rr.error.message, hint:_writeHint()};
+        }
+        var r = rr.data || {};
+        return r.ok ? {ok:true, via:"rpc"}
+                    : {ok:false, msg:r.msg || "改密未生效", hint:_writeHint()};
       });
   }
 
@@ -888,6 +992,43 @@ var Cloud = (function(){
      这里改为「置状态注销 + 清空云端存档」，只用到 UPDATE/INSERT，
      这两项在加固脚本里是明确保留的。摘要清空后该账号即退出排行榜。 */
   function adminSoftDelete(userId, why){
+    var blankSummary = {姓名:"", 职务:"", 层次:"", 位阶:-1,
+      年龄:0, 年份:"", 政绩:0, 道德:0, 结局:"",
+      上榜:false, 净资产:0, 廉政:0, 管理端修订: Date.now()};
+    /* 优先走安全函数（与 adminSetStatus 同一入口，统一受管理密钥保护） */
+    return _qlFn("ql_admin_set_status",
+        {p_user_id:String(userId), p_status:"注销", p_admin_token:_adminToken()},
+        10000).then(function(rr){
+      if(!rr.error && rr.data){
+        if(rr.data.ok === false)
+          return {ok:false, msg:rr.data.msg||"安全函数返回失败", hint:_writeHint(), noop:true};
+        if(rr.data.status !== "注销")
+          return {ok:false, msg:"状态写入未生效，仍为「"+String(rr.data.status||"未知")+"」",
+                  hint:_writeHint(), noop:true};
+        return _clearSaveThen(userId, why, rr.data.warn||"");
+      }
+      if(rr.error && !rr.error.missing) return {ok:false, msg:rr.error.message, hint:_writeHint()};
+      return _patchSoftDelete(userId, why);
+    });
+  }
+
+  /* 清档并返回（安全函数路径与 PATCH 路径共用） */
+  function _clearSaveThen(userId, why, warn){
+    var blankSummary = {姓名:"", 职务:"", 层次:"", 位阶:-1,
+      年龄:0, 年份:"", 政绩:0, 道德:0, 结局:"",
+      上榜:false, 净资产:0, 廉政:0, 管理端修订: Date.now()};
+    return req("POST", "game_saves",
+      {user_id:userId, data:{_deleted:true}, summary:blankSummary,
+       saved_at:new Date().toISOString(), version:1},
+      "return=representation,resolution=merge-duplicates", 15000)
+      .then(function(r2){
+        return {ok:true, mode:"soft", cleared:!r2.error, verified:true,
+                via:"rpc", note: why ? ("真删不可用："+why) : "", warn:warn||""};
+      });
+  }
+
+  /* 原始 PATCH 路径（安全函数未部署时的兜底） */
+  function _patchSoftDelete(userId, why){
     var blankSummary = {姓名:"", 职务:"", 层次:"", 位阶:-1,
       年龄:0, 年份:"", 政绩:0, 道德:0, 结局:"",
       上榜:false, 净资产:0, 廉政:0, 管理端修订: Date.now()};
@@ -1156,6 +1297,9 @@ var Cloud = (function(){
     adminVerifySave: adminVerifySave,
     adminSetStatus: adminSetStatus,
     adminResetPwd: adminResetPwd,
+    changePwd: changePwd,
+    setAdminToken: _setAdminToken,
+    getAdminToken: _adminToken,
     adminDeleteUser: adminDeleteUser,
     adminSoftDelete: adminSoftDelete,
     adminReconAll: adminReconAll,

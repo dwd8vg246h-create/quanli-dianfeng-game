@@ -271,7 +271,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
      是自己填错还是服务不通。 -->
 <script>
 /* 后台版本：由 build.js 同步 */
-var ADMIN_VERSION = "20260918.1429";
+var ADMIN_VERSION = "20260918.1508";
 var CLOUD_CONFIG = {
   enabled: true,
   url: "https://zgkovjgkkvxoajcqxwfw.supabase.co",
@@ -437,11 +437,72 @@ function probeFuncs(){
       if(!r.write) miss.push("ql_admin_write_save");
       el.innerHTML = "⚠️ <b>后台改档函数未部署，修改无法写入云端</b><br>" +
         "缺少：" + miss.join("、") +
-        "<br>请在 Supabase → SQL Editor 执行「<b>后台改档_一键安装.sql</b>」后刷新本页。" +
+        "<br>需在 Supabase → SQL Editor 执行「<b>后台改档_一键安装.sql</b>」：" +
+        "<br>① SQL Editor → New query" +
+        "<br>② 粘贴脚本<b>全文</b>（不是网址）→ Run → 见 Success" +
+        "<br>③ 回本页刷新" +
+        "<div style='margin-top:8px;display:flex;gap:8px;flex-wrap:wrap'>" +
+        "<button id='btnCopySql' style='flex:1;min-width:150px;padding:9px;border:0;border-radius:7px;" +
+        "background:#e8434f;color:#fff;font-weight:700;font-size:13px'>📋 复制改档脚本全文</button>" +
+        "<button id='btnCopySql2' style='flex:1;min-width:150px;padding:9px;border:1px solid #e8434f;" +
+        "border-radius:7px;background:transparent;color:#ffd9d9;font-size:13px'>📋 复制赛季脚本全文</button>" +
+        "</div>" +
         (r.uncertain ? "<br><span style='opacity:.8;font-size:12px'>（未能读取 API 定义，结论由试调用推断，可能不准）</span>" : "");
       el.style.display = "";
+      bindSqlCopy();
     });
   }catch(e){}
+}
+/* 复制 SQL 全文：管理员在手机上拿不到脚本正文，
+   把网址粘进 SQL Editor 会报 syntax error at or near "https"。
+   这里直接把全文送进剪贴板，粘贴即可执行。 */
+function copyText(t){
+  try{
+    if(navigator.clipboard && navigator.clipboard.writeText)
+      return navigator.clipboard.writeText(t);
+  }catch(e){}
+  return new Promise(function(res, rej){
+    try{
+      var ta = document.createElement("textarea");
+      ta.value = t;
+      ta.style.cssText = "position:fixed;top:0;left:0;opacity:0";
+      document.body.appendChild(ta); ta.focus(); ta.select();
+      var r = document.execCommand("copy");
+      document.body.removeChild(ta);
+      r ? res() : rej(new Error("execCommand 失败"));
+    }catch(e){ rej(e); }
+  });
+}
+function sqlOf(id){
+  var el = document.getElementById(id);
+  return el ? el.textContent : "";
+}
+function bindSqlCopy(){
+  var b1 = document.getElementById("btnCopySql");
+  var b2 = document.getElementById("btnCopySql2");
+  function bind(btn, id, name){
+    if(!btn) return;
+    btn.onclick = function(){
+      var t = sqlOf(id);
+      if(!t){ alert("脚本内容缺失，请刷新本页重试。"); return; }
+      copyText(t).then(function(){
+        btn.textContent = "✓ 已复制 " + t.length + " 字符";
+        alert("已复制《"+name+"》全文 "+t.length+" 字符。\n\n"+
+              "去 Supabase → SQL Editor → 新建查询 → 长按粘贴 → Run。\n"+
+              "注意要粘脚本正文，不是网址。");
+      }).catch(function(){
+        /* 剪贴板不可用时给出可手动全选的兜底 */
+        var ta = document.createElement("textarea");
+        ta.value = t;
+        ta.style.cssText = "position:fixed;inset:10px;z-index:999999;height:70vh;font-size:11px";
+        document.body.appendChild(ta);
+        try{ ta.focus(); ta.select(); }catch(e){}
+        alert("浏览器未授权剪贴板，已打开文本框，请长按全选复制。");
+      });
+    };
+  }
+  bind(b1, "sqlAdmin", "后台改档_一键安装.sql");
+  bind(b2, "sqlSeason", "赛季模式_一键安装.sql");
 }
 
 /* ---------- 口令 ---------- */
@@ -712,6 +773,17 @@ function reconFixSave(userId, sm, d, cb){
   var sum = reconExpect(sm, d) || sm;
   Cloud.adminWriteSave(userId, d, {summary: sum, prevSummary: sm}).then(cb);
 }
+/* 写入失败的原因归类：直连被拒（写权限）与函数未部署，
+   两者的处置方式都是执行同一份脚本，但报给管理员的文字应分开，
+   否则"没权限"被说成"没部署"，照着做也解决不了。 */
+function reconFailHint(txt){
+  txt = String(txt || "");
+  if(/permission denied|42501|row-level|violates|policy/i.test(txt))
+    return "\n\n数据库未授予写权限：请在 Supabase 执行「后台改档_一键安装.sql」。";
+  if(/PGRST202|function.*not exist|Could not find the public function/i.test(txt))
+    return "\n\n改档函数未部署：请在 Supabase 执行「后台改档_一键安装.sql」。";
+  return "";
+}
 
 function openRecon(u){
   var box = document.createElement("div");
@@ -778,10 +850,26 @@ function openRecon(u){
       fb.onclick = function(){
         fb.disabled = true; fb.textContent = "重算中…";
         reconFixSave(u.id, sm, d, function(res){
-          Cloud.adminLog("重算摘要", u.emp_id, res.ok ? "成功" : ("失败："+(res.msg||"")));
-          alert(res.ok ? "已按存档本体重算摘要，名录与排行榜刷新后即一致。"
-                       : ("重算失败："+(res.msg||"")));
-          close(); loadAll();
+          if(!res.ok){
+            Cloud.adminLog("重算摘要", u.emp_id, "失败："+(res.msg||""));
+            alert("重算失败："+(res.msg||"")+reconFailHint(res.msg));
+            close(); loadAll();
+            return;
+          }
+          /* 写后读回校验：返回成功 ≠ 真正落库。
+             「对账完还是不一致」多源于此——界面显示成功，
+             云端仍是旧值，重扫自然照旧报错。
+             只有读回来比对一次，才能把"没写进去"和"写了又不一致"分开。 */
+          Cloud.adminReadSave(u.id).then(function(v){
+            var left = (v.ok && !v.empty)
+              ? reconDiffN(reconRows(v.summary || {}, v.data || {}).rows) : -1;
+            Cloud.adminLog("重算摘要", u.emp_id, left === 0 ? "成功" : ("失败：读回仍差 "+left+" 处"));
+            alert(left === 0
+              ? "已按存档本体重算摘要，名录与排行榜刷新后即一致。"
+              : ("写入返回成功，但读回仍差 "+left+" 处——数据库并未真正写入。"+
+                 "\n\n请在 Supabase 执行「后台改档_一键安装.sql」后再试。"));
+            close(); loadAll();
+          });
         });
       };
     }
@@ -908,6 +996,16 @@ function openReconAll(){
         if(!confirm("将按存档本体重算 "+bad.length+" 份摘要，使名录与排行榜对齐。继续？")) return;
         fa.disabled = true;
         var i = 0, ok = 0, fail = 0, fails = [];
+        /* 首份即失败时立刻中止：
+           几百份档案逐一重试同一个注定失败的请求毫无意义，
+           还会让管理员以为"修了但没生效"——
+           实际上第一份就没写进去。 */
+        var abort = function(why){
+          fa.textContent = "已中止"; fa.style.background = "#7a2a30";
+          alert("修正无法生效，已中止。\n\n"+why+
+                "\n\n已成功 "+ok+" 份，未处理 "+(bad.length - i)+" 份。");
+          close(); loadAll();
+        };
         var step = function(){
           if(i >= bad.length){
             Cloud.adminLog("一键修正", "全库", "成功 "+ok+" 份，失败 "+fail+" 份");
@@ -936,10 +1034,34 @@ function openReconAll(){
           Cloud.adminReadSave(it.userId).then(function(rr){
             if(!rr.ok || rr.empty){ fail++; step(); return; }
             reconFixSave(it.userId, rr.summary || {}, rr.data || {}, function(res){
-              if(res.ok) ok++;
-              else { fail++; if(fails.length < 5) fails.push((u.emp_id||it.userId)+"："+(res.msg||"未知原因")); }
-              Cloud.adminLog("重算摘要", u.emp_id || "", res.ok ? "成功" : ("失败："+(res.msg||"")));
-              step();
+              var tag = (u.emp_id || it.userId);
+              if(!res.ok){
+                fail++; if(fails.length < 5) fails.push(tag+"："+(res.msg||"未知原因"));
+                Cloud.adminLog("重算摘要", u.emp_id || "", "失败："+(res.msg||""));
+                abort("首次修正即失败，已中止剩余 "+(bad.length - i)+" 份。\n\n"+fails[0]+
+                      reconFailHint(fails.join(" ")));
+                return;
+              }
+              /* 写后读回校验：成功回调只代表请求没被拒，
+                 不代表值真的落库。逐份读回比对，才能把
+                 「没写进去」与「写了仍不一致」区分开。 */
+              Cloud.adminReadSave(it.userId).then(function(v){
+                var left = (v.ok && !v.empty)
+                  ? reconDiffN(reconRows(v.summary || {}, v.data || {}).rows) : -1;
+                if(left === 0){
+                  ok++;
+                  Cloud.adminLog("重算摘要", u.emp_id || "", "成功");
+                  step();
+                  return;
+                }
+                fail++;
+                var why = (left < 0) ? "写后读回失败"
+                        : ("写入返回成功但读回仍差 "+left+" 处（数据库未真正写入）");
+                if(fails.length < 5) fails.push(tag+"："+why);
+                Cloud.adminLog("重算摘要", u.emp_id || "", "失败："+why);
+                abort(why+"，已中止剩余 "+(bad.length - i)+" 份。\n\n"+fails[0]+
+                      reconFailHint(fails.join(" ")));
+              });
             });
           });
         };
@@ -1301,6 +1423,408 @@ $("btnRecon").onclick = openReconAll;
     if(raw){ var c = JSON.parse(raw); $("url").value = c.url||""; $("key").value = c.key||""; }
   }catch(e){}
 })();
+</script>
+<script type="text/plain" id="sqlAdmin">
+-- ============================================================
+-- 后台改档 · 一键安装
+-- ------------------------------------------------------------
+-- 用途：让管理后台在"直连数据表被访问策略拒绝"时仍能读写玩家存档。
+--
+-- 适用现象（满足其一即需执行）：
+--   · 后台点「保存修改」提示含 permission / policy / 403 字样
+--   · 提示"已保存"，但读回校验报数值不一致，或玩家端始终看不到
+--   · 后台打开编辑面板提示"读取失败"
+--
+-- 原理：这两个函数是 SECURITY DEFINER，以定义者权限执行，
+--       不受 Data API 访问策略与 RLS 限制；内部仍只读写 game_saves
+--       的 data / summary 两列，不额外开放任何其它能力。
+--
+-- 重复执行无副作用（create or replace）。
+-- ============================================================
+
+-- 读：取整份存档
+create or replace function ql_admin_read_save(p_user_id text)
+returns table(data jsonb, summary jsonb, saved_at timestamptz)
+language sql
+security definer
+set search_path = public
+as $$
+  select s.data, s.summary, s.saved_at
+    from game_saves s
+   where s.user_id::text = p_user_id
+   limit 1;
+$$;
+
+-- 写：整份回写，并写入管理端修订号
+create or replace function ql_admin_write_save(
+  p_user_id text,
+  p_data    jsonb,
+  p_summary jsonb,
+  p_rev     bigint
+) returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_summary jsonb;
+  v_version int;
+  v_typ     text;
+begin
+  v_summary := coalesce(p_summary, '{}'::jsonb);
+  if p_rev is not null then
+    v_summary := jsonb_set(v_summary, '{管理端修订}', to_jsonb(p_rev), true);
+  end if;
+  v_version := coalesce(nullif(p_data->>'version','')::int, 1);
+
+  /* user_id 在不同项目里可能是 uuid 也可能是 text，
+     硬写 ::uuid 会在 text 项目上直接报错，故按实际列类型拼 SQL。 */
+  select format_type(a.atttypid, a.atttypmod)
+    into v_typ
+    from pg_attribute a
+   where a.attrelid = 'game_saves'::regclass
+     and a.attname  = 'user_id'
+     and a.attnum   > 0;
+  v_typ := coalesce(v_typ, 'text');
+
+  execute format(
+    'insert into game_saves(user_id, data, summary, saved_at, version)
+     values (%L::%s, %L::jsonb, %L::jsonb, now(), %s)
+     on conflict (user_id) do update
+       set data = excluded.data,
+           summary = excluded.summary,
+           saved_at = excluded.saved_at,
+           version = excluded.version',
+    p_user_id, v_typ,
+    coalesce(p_data, '{}'::jsonb)::text,
+    v_summary::text,
+    v_version
+  );
+
+  return v_summary;
+end;
+$$;
+
+-- 允许匿名（publishable key）调用；函数内部已限定只动 game_saves
+do $$
+begin
+  execute 'grant execute on function ql_admin_read_save(text) to anon';
+  execute 'grant execute on function ql_admin_write_save(text,jsonb,jsonb,bigint) to anon';
+exception when others then
+  raise notice 'grant 失败（可忽略，若角色不存在）：%', sqlerrm;
+end $$;
+
+-- ============================================================
+-- 注销账号（真删）
+-- ------------------------------------------------------------
+-- 现象：后台点「注销」提示失败（permission denied / 403）。
+--
+-- 根因：安全加固脚本出于安全考虑收回了 anon 的 DELETE——
+--       不收回的话，任何人拿到 URL + key 就能一条请求清空全部档案。
+--       于是 Cloud.adminDeleteUser 的 DELETE 请求必然被拒。
+--
+-- 原理：本函数 SECURITY DEFINER，以定义者权限执行，不受该限制；
+--       内部先删 game_saves 再删 game_users，顺序不可颠倒
+--       （有外键时先删子表；即便有 on delete cascade，显式删也更稳）。
+--
+-- 未执行也不影响注销：后台会自动降级为「置状态注销 + 清空云端存档」，
+-- 只用到 UPDATE/INSERT，同样能立即生效并退出排行榜。
+-- 区别在于本函数是真删记录，降级方案保留账号行。
+--
+-- 重复执行无副作用（create or replace）。
+-- ============================================================
+create or replace function ql_admin_delete_user(p_user_id text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_typ text;
+  v_s   int;
+  v_u   int;
+begin
+  select format_type(a.atttypid, a.atttypmod)
+    into v_typ
+    from pg_attribute a
+   where a.attrelid = 'game_saves'::regclass
+     and a.attname  = 'user_id'
+     and a.attnum   > 0;
+  v_typ := coalesce(v_typ, 'text');
+
+  execute format('delete from game_saves where user_id::text = %L', p_user_id);
+  get diagnostics v_s = row_count;
+
+  execute format('delete from game_users where id::text = %L', p_user_id);
+  get diagnostics v_u = row_count;
+
+  return jsonb_build_object('deleted_users', v_u, 'deleted_saves', v_s);
+end;
+$$;
+
+do $$
+begin
+  execute 'grant execute on function ql_admin_delete_user(text) to anon';
+exception when others then
+  raise notice 'grant 失败（可忽略，若角色不存在）：%', sqlerrm;
+end $$;
+
+</script>
+<script type="text/plain" id="sqlSeason">
+-- ============================================================
+-- 赛季模式 · 一键安装
+-- ============================================================
+-- 规则（由后台设定，此处为默认）：
+--   · 赛季以【本存档开局日】为锚点，第一季恒为 S1，此后每 2 个月递进一季：
+--       开局日 → S1，满 2 个月 → S2，满 4 个月 → S3 …
+--       （赛季序号由客户端按锚点推算后上报，本表只负责存榜单与归档）
+--   · 赛季切换时，旧存档归档为「往季档案」，可回看但不参与新赛季
+--   · 赛季榜按「赛季内峰值」计名次：
+--       记录本赛季达到过的最高政绩 / 最高位阶，
+--       即便后来被查办降级，峰值仍保留
+--
+-- 隐私约定（与既有榜单一致）：
+--   · 只吐脱敏字段，不返回联系方式 / 密码哈希 / 完整存档
+--   · 尊重退出意愿：summary->>'上榜' = false 的不进入赛季榜
+--
+-- 撤销：
+--   drop table if exists public.game_season_archive;
+--   drop table if exists public.game_season_stats;
+--   drop table if exists public.game_seasons;
+--   drop function if exists public.ql_rank_season(text, text, int);
+--   drop function if exists public.ql_rank_season_me(text, text, text);
+-- ============================================================
+
+-- ---------- 1. 赛季表 ----------
+create table if not exists public.game_seasons (
+  season_key  text primary key,          -- 'S1' / 'S2' …（跨年连续递增）
+  seq         int  not null,             -- 第几季（1 起）
+  started_at  timestamptz not null,
+  ends_at     timestamptz not null,
+  status      text not null default 'active',   -- active / closed
+  note        text default ''
+);
+
+-- ---------- 2. 赛季成绩（峰值 + 终值）----------
+create table if not exists public.game_season_stats (
+  season_key  text not null,
+  user_id     uuid not null,
+  peak_merit  int  not null default 0,   -- 赛季内最高政绩
+  peak_tier   int  not null default 0,   -- 赛季内最高位阶
+  peak_title  text not null default '',  -- 峰值时的职务名
+  final_merit int  not null default 0,   -- 赛季末快照
+  final_tier  int  not null default 0,
+  final_title text not null default '',
+  ending      text not null default '',  -- 赛季内最终结局
+  months      int  not null default 0,   -- 赛季内经历月数
+  updated_at  timestamptz not null default now(),
+  primary key (season_key, user_id)
+);
+create index if not exists idx_season_stats on public.game_season_stats(season_key);
+
+-- ---------- 3. 往季档案（赛季切换时归档的整份存档，供回看）----------
+create table if not exists public.game_season_archive (
+  season_key  text not null,
+  user_id     uuid not null,
+  data        jsonb not null,
+  summary     jsonb not null default '{}'::jsonb,
+  archived_at timestamptz not null default now(),
+  primary key (season_key, user_id)
+);
+create index if not exists idx_season_archive on public.game_season_archive(season_key);
+
+-- ---------- 4. 权限 ----------
+-- 与既有榜单一致：赛季信息本就是公开的，
+-- 但函数体只吐脱敏字段，即便被直接调用也拿不到联系方式。
+do $$
+begin
+  execute 'revoke all on public.game_seasons from anon, authenticated';
+  execute 'grant select on public.game_seasons to anon';
+  execute 'revoke all on public.game_season_stats from anon, authenticated';
+  execute 'grant select, insert, update on public.game_season_stats to anon';
+  execute 'revoke all on public.game_season_archive from anon, authenticated';
+  execute 'grant select, insert on public.game_season_archive to anon';
+exception when others then
+  raise notice '授权跳过：%', SQLERRM;
+end $$;
+
+alter table public.game_seasons       enable row level security;
+alter table public.game_season_stats  enable row level security;
+alter table public.game_season_archive enable row level security;
+
+drop policy if exists "seasons_read" on public.game_seasons;
+create policy "seasons_read" on public.game_seasons
+  for select to anon, authenticated using (true);
+
+drop policy if exists "season_stats_all" on public.game_season_stats;
+create policy "season_stats_all" on public.game_season_stats
+  for all to anon, authenticated using (true) with check (true);
+
+drop policy if exists "season_arch_all" on public.game_season_archive;
+create policy "season_arch_all" on public.game_season_archive
+  for all to anon, authenticated using (true) with check (true);
+
+-- ---------- 5. 赛季榜：按指定赛季 + 维度排名 ----------
+create or replace function public.ql_rank_season(
+  p_season text default null,
+  p_sort   text default 'merit',
+  p_limit  int  default 100
+)
+returns table(
+  pos          bigint,
+  emp_id       text,
+  name_masked  text,
+  title        text,
+  level        text,
+  tier         int,
+  merit        int,
+  peak_merit   int,
+  peak_tier    int,
+  months       int,
+  ending       text,
+  updated_at   timestamptz,
+  total_count  bigint
+)
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  with cur as (
+    select coalesce(p_season, (select season_key from public.game_seasons
+                               order by seq desc limit 1)) as k
+  ),
+  base as (
+    select st.*, s.summary
+    from public.game_season_stats st
+    join cur on st.season_key = cur.k
+    left join public.game_saves s on s.user_id = st.user_id
+    where coalesce((s.summary ->> '上榜')::boolean, true) is true
+  ),
+  ranked as (
+    select
+      b.*,
+      row_number() over (
+        order by
+          case when p_sort = 'merit'
+               then b.peak_merit end desc nulls last,
+          case when p_sort = 'tier'
+               then b.peak_tier end desc nulls last,
+          case when p_sort = 'months'
+               then b.months end desc nulls last,
+          case when p_sort = 'final'
+               then b.final_merit end desc nulls last,
+          /* 兜底：峰值位阶 → 峰值政绩 */
+          b.peak_tier desc,
+          b.peak_merit desc
+      )                       as pos,
+      count(*) over ()        as total_count
+    from base b
+  )
+  select
+    r.pos,
+    left(r.user_id::text, 8),
+    case
+      when coalesce(r.summary ->> '姓名', '') = '' then '匿名干部'
+      else left(r.summary ->> '姓名', 1)
+           || repeat('*', greatest(1, least(3, length(r.summary ->> '姓名') - 1)))
+    end,
+    coalesce(r.peak_title, ''),
+    coalesce(r.summary ->> '层次', ''),
+    r.peak_tier,
+    r.peak_merit,
+    r.peak_merit,
+    r.peak_tier,
+    r.months,
+    coalesce(r.ending, ''),
+    r.updated_at,
+    r.total_count
+  from ranked r
+  order by r.pos
+  limit least(greatest(coalesce(p_limit, 100), 1), 300);
+$$;
+
+-- 只回答"我本赛季排第几"
+create or replace function public.ql_rank_season_me(
+  p_self   text default null,
+  p_season text default null,
+  p_sort   text default 'merit'
+)
+returns table(
+  pos         bigint,
+  total_count bigint,
+  peak_merit  int,
+  peak_tier   int
+)
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  with cur as (
+    select coalesce(p_season, (select season_key from public.game_seasons
+                               order by seq desc limit 1)) as k
+  ),
+  base as (
+    select st.*
+    from public.game_season_stats st
+    join cur on st.season_key = cur.k
+  ),
+  ranked as (
+    select
+      b.user_id,
+      b.peak_merit,
+      b.peak_tier,
+      row_number() over (
+        order by
+          case when p_sort = 'merit' then b.peak_merit end desc nulls last,
+          case when p_sort = 'tier'  then b.peak_tier  end desc nulls last,
+          case when p_sort = 'months' then b.months    end desc nulls last,
+          case when p_sort = 'final' then b.final_merit end desc nulls last,
+          b.peak_tier desc,
+          b.peak_merit desc
+      ) as pos
+    from base b
+  )
+  select
+    r.pos,
+    (select count(*) from base),
+    r.peak_merit,
+    r.peak_tier
+  from ranked r
+  where left(r.user_id::text, 8) = nullif(coalesce(p_self, ''), '')
+  limit 1;
+$$;
+
+do $$
+begin
+  execute 'grant execute on function public.ql_rank_season(text, text, int) to anon';
+  execute 'grant execute on function public.ql_rank_season(text, text, int) to authenticated';
+  execute 'grant execute on function public.ql_rank_season_me(text, text, text) to anon';
+  execute 'grant execute on function public.ql_rank_season_me(text, text, text) to authenticated';
+exception when others then
+  raise notice '授权跳过：%', SQLERRM;
+end $$;
+
+-- ---------- 6. 预置赛季（当前季 + 上一季，便于立即验证）----------
+-- 赛季号：S1 起自 2026-09-18，每 2 个月递增 1
+insert into public.game_seasons(season_key, seq, started_at, ends_at, status, note)
+values
+  -- 注：赛季序号由客户端按「本档开局日」锚点推算，此处日期仅为占位，
+  --     不参与名次判定；每个玩家的第一季都是 S1。
+  ('S1', 1, '2026-09-18 00:00:00+08', '2026-11-17 23:59:59+08', 'active', '双月赛季（首季）'),
+  ('S2', 2, '2026-11-18 00:00:00+08', '2027-01-17 23:59:59+08', 'active', '双月赛季'),
+  ('S3', 3, '2027-01-18 00:00:00+08', '2027-03-17 23:59:59+08', 'active', '双月赛季'),
+  ('S4', 4, '2027-03-18 00:00:00+08', '2027-05-17 23:59:59+08', 'active', '双月赛季'),
+  ('S5', 5, '2027-05-18 00:00:00+08', '2027-07-17 23:59:59+08', 'active', '双月赛季'),
+  ('S6', 6, '2027-07-18 00:00:00+08', '2027-09-17 23:59:59+08', 'active', '双月赛季')
+on conflict (season_key) do nothing;
+
+-- 校验：
+--   select * from public.game_seasons order by seq;
+--   select * from public.ql_rank_season('S1','merit',20);
+--   select * from public.ql_rank_season_me('工号前8位','S1','merit');
+
 </script>
 </body>
 </html>

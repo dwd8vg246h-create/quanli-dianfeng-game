@@ -225,6 +225,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
           <option value="">全部状态</option><option>正常</option><option>冻结</option><option>注销</option>
         </select>
         <button id="btnRefresh">刷新</button>
+        <button id="btnRecon">🔍 一键对账</button>
       </div>
       <div id="list"><div class="mini">加载中…</div></div>
     </div>
@@ -270,7 +271,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
      是自己填错还是服务不通。 -->
 <script>
 /* 后台版本：由 build.js 同步 */
-var ADMIN_VERSION = "20260918.1304";
+var ADMIN_VERSION = "20260918.1331";
 var CLOUD_CONFIG = {
   enabled: true,
   url: "https://zgkovjgkkvxoajcqxwfw.supabase.co",
@@ -568,7 +569,7 @@ function render(){
       '<div class="btnrow">'+
         '<button class="sm" data-act="编辑" data-id="'+u.id+'">📝 修改数据</button>'+
         '<button class="sm" data-act="对账" data-id="'+u.id+'">🔍 对账</button>'+
-        (u.status==="冻结"
+        (u.status==="冻结" || u.status==="注销"
           ? '<button class="sm" data-act="恢复" data-id="'+u.id+'">恢复</button>'
           : '<button class="sm" data-act="冻结" data-id="'+u.id+'">冻结</button>')+
         '<button class="sm" data-act="重置口令" data-id="'+u.id+'">重置口令</button>'+
@@ -586,7 +587,7 @@ function onAct(act, id){
   if(act === "编辑"){ openEdit(u); return; }
   if(act === "对账"){ openRecon(u); return; }
   if(act === "注销"){
-    if(!confirm("确认注销【"+u.emp_id+"】？其云端存档将一并清除，且不可恢复。")) return;
+    if(!confirm("确认注销【"+u.emp_id+"】？\n\n将尝试真删账号并清除云端存档；若无真删权限则降级为「标记注销 + 清空存档」，同样立即生效、并退出排行榜。此操作不可恢复。")) return;
   } else if(act === "冻结" || act === "恢复"){
     if(!confirm("确认"+act+"【"+u.emp_id+"】？")) return;
   } else if(act === "重置口令"){
@@ -603,8 +604,14 @@ function onAct(act, id){
   var fn = (act==="注销") ? Cloud.adminDeleteUser(id)
          : Cloud.adminSetStatus(id, act==="冻结"?"冻结":"正常");
   fn.then(function(r){
-    Cloud.adminLog(act, u.emp_id, r.ok?"成功":("失败："+(r.msg||"")));
-    alert(r.ok ? (act+"成功") : (act+"失败："+(r.msg||"离线")));
+    Cloud.adminLog(act, u.emp_id, r.ok?("成功"+(r.mode?("（"+r.mode+"）"):"")):("失败："+(r.msg||"")));
+    if(r.ok && r.mode === "soft"){
+      alert("已标记为「注销」并清空云端存档"+(r.cleared ? "" : "（存档清空失败，可重试）")+
+            "。\n\n当前数据库未授予真删权限，故账号行保留、状态为注销，不再进入排行榜；"+
+            "执行后台改档脚本中的 ql_admin_delete_user 后可真删。");
+    } else {
+      alert(r.ok ? (act+"成功") : (act+"失败："+(r.msg||"离线")));
+    }
     loadAll();
   });
 }
@@ -621,6 +628,69 @@ function onAct(act, id){
    而不是靠猜。
    ============================================================ */
 function num(v){ return (v===undefined||v===null||v==="") ? "—" : String(v); }
+/* ------------------------------------------------------------
+   比对口径：单人弹窗与批量对账共用同一套行定义与差异计数，
+   避免两处各写一份、口径悄悄走偏。
+   ------------------------------------------------------------ */
+function reconRows(sm, d){
+  sm = sm || {}; d = d || {};
+  var rk = parseInt(d.rank, 10);
+  var tp = (!isNaN(rk) && window.ADMIN_RANKS && window.ADMIN_RANKS[rk])
+         ? window.ADMIN_RANKS[rk] : ["", ""];
+  return {
+    rank: rk, tp: tp,
+    rows: [
+      ["姓名", sm["姓名"], d.name],
+      ["职务", sm["职务"], tp[0] || "（职级 " + num(rk) + " 未匹配）"],
+      ["层次", sm["层次"], tp[1]],
+      ["位阶", sm["位阶"], isNaN(rk) ? "—" : rk],
+      ["年龄", sm["年龄"], d.age],
+      ["年份", sm["年份"], ((d.year||0)+"年"+(d.month||0)+"月")],
+      ["政绩", sm["政绩"], (d.政绩===undefined?"—":Math.round(d.政绩))],
+      ["道德", sm["道德"], (d.道德===undefined?"—":Math.round(d.道德))],
+      ["廉政", sm["廉政"], (d.廉政===undefined?"—":Math.round(d.廉政))],
+      ["上榜", (sm["上榜"]===false?"否":"是"), (d.不上榜===true?"否":"是")]
+    ]
+  };
+}
+function reconDiffN(rows){
+  var n = 0;
+  rows.forEach(function(p){
+    var a = num(p[1]), b = num(p[2]);
+    if(String(a) !== String(b) && !(a === "—" && b === "—")) n++;
+  });
+  return n;
+}
+function reconTableHtml(rows){
+  var diffN = reconDiffN(rows);
+  var html = '<table style="width:100%;border-collapse:collapse;font-size:13px">'+
+    '<tr style="opacity:.6;font-size:11px"><th align="left">字段</th>'+
+    '<th align="left">摘要（榜单来源）</th><th align="left">存档本体</th></tr>';
+  rows.forEach(function(p){
+    var a = num(p[1]), b = num(p[2]);
+    var same = (String(a) === String(b));
+    html += '<tr style="border-top:1px solid rgba(255,255,255,.08)">'+
+      '<td style="padding:6px 4px;opacity:.7">'+esc(p[0])+'</td>'+
+      '<td style="padding:6px 4px;color:'+(same?"#8fd0a0":"#ff8b8b")+'">'+esc(a)+'</td>'+
+      '<td style="padding:6px 4px;color:'+(same?"#c9bfae":"#ff8b8b")+'">'+esc(b)+'</td></tr>';
+  });
+  html += '</table>';
+  return {html: html, diffN: diffN};
+}
+/* 按存档本体重算摘要并回写。
+   注意：回写会整份覆盖 data，故必须传整份存档——
+   批量扫描拿到的只是投影字段，直接回写会把其余字段清空。 */
+function reconFixSave(userId, sm, d, cb){
+  var rr = reconRows(sm, d);
+  var sum = (typeof Cloud.adminBuildSummary === "function")
+    ? Cloud.adminBuildSummary(d, sm) : sm;
+  if(!isNaN(rr.rank) && window.ADMIN_RANKS && window.ADMIN_RANKS[rr.rank]){
+    sum["职务"] = window.ADMIN_RANKS[rr.rank][0];
+    sum["层次"] = window.ADMIN_RANKS[rr.rank][1];
+  }
+  Cloud.adminWriteSave(userId, d, {summary: sum, prevSummary: sm}).then(cb);
+}
+
 function openRecon(u){
   var box = document.createElement("div");
   box.style.cssText = "position:fixed;inset:0;z-index:99998;background:rgba(0,0,0,.6);"+
@@ -656,38 +726,11 @@ function openRecon(u){
       return;
     }
     var sm = r.summary || {}, d = r.data || {};
-    var rk = parseInt(d.rank, 10);
-    var titlePair = (!isNaN(rk) && window.ADMIN_RANKS && window.ADMIN_RANKS[rk])
-                  ? window.ADMIN_RANKS[rk] : ["", ""];
-    var rows = [
-      ["姓名",   sm["姓名"],   d.name],
-      ["职务",   sm["职务"],   titlePair[0] || "（职级 "+num(rk)+" 未匹配）"],
-      ["层次",   sm["层次"],   titlePair[1]],
-      ["位阶",   sm["位阶"],   isNaN(rk) ? "—" : rk],
-      ["年龄",   sm["年龄"],   d.age],
-      ["年份",   sm["年份"],   ((d.year||0)+"年"+(d.month||0)+"月")],
-      ["政绩",   sm["政绩"],   (d.政绩===undefined?"—":Math.round(d.政绩))],
-      ["道德",   sm["道德"],   (d.道德===undefined?"—":Math.round(d.道德))],
-      ["廉政",   sm["廉政"],   (d.廉政===undefined?"—":Math.round(d.廉政))],
-      ["上榜",   (sm["上榜"]===false?"否":"是"), (d.不上榜===true?"否":"是")]
-    ];
-    var diffN = 0;
+    var t = reconTableHtml(reconRows(sm, d).rows);
+    var diffN = t.diffN;
     var html = '<div style="font-size:12px;opacity:.75;line-height:1.8;margin-bottom:10px">'+
       '左：<b>存档摘要 summary</b>（后台名录与游戏排行榜共同读取的来源）<br>'+
-      '右：<b>存档本体 data</b>（玩家实际进度）　·　不一致处标红</div>'+
-      '<table style="width:100%;border-collapse:collapse;font-size:13px">'+
-      '<tr style="opacity:.6;font-size:11px"><th align="left">字段</th>'+
-      '<th align="left">摘要（榜单来源）</th><th align="left">存档本体</th></tr>';
-    rows.forEach(function(p){
-      var a = num(p[1]), b = num(p[2]);
-      var same = (String(a) === String(b));
-      if(!same && !(a === "—" && b === "—")) diffN++;
-      html += '<tr style="border-top:1px solid rgba(255,255,255,.08)">'+
-        '<td style="padding:6px 4px;opacity:.7">'+esc(p[0])+'</td>'+
-        '<td style="padding:6px 4px;color:'+(same?"#8fd0a0":"#ff8b8b")+'">'+esc(a)+'</td>'+
-        '<td style="padding:6px 4px;color:'+(same?"#c9bfae":"#ff8b8b")+'">'+esc(b)+'</td></tr>';
-    });
-    html += '</table>';
+      '右：<b>存档本体 data</b>（玩家实际进度）　·　不一致处标红</div>'+ t.html;
     html += '<div style="margin-top:12px;padding:10px;border-radius:8px;font-size:12px;line-height:1.9;'+
       'background:'+(diffN? "rgba(232,67,79,.12)":"rgba(111,192,138,.12)")+
       ';border:1px solid '+(diffN? "rgba(232,67,79,.35)":"rgba(111,192,138,.3)")+'">'+
@@ -711,18 +754,141 @@ function openRecon(u){
     if(fb && typeof Cloud.adminWriteSave === "function"){
       fb.onclick = function(){
         fb.disabled = true; fb.textContent = "重算中…";
-        var sum = (typeof Cloud.adminBuildSummary === "function")
-          ? Cloud.adminBuildSummary(d, sm) : sm;
-        if(!isNaN(rk) && window.ADMIN_RANKS && window.ADMIN_RANKS[rk]){
-          sum["职务"] = window.ADMIN_RANKS[rk][0];
-          sum["层次"] = window.ADMIN_RANKS[rk][1];
-        }
-        Cloud.adminWriteSave(u.id, d, {summary:sum, prevSummary:sm}).then(function(res){
+        reconFixSave(u.id, sm, d, function(res){
           Cloud.adminLog("重算摘要", u.emp_id, res.ok ? "成功" : ("失败："+(res.msg||"")));
           alert(res.ok ? "已按存档本体重算摘要，名录与排行榜刷新后即一致。"
                        : ("重算失败："+(res.msg||"")));
           close(); loadAll();
         });
+      };
+    }
+  });
+}
+
+/* ============================================================
+   一键对账：全库扫描「摘要 vs 本体」
+   ------------------------------------------------------------
+   单人弹窗只能一个个点，几百份档案根本查不过来——
+   真正要回答的是"到底哪些人的摘要滞后了"，这需要全库比对。
+
+   扫描只取比对所需的少量字段（jsonb 投影），不拉整份存档；
+   修正时才逐个取整份回写，因为回写会整份覆盖 data。
+   ============================================================ */
+function openReconAll(){
+  var users = (window.__users || []).slice();
+  var box = document.createElement("div");
+  box.style.cssText = "position:fixed;inset:0;z-index:99998;background:rgba(0,0,0,.6);"+
+    "display:flex;align-items:flex-end;justify-content:center";
+  box.innerHTML = '<div style="background:#141110;color:#e8e2d8;width:100%;max-width:560px;'+
+    'max-height:88vh;overflow:auto;border-radius:14px 14px 0 0;padding:14px 14px 20px">'+
+    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">'+
+      '<b style="font-size:15px">🔍 一键对账 · 全库</b>'+
+      '<span style="flex:1"></span>'+
+      '<button id="rcaClose" style="background:transparent;border:0;color:#c9bfae;font-size:20px">✕</button>'+
+    '</div>'+
+    '<div id="rcaBody"><div style="opacity:.7;font-size:13px">扫描中…</div></div></div>';
+  document.body.appendChild(box);
+  var close = function(){ if(box.parentNode) box.parentNode.removeChild(box); };
+  box.querySelector("#rcaClose").onclick = close;
+  box.onclick = function(e){ if(e.target === box) close(); };
+  var body = box.querySelector("#rcaBody");
+
+  if(typeof Cloud.adminReconAll !== "function"){
+    body.innerHTML = '<div style="color:#e8838a;font-size:13px;line-height:1.8">'+
+      '当前 cloud.js 过旧，不含 adminReconAll。<br>请刷新页面重新拉取。</div>';
+    return;
+  }
+  if(!users.length){
+    body.innerHTML = '<div style="opacity:.75;font-size:13px">名录为空，请先刷新。</div>';
+    return;
+  }
+
+  var byId = {};
+  users.forEach(function(u){ byId[u.id] = u; });
+
+  Cloud.adminReconAll(users.map(function(u){ return u.id; }), function(done, total){
+    body.innerHTML = '<div style="font-size:13px;opacity:.8">扫描中… '+done+
+      (total ? (" / "+total) : "")+'</div>';
+  }).then(function(r){
+    if(!r.ok){
+      body.innerHTML = '<div style="color:#e8838a;font-size:13px;line-height:1.8">'+
+        '扫描失败：'+esc(r.msg||"离线")+'</div>';
+      return;
+    }
+    var bad = [];
+    r.rows.forEach(function(row){
+      var n = reconDiffN(reconRows(row.summary, row.data).rows);
+      if(n) bad.push({userId: row.userId, n: n, sm: row.summary || {}, partial: !!row.partial});
+    });
+    var html = '<div style="font-size:12px;opacity:.75;line-height:1.8;margin-bottom:10px">'+
+      '已扫描 <b>'+r.rows.length+'</b> 份存档，其中 <b style="color:'+
+      (bad.length?"#ff8b8b":"#8fd0a0")+'">'+bad.length+'</b> 份摘要与本体不一致。'+
+      (r.via === "full" ? '<br><span style="opacity:.7">（逐份读取模式，耗时略长）</span>' : '')+
+      '</div>';
+    if(!bad.length){
+      html += '<div style="padding:10px;border-radius:8px;font-size:12px;line-height:1.9;'+
+        'background:rgba(111,192,138,.12);border:1px solid rgba(111,192,138,.3)">'+
+        '全部一致。若排行榜仍显示别的值，那是玩家端尚未同步——让其退出后重新登录即可。</div>';
+      body.innerHTML = html;
+      return;
+    }
+    html += '<button id="rcaFixAll" style="width:100%;padding:11px;border:0;border-radius:8px;'+
+      'background:#e8434f;color:#fff;font-weight:700;font-size:14px;margin-bottom:10px">'+
+      '一键修正全部 '+bad.length+' 份</button>';
+    html += bad.map(function(it, i){
+      var u = byId[it.userId] || {};
+      return '<div style="border-top:1px solid rgba(255,255,255,.08);padding:9px 0">'+
+        '<div style="font-size:13px"><b>'+esc(u.emp_id||"（未知工号）")+'</b> '+
+        '<span style="opacity:.7">'+esc(u.name||"")+'</span></div>'+
+        '<div style="font-size:12px;opacity:.75;margin:3px 0 7px">'+
+          '摘要：'+esc((it.sm["职务"]||"—")+" · 政绩 "+num(it.sm["政绩"]))+
+          '　·　<span style="color:#ff8b8b">'+it.n+' 处不一致</span></div>'+
+        '<button class="sm" data-fix="'+i+'" style="min-height:36px">修正这一份</button>'+
+      '</div>';
+    }).join("");
+    body.innerHTML = html;
+
+    Array.prototype.forEach.call(body.querySelectorAll("button[data-fix]"), function(b){
+      b.onclick = function(){
+        var it = bad[parseInt(b.getAttribute("data-fix"), 10)];
+        var u = byId[it.userId] || {};
+        b.disabled = true; b.textContent = "修正中…";
+        /* 投影数据不能直接回写，先取整份 */
+        Cloud.adminReadSave(it.userId).then(function(rr){
+          if(!rr.ok || rr.empty){ b.textContent = "读取失败"; return; }
+          reconFixSave(it.userId, rr.summary || {}, rr.data || {}, function(res){
+            Cloud.adminLog("重算摘要", u.emp_id || "", res.ok ? "成功" : ("失败："+(res.msg||"")));
+            b.textContent = res.ok ? "已修正" : "失败";
+            if(res.ok) b.style.color = "#8fd0a0";
+          });
+        });
+      };
+    });
+
+    var fa = body.querySelector("#rcaFixAll");
+    if(fa){
+      fa.onclick = function(){
+        if(!confirm("将按存档本体重算 "+bad.length+" 份摘要，使名录与排行榜对齐。继续？")) return;
+        fa.disabled = true;
+        var i = 0, ok = 0, fail = 0;
+        var step = function(){
+          if(i >= bad.length){
+            Cloud.adminLog("一键修正", "全库", "成功 "+ok+" 份，失败 "+fail+" 份");
+            alert("修正完成：成功 "+ok+" 份，失败 "+fail+" 份。");
+            close(); loadAll(); return;
+          }
+          var it = bad[i++], u = byId[it.userId] || {};
+          fa.textContent = "修正中… " + i + " / " + bad.length;
+          Cloud.adminReadSave(it.userId).then(function(rr){
+            if(!rr.ok || rr.empty){ fail++; step(); return; }
+            reconFixSave(it.userId, rr.summary || {}, rr.data || {}, function(res){
+              if(res.ok) ok++; else fail++;
+              Cloud.adminLog("重算摘要", u.emp_id || "", res.ok ? "成功" : ("失败："+(res.msg||"")));
+              step();
+            });
+          });
+        };
+        step();
       };
     }
   });
@@ -1072,6 +1238,7 @@ setInterval(function(){
 }, 60000);
 $("fStatus").onchange = render;
 $("btnRefresh").onclick = loadAll;
+$("btnRecon").onclick = openReconAll;
 
 (function(){
   try{
